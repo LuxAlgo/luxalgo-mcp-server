@@ -1,0 +1,18 @@
+LuxAlgo MCP Server
+Copyright (c) 2026 LuxAlgo
+
+This repository's source code is licensed under the MIT License (see
+LICENSE). The MIT license applies to the code only — it does not grant any
+rights to LuxAlgo's APIs or the content they serve.
+
+Use of the LuxAlgo API through this server is subject to LuxAlgo's terms
+of service.
+
+Content served from the LuxAlgo Library (concept pages, indicator
+write-ups, and related material) is licensed under the LuxAlgo Library
+License v1.0 — free for humans and machines with attribution:
+https://www.luxalgo.com/library/license/
+
+Pine Script sources served by this server retain their own licenses as
+embedded in each script's header (LuxAlgo-published scripts are CC BY-NC-SA
+4.0). Those notices are preserved in the served text and continue to apply.
