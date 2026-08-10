@@ -4,8 +4,7 @@
   scale horizontally and restart freely. No secrets, no sessions.
 
   Deploy notes: any Node 20+ host works (`node dist/http.js`, PORT env).
-  On Vercel, wrap the same registerLibraryTools() with their MCP adapter
-  instead of this file.
+  On Vercel, deploy api/server.ts (mcp-handler) instead of this file.
 */
 import { createServer } from "node:http";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

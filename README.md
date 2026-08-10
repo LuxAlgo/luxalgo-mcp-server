@@ -64,10 +64,26 @@ npm install
 npm run build
 npm start            # stdio
 npm run start:http   # streamable HTTP on :3333/mcp
+npm test             # smoke suite over stdio (hits live endpoints)
 ```
 
 Environment (optional): `LUXALGO_APP_ORIGIN`, `LUXALGO_SITE_ORIGIN` to point
 at non-production environments.
+
+## Deployment
+
+Two hosted options, same tools either way:
+
+- **Any Node 20+ host** (container, VPS, Railway, Fly, …): run
+  `node dist/http.js` (`PORT` env, defaults to 3333). Stateless — scales
+  horizontally.
+- **Vercel**: `api/server.ts` wraps the same tools with
+  [`mcp-handler`](https://github.com/vercel/mcp-handler); `vercel.json`
+  rewrites all paths to it, so clients still connect to `/mcp`. Import the
+  repo in Vercel with framework preset **Other** — no build settings needed.
+  Test the Vercel code path locally with
+  `node scripts/vercel-smoke.mjs` + `node scripts/smoke.mjs --http
+  http://localhost:3334/mcp`.
 
 ## License
 
