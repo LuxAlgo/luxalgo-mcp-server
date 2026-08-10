@@ -234,7 +234,7 @@ export function registerLibraryTools(server: McpServer) {
     {
       title: "Get an indicator's Pine source",
       description:
-        "The full Pine Script source for an indicator, when publicly served (free community scripts). LuxAlgo builds answer with a Use-in-Quant link instead. Separate from library_get_indicator so large sources are fetched only when actually wanted.",
+        "The full Pine Script source for an indicator. Separate from library_get_indicator so large sources are fetched only when actually wanted.",
       inputSchema: {
         slug: z.string().min(1).describe("Indicator slug"),
       },
