@@ -18,6 +18,7 @@ import {
   fetchMarkdown,
   getConcepts,
   getIndicatorBySlug,
+  getPineScriptCode,
   indicatorUrl,
   quantUrl,
   queryIndicators,
@@ -203,7 +204,9 @@ export function registerLibraryTools(server: McpServer) {
       const result = await getIndicatorBySlug(slug);
       if (!result) return toolError(`Unknown indicator slug '${slug}'.`);
       const { indicator, pineScriptCode } = result;
-      const available = pineScriptCode !== null;
+      // Source is reachable either inline (by-slug) or through the keyless
+      // pinescript route by id — library_get_pine_source tries both.
+      const available = pineScriptCode !== null || indicator.pineScriptCodeId !== null;
       return json({
         slug: indicator.slug,
         name: indicator.name,
@@ -216,14 +219,7 @@ export function registerLibraryTools(server: McpServer) {
         ...(indicator.concepts ? { concepts: indicator.concepts } : {}),
         pine: {
           available,
-          ...(!available
-            ? {
-                reason: "runs-in-quant",
-                ...(indicator.pineScriptCodeId
-                  ? { quant_url: quantUrl(indicator.pineScriptCodeId) }
-                  : {}),
-              }
-            : {}),
+          ...(!available ? { reason: "no-source" } : {}),
         },
       });
     },
@@ -243,13 +239,17 @@ export function registerLibraryTools(server: McpServer) {
       const result = await getIndicatorBySlug(slug);
       if (!result) return toolError(`Unknown indicator slug '${slug}'.`);
       const { indicator, pineScriptCode } = result;
-      const available = pineScriptCode !== null;
+      let source = pineScriptCode;
+      if (source === null && indicator.pineScriptCodeId) {
+        source = await getPineScriptCode(indicator.pineScriptCodeId);
+      }
+      const available = source !== null;
       return json({
         slug: indicator.slug,
         name: indicator.name,
         available,
         ...(available
-          ? { source: pineScriptCode }
+          ? { source }
           : {
               reason: "runs-in-quant",
               ...(indicator.pineScriptCodeId

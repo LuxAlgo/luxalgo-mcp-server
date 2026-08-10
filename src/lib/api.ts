@@ -156,6 +156,23 @@ export async function getIndicatorBySlug(
   }
 }
 
+/**
+ * Pine source by id from the keyless pinescript route (the same surface the
+ * "Use in Quant" handoff reads). Fallback for when by-slug withholds the
+ * inline source; null when the id serves nothing.
+ */
+export async function getPineScriptCode(pineScriptCodeId: string): Promise<string | null> {
+  try {
+    const { code } = await appGet<{ code: string }>(
+      `/api/library/pinescript/${encodeURIComponent(pineScriptCodeId)}`,
+    );
+    return code;
+  } catch (error) {
+    if (error instanceof AppApiError && /404|not found/i.test(error.message)) return null;
+    throw error;
+  }
+}
+
 export const conceptUrl = (slug: string) => `${SITE_ORIGIN}/library/concept/${slug}/`;
 export const conceptMdUrl = (slug: string) => `${SITE_ORIGIN}/library/concept/${slug}.md`;
 export const familyUrl = (key: string) => `${SITE_ORIGIN}/library/family/${key}/`;
