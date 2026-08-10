@@ -298,7 +298,7 @@ export function registerLibraryTools(server: McpServer) {
     {
       title: "List Library indicators",
       description:
-        "Filtered, paginated indicator browse with server-side sorting. Use library_search for free-text discovery; use this for structured browsing by family/author.",
+        "Filtered, paginated indicator browse with server-side sorting. Use library_search for free-text discovery; use this for structured browsing by family.",
       inputSchema: {
         family: familyEnum.optional(),
         text: z.string().optional().describe("Server-side text filter"),
