@@ -46,8 +46,8 @@ Cursor (`.cursor/mcp.json`) / Claude Desktop (`claude_desktop_config.json`):
 | --- | --- |
 | `library_search` | One search over concepts (alias-aware) + indicators |
 | `library_get_concept` | Full concept page as markdown |
-| `library_get_indicator` | Indicator detail: body, family, concepts, Pine availability |
-| `library_get_pine_source` | Full Pine source when publicly served (own tool — fetched only on demand) |
+| `library_get_indicator` | Indicator detail: body, family, concepts, source code availability |
+| `library_get_source_code` | Full source code when publicly served (own tool — fetched only on demand) |
 | `library_list_concepts` | Paginated concept roster, optionally per family |
 | `library_list_indicators` | Filtered, paginated browse with server-side sort |
 | `library_list_families` | The taxonomy backbone with counts |

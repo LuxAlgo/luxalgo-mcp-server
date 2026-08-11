@@ -38,7 +38,7 @@ const expected = [
   "library_search",
   "library_get_concept",
   "library_get_indicator",
-  "library_get_pine_source",
+  "library_get_source_code",
   "library_list_concepts",
   "library_list_indicators",
   "library_list_families",
@@ -125,25 +125,27 @@ check(
   `total=${indicators.payload.total}, first=${indicators.payload.indicators?.[0]?.slug}`,
 );
 
-// library_get_indicator + pine source on a real slug
+// library_get_indicator + source code on a real slug
 const indSlug = indicators.payload.indicators[0].slug;
 const indicator = await callJson(client, "library_get_indicator", { slug: indSlug });
 check(
-  `library_get_indicator('${indSlug}') returns detail + pine availability`,
+  `library_get_indicator('${indSlug}') returns detail + code availability`,
   !indicator.isError &&
     typeof indicator.payload.body_markdown === "string" &&
-    typeof indicator.payload.pine?.available === "boolean",
-  `pine.available=${indicator.payload.pine?.available}${indicator.payload.pine?.reason ? `, reason=${indicator.payload.pine.reason}` : ""}`,
+    typeof indicator.payload.code?.available === "boolean",
+  `code.available=${indicator.payload.code?.available}${indicator.payload.code?.reason ? `, reason=${indicator.payload.code.reason}` : ""}`,
 );
 
-const pine = await callJson(client, "library_get_pine_source", { slug: indSlug });
+const source = await callJson(client, "library_get_source_code", { slug: indSlug });
 check(
-  `library_get_pine_source('${indSlug}') matches availability contract`,
-  !pine.isError &&
-    (pine.payload.available
-      ? typeof pine.payload.source === "string" && pine.payload.source.length > 0
-      : pine.payload.reason === "runs-in-quant"),
-  pine.payload.available ? `${pine.payload.source?.length} chars of Pine` : `reason=${pine.payload.reason}, quant_url=${!!pine.payload.quant_url}`,
+  `library_get_source_code('${indSlug}') matches availability contract`,
+  !source.isError &&
+    (source.payload.available
+      ? typeof source.payload.source === "string" && source.payload.source.length > 0
+      : source.payload.reason === "runs-in-quant"),
+  source.payload.available
+    ? `${source.payload.source?.length} chars of source`
+    : `reason=${source.payload.reason}, quant_url=${!!source.payload.quant_url}`,
 );
 
 // library_get_indicator — unknown slug

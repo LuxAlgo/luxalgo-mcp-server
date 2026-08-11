@@ -79,13 +79,20 @@ export function registerLibraryTools(server: McpServer) {
     {
       title: "Search the LuxAlgo Library",
       description:
-        "One search over the whole LuxAlgo Library: trading/TA concepts (alias-aware — e.g. 'stochastics' finds Stochastic Oscillator) and published indicators. Returns ranked matches with canonical URLs.",
+        "Search the LuxAlgo Library — the encyclopedia of trading and technical analysis. One query over 800+ concepts (alias-aware: 'stochastics' finds Stochastic Oscillator) and 800+ ready-to-use indicators. Start here whenever you have a name, informal term, or topic; results carry slugs for the get tools plus canonical URLs for citation.",
       inputSchema: {
-        query: z.string().min(1).describe("Free-text search query"),
+        query: z
+          .string()
+          .min(1)
+          .describe(
+            "A concept, indicator name, alias, or topic — e.g. 'order blocks', 'mean reversion', 'stochastics'",
+          ),
         type: z
           .enum(["all", "concepts", "indicators"])
           .optional()
-          .describe("Restrict to one kind (default all)"),
+          .describe(
+            "Limit to 'concepts' (explanations) or 'indicators' (implementations); default all",
+          ),
         family: familyEnum.optional().describe("Narrow to one concept family"),
         limit: z.number().int().min(1).max(50).optional().describe("Max results (default 10)"),
       },
@@ -161,9 +168,14 @@ export function registerLibraryTools(server: McpServer) {
     {
       title: "Get a Library concept",
       description:
-        "A full concept page as markdown — definition, formula, interpretation, implementations, related concepts. Use library_search first if you only have an informal name.",
+        "Explain a trading concept: the Library's full write-up as markdown — definition, formula, how traders read it, and its indicator implementations. Use for any 'what is X / how does X work' question. Needs the exact slug — find it with library_search or library_list_concepts.",
       inputSchema: {
-        slug: z.string().min(1).describe("Concept slug, e.g. 'rsi' or 'order-blocks'"),
+        slug: z
+          .string()
+          .min(1)
+          .describe(
+            "Exact concept slug, e.g. 'rsi' or 'order-blocks' — from search or list results",
+          ),
       },
     },
     async ({ slug }) => {
@@ -195,7 +207,7 @@ export function registerLibraryTools(server: McpServer) {
     {
       title: "Get a Library indicator",
       description:
-        "One indicator in full: long-form body, family, linked concepts, image. Pine source availability is reported here; fetch the source itself with library_get_pine_source.",
+        "Details for one indicator: what it does, how to read it, family, concept links, preview image — plus whether its source code is available (fetch the code itself with library_get_source_code). Use when the user asks about a specific indicator.",
       inputSchema: {
         slug: z.string().min(1).describe("Indicator slug, e.g. 'tri-star'"),
       },
@@ -205,7 +217,7 @@ export function registerLibraryTools(server: McpServer) {
       if (!result) return toolError(`Unknown indicator slug '${slug}'.`);
       const { indicator, pineScriptCode } = result;
       // Source is reachable either inline (by-slug) or through the keyless
-      // pinescript route by id — library_get_pine_source tries both.
+      // pinescript route by id — library_get_source_code tries both.
       const available = pineScriptCode !== null || indicator.pineScriptCodeId !== null;
       return json({
         slug: indicator.slug,
@@ -217,7 +229,7 @@ export function registerLibraryTools(server: McpServer) {
         date_displayed: indicator.creationDateDisplayed,
         url: indicatorUrl(indicator.slug),
         ...(indicator.concepts ? { concepts: indicator.concepts } : {}),
-        pine: {
+        code: {
           available,
           ...(!available ? { reason: "no-source" } : {}),
         },
@@ -226,11 +238,11 @@ export function registerLibraryTools(server: McpServer) {
   );
 
   server.registerTool(
-    "library_get_pine_source",
+    "library_get_source_code",
     {
-      title: "Get an indicator's Pine source",
+      title: "Get an indicator's source code",
       description:
-        "The full Pine Script source for an indicator. Separate from library_get_indicator so large sources are fetched only when actually wanted.",
+        "The full, working source code of a Library indicator (works on TradingView). Kept separate from library_get_indicator because sources are long — call it only when the user wants the code itself.",
       inputSchema: {
         slug: z.string().min(1).describe("Indicator slug"),
       },
@@ -265,7 +277,7 @@ export function registerLibraryTools(server: McpServer) {
     {
       title: "List Library concepts",
       description:
-        "The Financial Genome's concept roster — paginated, optionally per family. The discovery companion to library_get_concept.",
+        "Browse every trading and technical-analysis concept in the Library — paginated, optionally one family. Use to enumerate a topic area or find slugs for library_get_concept; for keyword lookup prefer library_search.",
       inputSchema: {
         family: familyEnum.optional(),
         page: z.number().int().min(0).optional().describe("Default 0"),
@@ -298,7 +310,7 @@ export function registerLibraryTools(server: McpServer) {
     {
       title: "List Library indicators",
       description:
-        "Filtered, paginated indicator browse with server-side sorting. Use library_search for free-text discovery; use this for structured browsing by family.",
+        "Browse the indicator catalog with filters and server-side sorting (newest first by default). Use for structured browsing — 'latest indicators', 'everything in the volatility family'; for keyword discovery prefer library_search.",
       inputSchema: {
         family: familyEnum.optional(),
         text: z.string().optional().describe("Server-side text filter"),
@@ -341,7 +353,7 @@ export function registerLibraryTools(server: McpServer) {
     {
       title: "List concept families",
       description:
-        "The Financial Genome's family backbone — the Library's top-level taxonomy, with concept counts. The natural starting point for browsing.",
+        "The Library's top-level taxonomy: 17 families of trading concepts (trend, momentum, SMC/ICT, statistics, …) with concept counts and hub links. The natural first call for orientation.",
       inputSchema: {},
     },
     async () => {
@@ -365,7 +377,7 @@ export function registerLibraryTools(server: McpServer) {
     {
       title: "Get a family hub",
       description:
-        "A concept family's hub page as markdown — the written overview plus its full concept roster.",
+        "A family's hub page as markdown — the written overview of that school of analysis plus its complete concept roster. Use after library_list_families, or when the user asks about a whole area like 'SMC' or 'Wyckoff'.",
       inputSchema: {
         key: familyEnum.describe("Family key, e.g. 'smc-ict'"),
       },
