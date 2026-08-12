@@ -1,8 +1,13 @@
 {
   "name": "@luxalgo/mcp",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "LuxAlgo Library MCP server — the encyclopedia of trading & technical analysis, for AI agents. Free and keyless.",
+  "mcpName": "io.github.LuxAlgo/luxalgo-mcp-server",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LuxAlgo/luxalgo-mcp-server.git"
+  },
   "type": "module",
   "bin": {
     "luxalgo-mcp": "dist/index.js"
@@ -11,6 +16,21 @@
   "files": [
     "dist"
   ],
+  "keywords": [
+    "mcp",
+    "agents",
+    "technical analysis",
+    "technical indicators",
+    "charting",
+    "finance",
+    "trading",
+    "research",
+    "knowledge-base",
+    "open-data",
+    "claude",
+    "ai"
+  ],
+  "author": "LuxAlgo",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
