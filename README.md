@@ -15,13 +15,14 @@
   <a href="https://github.com/LuxAlgo/luxalgo-mcp-server"><b>GitHub</b></a>
 </p>
 
-The LuxAlgo ecosystem as an MCP server. Free, keyless, read-only.
+The LuxAlgo ecosystem as an MCP server. Free and read-only; keyless except for the local broker tools, which use your own keys.
 
 ## What's covered
 
 - **[Library](https://www.luxalgo.com/library/)** — The encyclopedia of trading &amp; technical analysis. Hundreds of concepts with formulas and plain-markdown pages, plus the full indicator catalog with descriptions, families, and Pine Script sources where publicly served.
 - **Prop Firms** — LuxAlgo's prop-firm analysis catalog. Search proprietary trading firms, funded-account challenges with their full rulebooks (account size, fees, steps, profit split, drawdown modes, trading restrictions), and live offers with promo codes and discounts.
 - **Challenge Simulator** — the open-source [prop-firm-sim](https://github.com/LuxAlgo/prop-firm-sim) Monte Carlo engine (via the `@luxalgo/prop-firm-sim` npm packages), running locally in the server: your stats or your real R-multiple trade series through a firm's exact ruleset — pass probability with confidence intervals, expected attempts and cost, EV over the funded horizon, optimal risk sweeps, cross-challenge comparison, and reference-archetype odds. Deterministic under seed; every assumption disclosed.
+- **Brokers (local only)** — read-only access to *your own* brokerage accounts (16 brokers &amp; exchanges via [`@luxalgo/broker-sdk`](https://github.com/LuxAlgo/broker-sdk)): balances, positions, trade history, FIFO performance stats. Your keys live in your own MCP client config as env vars and never leave your machine; the hosted endpoint does not carry these tools, on purpose.
 - **More to come** — new LuxAlgo ecosystem areas will land here as they open up.
 
 ## Installation
@@ -85,16 +86,27 @@ Add the hosted URL to your client's MCP config:
 
 ### Local (stdio)
 
+Runs every hosted tool locally — and unlocks the broker tools. Add read-only credential env vars for the brokers you use (any subset; brokers with all their vars set connect automatically; no env vars means the broker tools simply stay unconfigured):
+
 ```json
 {
   "mcpServers": {
     "luxalgo": {
       "command": "npx",
-      "args": ["-y", "@luxalgo/mcp"]
+      "args": ["-y", "@luxalgo/mcp"],
+      "env": {
+        "BROKERS_ALPACA_API_KEY": "…",
+        "BROKERS_ALPACA_API_SECRET": "…",
+        "BROKERS_KRAKEN_API_KEY": "…",
+        "BROKERS_KRAKEN_API_SECRET": "…",
+        "BROKERS_HYPERLIQUID_WALLET_ADDRESS": "0x…"
+      }
     }
   }
 }
 ```
+
+Env var names derive from each broker's credential fields: `BROKERS_<BROKER>_<FIELD>` (e.g. `BROKERS_OKX_PASSPHRASE`, `BROKERS_IBKR_FLEX_FLEX_TOKEN`). The `broker_setup` tool lists every supported broker, its exact variables, and the one-line guide to creating each key with **read-only scope** — which is all this server ever needs.
 
 ## Available Tools
 
@@ -137,6 +149,19 @@ Library outputs are compact JSON with canonical `url`s for citation. Concept and
 | `propfirms_validate_strategy` | Screen one strategy across every simulatable challenge against an explicit pass bar |
 
 Every simulation result carries its assumptions, unsimulated-rule flags, seed, and engine version — distributions under stated assumptions, never promises. The engine runs locally; firm rules adapt live from the directory (inline specs simulate fully offline).
+
+### Brokers (local stdio only)
+
+| Tool | Description |
+| --- | --- |
+| `broker_setup` | Supported brokers, their env vars (set/unset — never values), read-only key guides |
+| `broker_accounts` | Connected accounts: broker, currency, equity, cash |
+| `broker_positions` | Open positions with market values, asset class, entry price; negative quantity = short |
+| `broker_trades` | Trade history, newest first; filter by broker/symbol |
+| `broker_stats` | Total equity, equity by broker, top positions, FIFO win rate / realized PnL |
+| `broker_refresh` | Bypass the 5-minute cache and re-fetch now |
+
+**Read-only by construction** — the SDK's root export has no trading endpoints, the server never writes secrets anywhere, and per-broker failures are reported alongside results, never silently dropped. Not investment advice; verify important numbers against your broker's own statements.
 
 ## Development
 

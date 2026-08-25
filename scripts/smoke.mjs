@@ -67,12 +67,48 @@ const expected = [
   "propfirms_pass_rates",
   "propfirms_validate_strategy",
 ];
+// Broker tools are local-only: present over stdio, absent on the hosted entries.
+const brokerExpected = [
+  "broker_setup",
+  "broker_accounts",
+  "broker_positions",
+  "broker_trades",
+  "broker_stats",
+  "broker_refresh",
+];
+const expectedAll = httpUrl ? expected : [...expected, ...brokerExpected];
 const names = tools.map((t) => t.name).sort();
 check(
-  `tools/list exposes all ${expected.length} tools`,
-  expected.slice().sort().every((n, i) => names[i] === n),
+  `tools/list exposes exactly the ${expectedAll.length} ${httpUrl ? "hosted" : "stdio"} tools`,
+  names.length === expectedAll.length && expectedAll.slice().sort().every((n, i) => names[i] === n),
   names.join(", "),
 );
+check(
+  httpUrl ? "hosted entry exposes no broker tools" : "stdio entry exposes all 6 broker tools",
+  httpUrl
+    ? names.every((n) => !n.startsWith("broker_"))
+    : brokerExpected.every((n) => names.includes(n)),
+  names.filter((n) => n.startsWith("broker_")).join(", ") || "none",
+);
+
+if (!httpUrl) {
+  // No BROKERS_* env in this run: setup lists everything unconfigured and
+  // the data tools answer cleanly with empty results, never errors.
+  const setup = await callJson(client, "broker_setup", {});
+  check(
+    "broker_setup lists 16+ brokers, none configured, values never shown",
+    !setup.isError &&
+      setup.payload.length >= 16 &&
+      setup.payload.every((b) => b.configured === false && b.readOnlySetup),
+    `${setup.payload.length} brokers`,
+  );
+  const accounts = await callJson(client, "broker_accounts", {});
+  check(
+    "broker_accounts with nothing configured returns empty, not an error",
+    !accounts.isError && accounts.payload.accounts?.length === 0 && accounts.payload.failures?.length === 0,
+    `accounts=${accounts.payload.accounts?.length}, failures=${accounts.payload.failures?.length}`,
+  );
+}
 
 // library_list_families
 const families = await callJson(client, "library_list_families", {});
