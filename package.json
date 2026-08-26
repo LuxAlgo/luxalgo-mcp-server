@@ -1,7 +1,7 @@
 {
   "name": "@luxalgo/mcp",
-  "version": "1.0.0",
-  "description": "LuxAlgo Library MCP server — the encyclopedia of trading & technical analysis, for AI agents. Free and keyless.",
+  "version": "1.1.0",
+  "description": "LuxAlgo MCP server — the entire LuxAlgo ecosystem for AI agents: the Library encyclopedia of trading & technical analysis, plus prop-firm analysis (firms, challenges, live offers), with more areas to come. Free and keyless.",
   "mcpName": "io.github.LuxAlgo/luxalgo-mcp-server",
   "license": "MIT",
   "repository": {
@@ -24,6 +24,10 @@
     "charting",
     "finance",
     "trading",
+    "prop firms",
+    "prop trading",
+    "funded accounts",
+    "trading challenges",
     "research",
     "knowledge-base",
     "open-data",

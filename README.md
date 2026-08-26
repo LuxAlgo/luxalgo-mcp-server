@@ -1,5 +1,5 @@
 <h1 align="center">
-  LuxAlgo Library MCP
+  LuxAlgo MCP
 </h1>
 
 <p align="center">
@@ -15,7 +15,13 @@
   <a href="https://github.com/LuxAlgo/luxalgo-mcp-server"><b>GitHub</b></a>
 </p>
 
-The [LuxAlgo Library](https://www.luxalgo.com/library/) — The encyclopedia of trading &amp; technical analysis — as an MCP server. Hundreds of concepts with formulas and plain-markdown pages, plus the full indicator catalog with descriptions, families, and Pine Script sources where publicly served. Free, keyless, read-only.
+The LuxAlgo ecosystem as an MCP server. Free, keyless, read-only.
+
+## What's covered
+
+- **[Library](https://www.luxalgo.com/library/)** — The encyclopedia of trading &amp; technical analysis. Hundreds of concepts with formulas and plain-markdown pages, plus the full indicator catalog with descriptions, families, and Pine Script sources where publicly served.
+- **Prop Firms** — LuxAlgo's prop-firm analysis catalog. Search proprietary trading firms, funded-account challenges with their full rulebooks (account size, fees, steps, profit split, drawdown modes, trading restrictions), and live offers with promo codes and discounts.
+- **More to come** — new LuxAlgo ecosystem areas will land here as they open up.
 
 ## Installation
 
@@ -91,6 +97,8 @@ Add the hosted URL to your client's MCP config:
 
 ## Available Tools
 
+### Library
+
 | Tool | Description |
 | --- | --- |
 | `library_search` | One search over concepts (alias-aware) + indicators |
@@ -98,11 +106,21 @@ Add the hosted URL to your client's MCP config:
 | `library_get_indicator` | Indicator detail: body, family, concepts, source code availability |
 | `library_get_source_code` | Full source code when publicly served (fetched only on demand) |
 | `library_list_concepts` | Paginated concept roster, optionally per family |
-| `library_list_indicators` | Filtered, paginated browse with server-side sort |
+| `library_list_indicators` | Filtered, paginated browse (family, concept, tags, platform, tier) with server-side sort |
+| `library_list_tags` | The indicator tag vocabulary, for the tags filter |
 | `library_list_families` | The taxonomy backbone with counts |
 | `library_get_family` | A family hub as markdown + concept roster |
 
-All outputs are compact JSON with canonical `url`s for citation. Concept and family pages are also directly fetchable as markdown — append `.md` to any concept URL.
+Library outputs are compact JSON with canonical `url`s for citation. Concept and family pages are also directly fetchable as markdown — append `.md` to any concept URL.
+
+### Prop Firms
+
+| Tool | Description |
+| --- | --- |
+| `propfirms_search` | Search firms — firm filters (platforms, markets, payments, Trustpilot, country availability) composable with nested challenge/offer filters; `include` nests matching children |
+| `propfirms_get` | One firm's full dossier: profile, every challenge, live offers, written overview |
+| `propfirms_search_challenges` | Search challenges by rules (size, fee, steps, profit split, drawdown, trading restrictions) and parent firm; can attach applicable live offers |
+| `propfirms_search_offers` | Search live discounts/promo codes; resolvable per firm or per challenge |
 
 ## Development
 
