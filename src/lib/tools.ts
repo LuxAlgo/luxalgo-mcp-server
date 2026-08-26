@@ -1,6 +1,6 @@
 /*
-  The eight library tools — schemas exactly as specified in the endpoint
-  audit (docs/library-mcp-audit.md in the site repo). All read-only and
+  The library tools — core schemas as specified in the endpoint audit
+  (docs/library-mcp-audit.md in the site repo). All read-only and
   keyless. Tool results are compact JSON in text content; every payload
   carries canonical URLs so agents can cite pages.
 */
@@ -18,6 +18,7 @@ import {
   fetchMarkdown,
   getConcepts,
   getIndicatorBySlug,
+  getLibraryTags,
   getPineScriptCode,
   indicatorUrl,
   quantUrl,
@@ -310,22 +311,42 @@ export function registerLibraryTools(server: McpServer) {
     {
       title: "List Library indicators",
       description:
-        "Browse the indicator catalog with filters and server-side sorting (newest first by default). Use for structured browsing — 'latest indicators', 'everything in the volatility family'; for keyword discovery prefer library_search.",
+        "Browse the indicator catalog with filters and server-side sorting (newest first by default). Filter by family, concept slug (implementations of one concept), tags (ids from library_list_tags, AND-combined), trading platform, or plan tier. Use for structured browsing — 'latest indicators', 'everything in the volatility family', 'indicators implementing liquidity sweeps'; for keyword discovery prefer library_search.",
       inputSchema: {
         family: familyEnum.optional(),
         text: z.string().optional().describe("Server-side text filter"),
+        concept: z
+          .string()
+          .optional()
+          .describe("Concept slug — only indicators linked to this concept, e.g. 'rsi'"),
+        tags: z
+          .array(z.string())
+          .optional()
+          .describe("Tag ids (from library_list_tags); an indicator must carry every tag"),
+        platform: z
+          .string()
+          .optional()
+          .describe("Trading platform the indicator supports, e.g. 'metatrader'"),
+        tier: z
+          .enum(["essential", "premium", "ultimate", "ultra"])
+          .optional()
+          .describe("Only indicators included in this LuxAlgo plan tier"),
         sort: z.enum(["name", "date", "family"]).optional().describe("Default: date"),
         direction: z.enum(["asc", "desc"]).optional(),
         page: z.number().int().min(0).optional().describe("Default 0"),
         page_size: z.number().int().min(1).max(100).optional().describe("Default 24"),
       },
     },
-    async ({ family, text, sort, direction, page, page_size }) => {
+    async ({ family, text, concept, tags, platform, tier, sort, direction, page, page_size }) => {
       const sortKey =
         sort === "date" || sort === undefined ? "creationDateDisplayed" : sort;
       const { indicators, count } = await queryIndicators({
         family,
         text,
+        concept,
+        tags,
+        platform,
+        tier,
         sort: sortKey,
         direction,
         pageIndex: page ?? 0,
@@ -340,10 +361,27 @@ export function registerLibraryTools(server: McpServer) {
           name: row.name,
           family: row.family,
           description: row.description,
+          tags: (row.tags ?? []).map((tag) => tag.name),
           image_url: row.imageUrl,
           date_displayed: row.creationDateDisplayed,
           url: indicatorUrl(row.slug),
         })),
+      });
+    },
+  );
+
+  server.registerTool(
+    "library_list_tags",
+    {
+      title: "List indicator tags",
+      description:
+        "The Library's indicator tag vocabulary (behavioral traits like 'Volatility', 'Trailing-Stop', 'Repainting Functionality'). Returns ids to pass as the tags filter of library_list_indicators — tags are orthogonal to the concept-family taxonomy.",
+      inputSchema: {},
+    },
+    async () => {
+      const tags = await getLibraryTags();
+      return json({
+        tags: tags.map((tag) => ({ id: tag.id, name: tag.name })),
       });
     },
   );
