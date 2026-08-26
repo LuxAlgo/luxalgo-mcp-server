@@ -9,7 +9,7 @@
 import { createServer } from "node:http";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { registerLibraryTools } from "./lib/tools.js";
+import { SERVER_NAME, SERVER_VERSION, registerAllTools } from "./lib/register.js";
 
 const PORT = Number(process.env.PORT ?? 3333);
 
@@ -24,8 +24,8 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
   try {
-    const server = new McpServer({ name: "luxalgo-library", version: "0.1.0" });
-    registerLibraryTools(server);
+    const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+    registerAllTools(server);
     const transport = new StreamableHTTPServerTransport({
       // Stateless mode: no session ids, no server-side state between calls.
       sessionIdGenerator: undefined,
@@ -46,5 +46,5 @@ const httpServer = createServer(async (req, res) => {
 });
 
 httpServer.listen(PORT, () => {
-  console.log(`LuxAlgo Library MCP listening on :${PORT}/mcp`);
+  console.log(`LuxAlgo MCP listening on :${PORT}/mcp`);
 });

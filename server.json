@@ -1,18 +1,18 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.LuxAlgo/luxalgo-mcp-server",
-  "description": "LuxAlgo Library — the encyclopedia of trading & technical analysis for AI agents. Free, keyless.",
+  "description": "The LuxAlgo ecosystem for AI agents: the Library encyclopedia of trading & technical analysis, plus prop-firm analysis (firms, challenges, live offers). Free, keyless.",
   "repository": {
     "url": "https://github.com/LuxAlgo/luxalgo-mcp-server",
     "source": "github"
   },
-  "websiteUrl": "https://www.luxalgo.com/library/",
-  "version": "1.0.0",
+  "websiteUrl": "https://www.luxalgo.com/",
+  "version": "1.1.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@luxalgo/mcp",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "transport": {
         "type": "stdio"
       }
