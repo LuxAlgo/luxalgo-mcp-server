@@ -117,6 +117,21 @@ function rewriteShapeDescriptions(
   );
 }
 
+/** Appended to specific renamed tools so agents route correctly between
+ *  the two propfirms_ groups: the simulator sees only what its engine can
+ *  encode honestly, while the propfirms_search* tools serve the full
+ *  directory (every visible firm, listed prices and terms, live offers). */
+const ROUTING_NOTES: Record<string, string> = {
+  propfirms_list_simulatable:
+    " NOTE: this lists only the firms and challenges whose rules the engine can encode honestly. " +
+    "The full directory — every visible firm with platforms, prices, payout terms, and live " +
+    "offers/promo codes — is served by propfirms_search, propfirms_search_challenges, and " +
+    "propfirms_search_offers.",
+  propfirms_challenge_rules:
+    " NOTE: this returns the simulatable encoding of one challenge's rules; the directory listing " +
+    "with every captured field, plus live offers, is propfirms_get and propfirms_search_challenges.",
+};
+
 /* ------------------------------------------------------------------------ *
  * Shared helpers for the two locally implemented tools
  * ------------------------------------------------------------------------ */
@@ -789,7 +804,7 @@ export function registerSimTools(server: McpServer): void {
       localName,
       {
         title: def.title,
-        description: rewriteToolReferences(def.description),
+        description: rewriteToolReferences(def.description) + (ROUTING_NOTES[localName] ?? ""),
         inputSchema: rewriteShapeDescriptions(def.inputShape),
       },
       async (args: unknown): Promise<CallToolResult> => {
@@ -822,7 +837,9 @@ export function registerSimTools(server: McpServer): void {
         "and cached — cheap to call. These are REFERENCE odds for orientation and comparison, not the " +
         "user's personal odds: for their own statistics use propfirms_simulate (summary stats) " +
         "or propfirms_simulate_trades (their real trade series). Not a ranking; a firm's page is " +
-        "authoritative for current rules (check lastVerified).",
+        "authoritative for current rules (check lastVerified). Expected costs use the directory's " +
+        "listed challenge prices; full firm profiles and live offers are directory data " +
+        "(propfirms_get, propfirms_search_offers).",
       inputSchema: passRatesSchema.shape,
     },
     async (args: unknown): Promise<CallToolResult> => (await handlePassRates(args)) as CallToolResult,
@@ -849,7 +866,10 @@ export function registerSimTools(server: McpServer): void {
         "numbers optimistic, so relay flags. One full simulation runs per challenge (default " +
         "5,000 paths each; results are deterministic per seed), and scopes above 40 challenges are " +
         "refused rather than silently truncated: narrow the scope instead. Numbers move with risk " +
-        "sizing; sweep one challenge with propfirms_optimal_risk afterwards.",
+        "sizing; sweep one challenge with propfirms_optimal_risk afterwards. Fees and expected " +
+        "costs use the directory's listed prices (live discounts are NOT applied); prices, firm " +
+        "profiles, and current offers are directory data (propfirms_search_challenges, " +
+        "propfirms_get, propfirms_search_offers).",
       inputSchema: validateStrategySchema.shape,
     },
     async (args: unknown): Promise<CallToolResult> => (await handleValidateStrategy(args)) as CallToolResult,
