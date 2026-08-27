@@ -1,40 +1,74 @@
+# Quality gates for every PR and for pushes to dev/main: typecheck, build,
+# then the two executable suites — smoke (every tool over stdio, including
+# determinism, archetype, bar-semantics and over-cap checks) and parity
+# (the renamed simulator wrappers against the upstream
+# @luxalgo/prop-firm-sim-mcp handlers, engine-number reproduction, and the
+# stale-tool-name leak scan over descriptions and input schemas).
+# Both suites talk to the public prop-firm directory; no secrets involved.
+# Alongside them: a dependency license gate and a DCO sign-off check.
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
+  push:
+    branches: [dev, main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    name: Build & typecheck
+  test:
+    name: Typecheck, build, smoke, parity
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run build
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Smoke tests (all tools, stdio)
+        run: npm test
+
+      - name: Simulator parity suite
+        run: npm run test:parity
 
   licenses:
     name: Dependency license gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-      - run: npm ci
+
+      - name: Install dependencies
+        run: npm ci
+
       # Fails the build if any dependency (production or dev, lockfile-deep)
       # carries a license outside the allowlist.
-      - run: >
+      - name: Check dependency licenses
+        run: >
           npx --yes license-checker-rseidelsohn
           --onlyAllow "MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;0BSD;ISC;MPL-2.0;CC0-1.0;Unlicense;CC-BY-4.0;BlueOak-1.0.0;Python-2.0"
 
@@ -43,10 +77,14 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Check Signed-off-by on every PR commit
+
+      # Commits already accepted into main or dev (pre-DCO history flowing
+      # through a dev<->main sync) are not re-checked.
+      - name: Check Signed-off-by on every new PR commit
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -58,5 +96,5 @@ jobs:
               echo "::error::Commit $sha is missing a Signed-off-by line (git commit -s)"
               missing=1
             fi
-          done < <(git rev-list --no-merges "$BASE_SHA".."$HEAD_SHA")
+          done < <(git rev-list --no-merges "$BASE_SHA".."$HEAD_SHA" --not origin/main origin/dev)
           exit $missing
