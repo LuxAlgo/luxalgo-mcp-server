@@ -1,6 +1,6 @@
 {
   "name": "@luxalgo/mcp",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "LuxAlgo MCP server — the entire LuxAlgo ecosystem for AI agents: the Library encyclopedia of trading & technical analysis, prop-firm analysis (firms, challenges, live offers), and the open-source prop-firm challenge Monte Carlo simulator, with more areas to come. Free and keyless.",
   "mcpName": "io.github.LuxAlgo/luxalgo-mcp-server",
   "license": "MIT",
@@ -49,8 +49,8 @@
     "test:parity": "node scripts/parity.mjs"
   },
   "dependencies": {
-    "@luxalgo/prop-firm-sim-core": "^1.0.0",
-    "@luxalgo/prop-firm-sim-mcp": "1.0.0",
+    "@luxalgo/prop-firm-sim-core": "1.1.1",
+    "@luxalgo/prop-firm-sim-mcp": "1.1.0",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "zod": "^3.24.0"
   },
