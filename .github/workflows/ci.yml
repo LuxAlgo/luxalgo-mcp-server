@@ -1,0 +1,49 @@
+# Quality gates for every PR and for pushes to dev/main: typecheck, build,
+# then the two executable suites — smoke (every tool over stdio, including
+# determinism, archetype, bar-semantics and over-cap checks) and parity
+# (the renamed simulator wrappers against the upstream
+# @luxalgo/prop-firm-sim-mcp handlers, engine-number reproduction, and the
+# stale-tool-name leak scan over descriptions and input schemas).
+# Both suites talk to the public prop-firm directory; no secrets involved.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Typecheck, build, smoke, parity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Smoke tests (all tools, stdio)
+        run: npm test
+
+      - name: Simulator parity suite
+        run: npm run test:parity
