@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+
+  licenses:
+    name: Dependency license gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Fails the build if any dependency (production or dev, lockfile-deep)
+      # carries a license outside the allowlist.
+      - run: >
+          npx --yes license-checker-rseidelsohn
+          --onlyAllow "MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;0BSD;ISC;MPL-2.0;CC0-1.0;Unlicense;CC-BY-4.0;BlueOak-1.0.0;Python-2.0"
+
+  dco:
+    name: DCO sign-off
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check Signed-off-by on every PR commit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          missing=0
+          while read -r sha; do
+            if ! git log -1 --format=%B "$sha" | grep -qi '^Signed-off-by: .*<.*>'; then
+              echo "::error::Commit $sha is missing a Signed-off-by line (git commit -s)"
+              missing=1
+            fi
+          done < <(git rev-list --no-merges "$BASE_SHA".."$HEAD_SHA")
+          exit $missing
