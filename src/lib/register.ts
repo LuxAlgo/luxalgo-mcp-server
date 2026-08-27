@@ -9,7 +9,7 @@ import { registerPropfirmTools } from "./propfirm-tools.js";
 import { registerSimTools } from "./sim-tools.js";
 
 export const SERVER_NAME = "luxalgo";
-export const SERVER_VERSION = "1.2.0";
+export const SERVER_VERSION = "1.3.0";
 
 export function registerAllTools(server: McpServer) {
   registerLibraryTools(server);
