@@ -57,15 +57,64 @@ const TOOL_RENAMES: Record<string, string> = {
   bootstrap_simulate: "propfirms_simulate_trades",
 };
 
+/** Every upstream name that must not surface here: the six renamed tools,
+ *  plus analyze_portfolio_overlap (not exposed), whose mentions point at
+ *  the result field that carries the same analysis instead. */
+const REFERENCE_REWRITES: Record<string, string> = {
+  ...TOOL_RENAMES,
+  analyze_portfolio_overlap: "the attached structuredContent.portfolioOverlap analysis",
+};
+
 /** Rewrite sibling-tool references inside a description to the local
  *  names, so agents are pointed at tools that actually exist here. */
 function rewriteToolReferences(description: string): string {
   let out = description;
-  const names = Object.keys(TOOL_RENAMES).sort((a, b) => b.length - a.length);
+  const names = Object.keys(REFERENCE_REWRITES).sort((a, b) => b.length - a.length);
   for (const name of names) {
-    out = out.replace(new RegExp(`\\b${name}\\b`, "g"), TOOL_RENAMES[name]!);
+    out = out.replace(new RegExp(`\\b${name}\\b`, "g"), REFERENCE_REWRITES[name]!);
   }
   return out;
+}
+
+/** Rewrite tool references inside a zod schema's field descriptions,
+ *  recursively (wrappers, arrays, nested objects, unions), returning a new
+ *  schema so the upstream definitions stay untouched. Descriptions are the
+ *  only thing changed: agents read them in tools/list, and the upstream
+ *  ones reference tool names that do not exist under those names here. */
+function rewriteSchemaDescriptions<T extends z.ZodTypeAny>(schema: T): T {
+  const def = { ...(schema._def as Record<string, unknown>) };
+  if (typeof def.description === "string") {
+    def.description = rewriteToolReferences(def.description);
+  }
+  if (def.innerType instanceof z.ZodType) {
+    def.innerType = rewriteSchemaDescriptions(def.innerType); // optional/nullable/default
+  }
+  if (def.type instanceof z.ZodType) {
+    def.type = rewriteSchemaDescriptions(def.type); // array element
+  }
+  if (def.schema instanceof z.ZodType) {
+    def.schema = rewriteSchemaDescriptions(def.schema); // effects/refinements
+  }
+  if (Array.isArray(def.options)) {
+    def.options = def.options.map((option: z.ZodTypeAny) => rewriteSchemaDescriptions(option)); // unions
+  }
+  if (typeof def.shape === "function") {
+    const shape = (def.shape as () => Record<string, z.ZodTypeAny>)();
+    const next = Object.fromEntries(
+      Object.entries(shape).map(([key, field]) => [key, rewriteSchemaDescriptions(field)]),
+    );
+    def.shape = () => next;
+  }
+  return new (schema.constructor as new (d: unknown) => T)(def);
+}
+
+/** rewriteSchemaDescriptions over every field of a raw shape. */
+function rewriteShapeDescriptions(
+  shape: Record<string, z.ZodTypeAny>,
+): Record<string, z.ZodTypeAny> {
+  return Object.fromEntries(
+    Object.entries(shape).map(([key, field]) => [key, rewriteSchemaDescriptions(field)]),
+  );
 }
 
 /* ------------------------------------------------------------------------ *
@@ -741,7 +790,7 @@ export function registerSimTools(server: McpServer): void {
       {
         title: def.title,
         description: rewriteToolReferences(def.description),
-        inputSchema: def.inputShape,
+        inputSchema: rewriteShapeDescriptions(def.inputShape),
       },
       async (args: unknown): Promise<CallToolResult> => {
         const result = await def.handler(args);

@@ -104,7 +104,10 @@ const cases = [
   ],
 ];
 
-const bareNames = new RegExp(`\\b(${Object.keys(RENAMES).join("|")})\\b`);
+// Every upstream name, including the unexposed analyze_portfolio_overlap:
+// none of them may reach a client from any surface.
+const UPSTREAM_NAMES = [...Object.keys(RENAMES), "analyze_portfolio_overlap"];
+const bareNames = new RegExp(`\\b(${UPSTREAM_NAMES.join("|")})\\b`);
 
 for (const [upstreamName, args] of cases) {
   const localName = RENAMES[upstreamName];
@@ -171,13 +174,18 @@ check(
   `tool ${row?.passPerAttempt} vs engine ${engineRow.perAttempt.passProbability}`,
 );
 
-// No stale (unrenamed) tool names may leak from any description.
+// No stale (unrenamed) tool names may leak from anything a client sees:
+// tool descriptions AND the serialized input schemas, whose field
+// descriptions ("discover with list_firms", "see analyze_portfolio_overlap")
+// agents read just as much as the top-level description.
 const { tools } = await client.listTools();
-const leaky = tools.filter((t) => bareNames.test(t.description ?? ""));
+const leaky = tools.filter(
+  (t) => bareNames.test(t.description ?? "") || bareNames.test(JSON.stringify(t.inputSchema ?? {})),
+);
 check(
-  "no unrenamed upstream tool names leak from any description",
+  "no upstream tool names leak from any description or input schema",
   leaky.length === 0,
-  leaky.map((t) => t.name).join(", ") || "all descriptions clean",
+  leaky.map((t) => t.name).join(", ") || "all client-visible surfaces clean",
 );
 
 await client.close();
