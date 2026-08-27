@@ -2,6 +2,11 @@
   One registration point for every tool the server exposes, shared by the
   stdio, plain-Node HTTP, and Vercel entries. Each LuxAlgo ecosystem area
   contributes its own register function.
+
+  Deliberately NOT here: the broker tools (registerBrokerTools). They read
+  the user's own broker keys from local env vars, so only the stdio entry
+  (src/index.ts) registers them — a hosted process has no business holding
+  anyone's broker credentials.
 */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerLibraryTools } from "./tools.js";
