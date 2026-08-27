@@ -25,6 +25,16 @@ async function callJson(client, name, args) {
   return { isError: result.isError === true, payload: JSON.parse(text) };
 }
 
+/** For the simulator tools, which return human text + structuredContent. */
+async function callStructured(client, name, args) {
+  const result = await client.callTool({ name, arguments: args });
+  return {
+    isError: result.isError === true,
+    data: result.structuredContent ?? {},
+    text: result.content?.[0]?.text ?? "",
+  };
+}
+
 const client = new Client({ name: "smoke", version: "0.0.0" });
 const transport = httpUrl
   ? new StreamableHTTPClientTransport(new URL(httpUrl))
@@ -48,6 +58,14 @@ const expected = [
   "propfirms_get",
   "propfirms_search_challenges",
   "propfirms_search_offers",
+  "propfirms_list_simulatable",
+  "propfirms_challenge_rules",
+  "propfirms_simulate",
+  "propfirms_optimal_risk",
+  "propfirms_compare",
+  "propfirms_simulate_trades",
+  "propfirms_pass_rates",
+  "propfirms_validate_strategy",
 ];
 const names = tools.map((t) => t.name).sort();
 check(
@@ -301,6 +319,175 @@ check(
     (firstValueless === -1 || discounts.slice(firstValueless).every((d) => d === undefined)) &&
     (firstValueless === -1 || Array.isArray(byDiscount.payload.warnings)),
   `${discounts.filter((d) => d !== undefined).length} with value, ${discounts.filter((d) => d === undefined).length} without`,
+);
+
+/* ------------------------------------------------------------------ *
+ * Simulator tools (prop-firm-sim engine)
+ * ------------------------------------------------------------------ */
+
+// propfirms_list_simulatable — the simulatable universe
+const simFirms = await callStructured(client, "propfirms_list_simulatable", {});
+check(
+  "propfirms_list_simulatable returns simulatable firms",
+  !simFirms.isError &&
+    simFirms.data.firms?.length > 0 &&
+    simFirms.data.firms.every((f) => f.firmId && Array.isArray(f.challenges)),
+  `${simFirms.data.firms?.length} firms, first=${simFirms.data.firms?.[0]?.firmId}`,
+);
+
+const simFirm = simFirms.data.firms.find((f) => f.challenges.length >= 2) ?? simFirms.data.firms[0];
+const simChallenge = simFirm.challenges[0];
+const trader = { winRate: 0.48, avgWinR: 1.6, tradesPerDay: 4, riskValue: 1 };
+
+// propfirms_challenge_rules — the encoded spec
+const rules = await callStructured(client, "propfirms_challenge_rules", {
+  firmId: simFirm.firmId,
+  challengeId: simChallenge.challengeId,
+});
+check(
+  `propfirms_challenge_rules('${simFirm.firmId}/${simChallenge.challengeId}') returns the encoded spec`,
+  !rules.isError &&
+    rules.data.challenge?.challengeId === simChallenge.challengeId &&
+    !!rules.data.challenge?.maxLoss?.mode &&
+    !!rules.data.provenance,
+  `provenance=${rules.data.provenance}, maxLoss.mode=${rules.data.challenge?.maxLoss?.mode}`,
+);
+
+// propfirms_simulate — Monte Carlo with a parametric trader
+const sim = await callStructured(client, "propfirms_simulate", {
+  firmId: simFirm.firmId,
+  challengeId: simChallenge.challengeId,
+  ...trader,
+  paths: 2000,
+});
+const passProb = sim.data.perAttempt?.passProbability;
+check(
+  "propfirms_simulate returns pass probability with CI and EV",
+  !sim.isError &&
+    passProb >= 0 &&
+    passProb <= 1 &&
+    sim.data.perAttempt.passProbabilityCi.low <= passProb &&
+    typeof sim.data.ev?.evTotal === "number" &&
+    sim.data.meta?.seed === 42,
+  `pass/attempt=${(passProb * 100).toFixed(1)}%, EV=${Math.round(sim.data.ev?.evTotal)}`,
+);
+
+// determinism: same seed, same numbers
+const sim2 = await callStructured(client, "propfirms_simulate", {
+  firmId: simFirm.firmId,
+  challengeId: simChallenge.challengeId,
+  ...trader,
+  paths: 2000,
+});
+check(
+  "propfirms_simulate is deterministic under seed",
+  !sim2.isError && sim2.data.perAttempt.passProbability === passProb,
+  `both runs: ${passProb}`,
+);
+
+// propfirms_optimal_risk — pass-optimal vs EV-optimal sweep
+const sweep = await callStructured(client, "propfirms_optimal_risk", {
+  firmId: simFirm.firmId,
+  challengeId: simChallenge.challengeId,
+  winRate: trader.winRate,
+  avgWinR: trader.avgWinR,
+  tradesPerDay: trader.tradesPerDay,
+  min: 0.5,
+  max: 1.5,
+  step: 0.5,
+  paths: 1000,
+});
+check(
+  "propfirms_optimal_risk sweeps the risk grid",
+  !sweep.isError && Object.keys(sweep.data).length > 0 && /risk/i.test(sweep.text),
+  Object.keys(sweep.data).slice(0, 5).join(", "),
+);
+
+// propfirms_compare — same trader across two challenges
+const compareIds = simFirm.challenges.slice(0, 2).map((c) => ({
+  firmId: simFirm.firmId,
+  challengeId: c.challengeId,
+}));
+const compared = await callStructured(client, "propfirms_compare", {
+  challenges: compareIds,
+  ...trader,
+  paths: 1000,
+});
+check(
+  "propfirms_compare simulates all entries",
+  !compared.isError && Object.keys(compared.data).length > 0 && /EV/.test(compared.text),
+  `${compareIds.length} challenges compared`,
+);
+
+// propfirms_simulate_trades — from a real R-multiple series
+const rSeries = Array.from({ length: 60 }, (_, i) => (i % 5 < 2 ? 1.8 : i % 5 === 4 ? 2.2 : -1));
+const boot = await callStructured(client, "propfirms_simulate_trades", {
+  firmId: simFirm.firmId,
+  challengeId: simChallenge.challengeId,
+  rSeries,
+  tradesPerDay: 4,
+  riskValue: 1,
+  paths: 1000,
+});
+check(
+  "propfirms_simulate_trades runs the block bootstrap",
+  !boot.isError &&
+    boot.data.perAttempt?.passProbability >= 0 &&
+    boot.data.perAttempt?.passProbability <= 1,
+  `pass/attempt=${(boot.data.perAttempt?.passProbability * 100).toFixed(1)}%`,
+);
+
+// propfirms_pass_rates — the reference-archetype odds
+const rates = await callStructured(client, "propfirms_pass_rates", {
+  firmId: simFirm.firmId,
+  challengeId: simChallenge.challengeId,
+});
+check(
+  "propfirms_pass_rates returns all three archetypes",
+  !rates.isError &&
+    rates.data.challenges?.length === 1 &&
+    rates.data.challenges[0].byArchetype?.length === 3 &&
+    rates.data.seed === 42 &&
+    rates.data.paths === 10000,
+  rates.data.challenges?.[0]?.byArchetype
+    ?.map((a) => `${a.archetypeId}=${a.passPerAttemptPct.toFixed(1)}%`)
+    .join(", "),
+);
+
+// propfirms_validate_strategy — screen against an explicit bar
+const screened = await callStructured(client, "propfirms_validate_strategy", {
+  winRate: 0.5,
+  avgWinR: 1.6,
+  tradesPerDay: 4,
+  riskValue: 0.5,
+  firm: simFirm.firmId,
+  minPassPerAttempt: 0.6,
+  paths: 500,
+});
+const screenedTotal = (screened.data.passing?.length ?? 0) + (screened.data.belowBar?.length ?? 0);
+check(
+  `propfirms_validate_strategy screens ${simFirm.firmId}'s challenges against the bar`,
+  !screened.isError &&
+    screenedTotal === simFirm.challenges.length &&
+    screened.data.bar?.minPassPerAttempt === 0.6 &&
+    [...(screened.data.passing ?? []), ...(screened.data.belowBar ?? [])].every(
+      (row) => typeof row.passPerAttempt === "number" && row.meetsBar === row.passPerAttempt >= 0.6,
+    ),
+  `${screened.data.passing?.length} pass the bar, ${screened.data.belowBar?.length} below (of ${screenedTotal})`,
+);
+
+// propfirms_validate_strategy — over-cap scope must refuse, not truncate
+const overCap = await callStructured(client, "propfirms_validate_strategy", {
+  winRate: 0.5,
+  avgWinR: 1.6,
+  tradesPerDay: 4,
+  riskValue: 0.5,
+  paths: 100,
+});
+check(
+  "propfirms_validate_strategy refuses over-cap scopes explicitly",
+  overCap.isError && /cap of 40/.test(overCap.text),
+  overCap.text.slice(0, 80),
 );
 
 await client.close();
