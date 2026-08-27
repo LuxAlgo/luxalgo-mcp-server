@@ -20,8 +20,8 @@ The LuxAlgo ecosystem as an MCP server. Free, keyless, read-only.
 ## What's covered
 
 - **[Library](https://www.luxalgo.com/library/)** — The encyclopedia of trading &amp; technical analysis. Hundreds of concepts with formulas and plain-markdown pages, plus the full indicator catalog with descriptions, families, and Pine Script sources where publicly served.
-- **Prop Firms** — LuxAlgo's prop-firm analysis catalog. Search proprietary trading firms, funded-account challenges with their full rulebooks (account size, fees, steps, profit split, drawdown modes, trading restrictions), and live offers with promo codes and discounts.
 - **Challenge Simulator** — the open-source [prop-firm-sim](https://github.com/LuxAlgo/prop-firm-sim) Monte Carlo engine (via the `@luxalgo/prop-firm-sim` npm packages), running locally in the server: your stats or your real R-multiple trade series through a firm's exact ruleset — pass probability with confidence intervals, expected attempts and cost, EV over the funded horizon, optimal risk sweeps, cross-challenge comparison, and reference-archetype odds. Deterministic under seed; every assumption disclosed.
+- **Prop Firm Directory** — the live data the simulator draws from: proprietary trading firms, funded-account challenges with their full rulebooks (account size, fees, steps, profit split, drawdown modes, trading restrictions), and current offers.
 - **More to come** — new LuxAlgo ecosystem areas will land here as they open up.
 
 ## Installation
@@ -116,14 +116,7 @@ Library outputs are compact JSON with canonical `url`s for citation. Concept and
 
 ### Prop Firms
 
-| Tool | Description |
-| --- | --- |
-| `propfirms_search` | Search firms — firm filters (platforms, markets, payments, Trustpilot, country availability) composable with nested challenge/offer filters; `include` nests matching children |
-| `propfirms_get` | One firm's full dossier: profile, every challenge, live offers, written overview |
-| `propfirms_search_challenges` | Search challenges by rules (size, fee, steps, profit split, drawdown, trading restrictions) and parent firm; can attach applicable live offers |
-| `propfirms_search_offers` | Search live discounts/promo codes; resolvable per firm or per challenge |
-
-### Challenge Simulator
+**Challenge simulator** — the open-source [prop-firm-sim](https://github.com/LuxAlgo/prop-firm-sim) Monte Carlo engine, running locally in the server:
 
 | Tool | Description |
 | --- | --- |
@@ -137,6 +130,15 @@ Library outputs are compact JSON with canonical `url`s for citation. Concept and
 | `propfirms_validate_strategy` | Screen one strategy across every simulatable challenge against an explicit pass bar |
 
 Every simulation result carries its assumptions, unsimulated-rule flags, seed, and engine version — distributions under stated assumptions, never promises. The engine runs locally; firm rules adapt live from the directory (inline specs simulate fully offline).
+
+**Directory** — the data the simulator draws from, queryable directly:
+
+| Tool | Description |
+| --- | --- |
+| `propfirms_search` | Search firms — firm filters (platforms, markets, payments, Trustpilot, country availability) composable with nested challenge/offer filters; `include` nests matching children |
+| `propfirms_get` | One firm's full dossier: profile, every challenge, live offers, written overview |
+| `propfirms_search_challenges` | Search challenges by rules (size, fee, steps, profit split, drawdown, trading restrictions) and parent firm; can attach applicable live offers |
+| `propfirms_search_offers` | Current discounts/promo codes; resolvable per firm or per challenge |
 
 ## Development
 
