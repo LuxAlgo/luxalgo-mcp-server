@@ -49,7 +49,7 @@
     "test:parity": "node scripts/parity.mjs"
   },
   "dependencies": {
-    "@luxalgo/prop-firm-sim-core": "1.1.1",
+    "@luxalgo/prop-firm-sim-core": "1.1.2",
     "@luxalgo/prop-firm-sim-mcp": "1.1.0",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "zod": "^3.24.0"
