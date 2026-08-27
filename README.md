@@ -21,6 +21,7 @@ The LuxAlgo ecosystem as an MCP server. Free, keyless, read-only.
 
 - **[Library](https://www.luxalgo.com/library/)** — The encyclopedia of trading &amp; technical analysis. Hundreds of concepts with formulas and plain-markdown pages, plus the full indicator catalog with descriptions, families, and Pine Script sources where publicly served.
 - **Prop Firms** — LuxAlgo's prop-firm analysis catalog. Search proprietary trading firms, funded-account challenges with their full rulebooks (account size, fees, steps, profit split, drawdown modes, trading restrictions), and live offers with promo codes and discounts.
+- **Challenge Simulator** — the open-source [prop-firm-sim](https://github.com/LuxAlgo/prop-firm-sim) Monte Carlo engine (via the `@luxalgo/prop-firm-sim` npm packages), running locally in the server: your stats or your real R-multiple trade series through a firm's exact ruleset — pass probability with confidence intervals, expected attempts and cost, EV over the funded horizon, optimal risk sweeps, cross-challenge comparison, and reference-archetype odds. Deterministic under seed; every assumption disclosed.
 - **More to come** — new LuxAlgo ecosystem areas will land here as they open up.
 
 ## Installation
@@ -122,6 +123,21 @@ Library outputs are compact JSON with canonical `url`s for citation. Concept and
 | `propfirms_search_challenges` | Search challenges by rules (size, fee, steps, profit split, drawdown, trading restrictions) and parent firm; can attach applicable live offers |
 | `propfirms_search_offers` | Search live discounts/promo codes; resolvable per firm or per challenge |
 
+### Challenge Simulator
+
+| Tool | Description |
+| --- | --- |
+| `propfirms_list_simulatable` | Every simulatable firm + challenge in the live directory, provenance-disclosed |
+| `propfirms_challenge_rules` | One challenge's full encoded ruleset (drawdown modes, consistency, payout gating, citations) — editable and re-simulatable inline |
+| `propfirms_simulate` | Monte Carlo of your stats (win rate, avg win, trades/day, risk sizing) through a firm's exact ruleset + funded horizon: pass probability with CI, which rule kills attempts, expected attempts/cost, EV, payout probability |
+| `propfirms_simulate_trades` | Same, from your real R-multiple trade series — block bootstrap preserves your streaks |
+| `propfirms_optimal_risk` | Risk sweep: pass-optimal vs EV-optimal risk per trade (they differ) |
+| `propfirms_compare` | Same trader across up to 12 challenges, EV-sorted (not a ranking) |
+| `propfirms_pass_rates` | The site's reference-archetype odds, recomputed live (seed 42, 10k paths) |
+| `propfirms_validate_strategy` | Screen one strategy across every simulatable challenge against an explicit pass bar |
+
+Every simulation result carries its assumptions, unsimulated-rule flags, seed, and engine version — distributions under stated assumptions, never promises. The engine runs locally; firm rules adapt live from the directory (inline specs simulate fully offline).
+
 ## Development
 
 ```bash
@@ -130,6 +146,7 @@ npm run build
 npm start            # stdio
 npm run start:http   # streamable HTTP on :3333/mcp
 npm test             # smoke suite over stdio (hits live endpoints)
+npm run test:parity  # simulator tools vs upstream package + raw engine (run after sim-* bumps)
 ```
 
 Environment (optional): `LUXALGO_APP_ORIGIN`, `LUXALGO_SITE_ORIGIN` to point at non-production environments.
