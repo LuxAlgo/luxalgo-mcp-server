@@ -228,7 +228,13 @@ export function registerBrokerTools(server: McpServer, env: NodeJS.ProcessEnv = 
     },
     async () => {
       const { snapshots, failures } = await state.snapshots();
-      return json({ stats: computeStats(allAccounts(snapshots)), failures });
+      return json({
+        stats: computeStats(allAccounts(snapshots)),
+        failures,
+        disclaimer:
+          "Informational only, not investment advice. FIFO stats are computed from the trade history " +
+          "each broker serves; verify important numbers against your broker's own statements.",
+      });
     },
   );
 
