@@ -199,7 +199,7 @@ export function registerBrokerTools(server: McpServer, env: NodeJS.ProcessEnv = 
     {
       title: "Trade history",
       description:
-        "Executed trades across all connected accounts (the most recent window each broker exposes), newest first. Optionally filter by broker id and/or symbol.",
+        "Executed trades across all connected accounts (the most recent window each broker exposes), newest first. Optionally filter by broker id and/or symbol. To simulate prop-firm challenge odds from this history, pass this tool's JSON result (the {trades: [...]} object) straight into propfirms_simulate_trades as tradeLogText, with importRisk set to the risk taken per trade. Filter to one broker/account first when several are connected: mixed-account histories are refused rather than replayed as one equity curve.",
       inputSchema: {
         broker: z.string().optional().describe("Broker id to filter by"),
         symbol: z.string().optional().describe("Symbol to filter by, e.g. 'BTC' or 'AAPL'"),
@@ -223,7 +223,7 @@ export function registerBrokerTools(server: McpServer, env: NodeJS.ProcessEnv = 
     {
       title: "Portfolio performance stats",
       description:
-        "Computed performance across the whole portfolio: total equity, equity by broker, top positions, and FIFO-matched trade stats — win rate, average win/loss, realized PnL, per-symbol breakdown. Amounts stay in each account's native currency, so mixed-currency totals are approximate.",
+        "Computed performance across the whole portfolio: total equity, equity by broker, top positions, and FIFO-matched trade stats — win rate, average win/loss, realized PnL, per-symbol breakdown. Amounts stay in each account's native currency, so mixed-currency totals are approximate. For prop-firm challenge odds from these stats, feed winRate plus avgWin/avgLoss converted to R-multiples (divide by the average amount risked per trade) into propfirms_simulate; for odds that respect the real trade sequence, use broker_trades with propfirms_simulate_trades instead.",
       inputSchema: {},
     },
     async () => {
