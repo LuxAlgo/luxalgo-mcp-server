@@ -5,20 +5,89 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>LuxAlgo MCP</title>
     <style>
-      body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 4rem auto; padding: 0 1rem; color: #111; }
-      code { background: #f4f4f5; padding: 0.15rem 0.4rem; border-radius: 4px; }
-      a { color: #2563eb; }
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #111111;
+        --muted: #56565c;
+        --border: rgba(17, 17, 17, 0.12);
+        --chip: #f4f4f5;
+        --link: #2563eb;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0a0a0a;
+          --fg: #ededed;
+          --muted: #a0a0a0;
+          --border: rgba(255, 255, 255, 0.14);
+          --chip: rgba(255, 255, 255, 0.07);
+          --link: #35a2de;
+        }
+      }
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 40rem;
+        margin: 3.5rem auto;
+        padding: 0 1rem;
+        background: var(--bg);
+        color: var(--fg);
+      }
+      /* The brand lockup: the LuxAlgo mark plus the product wordmark. */
+      header {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        padding-bottom: 1.1rem;
+        margin-bottom: 1.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      header svg {
+        display: block;
+        height: 1.5rem;
+        width: auto;
+        flex: none;
+        fill: var(--fg);
+      }
+      header .wordmark {
+        font-size: 1.25rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      code {
+        background: var(--chip);
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+      }
+      a { color: var(--link); }
+      footer {
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
     </style>
   </head>
   <body>
-    <h1>LuxAlgo MCP</h1>
+    <header>
+      <svg viewBox="0 0 40.4 36.9" aria-hidden="true">
+        <path d="M36.217 34.646l4.139-7.231L25.868 2.108 11.381 27.415h8.279l6.209-10.845z"/>
+        <path d="M31.042 29.224 8.267 29.22 24.833.3h-8.277L0 29.216l4.137 7.237h31.045z"/>
+      </svg>
+      <span class="wordmark">LuxAlgo MCP</span>
+    </header>
     <p>
       The LuxAlgo ecosystem as an MCP server: the
       <a href="https://www.luxalgo.com/library/">Library</a> — the
       encyclopedia of trading &amp; technical analysis — plus prop-firm
-      analysis (firms, challenges, live offers), with more areas to come.
-      Free, keyless, read-only.
+      analysis (firms, challenges, live offers) and a Monte Carlo challenge
+      simulator, with more areas to come. Free, keyless, read-only.
     </p>
     <p>Point any MCP client at <code>https://mcp.luxalgo.com/mcp</code> (streamable HTTP).</p>
+    <footer>
+      A <a href="https://www.luxalgo.com/">LuxAlgo</a> open-source project ·
+      <a href="https://github.com/LuxAlgo/luxalgo-mcp-server">GitHub</a> ·
+      <a href="https://www.npmjs.com/package/@luxalgo/mcp">npm</a>
+    </footer>
   </body>
 </html>
