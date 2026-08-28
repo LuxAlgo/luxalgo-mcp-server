@@ -5,20 +5,94 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>LuxAlgo MCP</title>
     <style>
-      body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 4rem auto; padding: 0 1rem; color: #111; }
-      code { background: #f4f4f5; padding: 0.15rem 0.4rem; border-radius: 4px; }
-      a { color: #2563eb; }
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #111111;
+        --muted: #56565c;
+        --border: rgba(17, 17, 17, 0.12);
+        --chip: #f4f4f5;
+        --link: #2563eb;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0a0a0a;
+          --fg: #ededed;
+          --muted: #a0a0a0;
+          --border: rgba(255, 255, 255, 0.14);
+          --chip: rgba(255, 255, 255, 0.07);
+          --link: #35a2de;
+        }
+      }
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 40rem;
+        margin: 3.5rem auto;
+        padding: 0 1rem;
+        background: var(--bg);
+        color: var(--fg);
+      }
+      /* The brand lockup: the full LuxAlgo logo (symbol + wordmark), then
+         the product name, the way the README banner composes it. */
+      header {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding-bottom: 1.1rem;
+        margin-bottom: 1.4rem;
+        border-bottom: 1px solid var(--border);
+      }
+      header svg {
+        display: block;
+        height: 1.35rem;
+        width: auto;
+        flex: none;
+        fill: var(--fg);
+      }
+      header .product {
+        font-size: 1.2rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        line-height: 1;
+        transform: translateY(0.05rem);
+      }
+      code {
+        background: var(--chip);
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+      }
+      a { color: var(--link); }
+      footer {
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
     </style>
   </head>
   <body>
-    <h1>LuxAlgo MCP</h1>
+    <header>
+      <svg viewBox="0 0 180 40" role="img" aria-label="LuxAlgo">
+        <path d="M36.217 34.646l4.139-7.231L25.868 2.108 11.381 27.415h8.279l6.209-10.845z"/>
+        <path d="M31.042 29.224 8.267 29.22 24.833.3h-8.277L0 29.216l4.137 7.237h31.045z"/>
+        <path d="M46.234 5.729h5.854V26.02h11.459v5.007H46.234zm36.214 25.298H77.23v-2.539h-.352c-1.34 2.046-3.068 3.068-5.254 3.068-4.09 0-6.805-3.173-6.805-7.51V12.974h5.219v10.331c0 2.222 1.27 3.774 3.384 3.774 2.08 0 3.808-1.657 3.808-3.95V12.974h5.22zm41.904 0h6.081L115.941 5.729l-14.48 25.298h6.055l8.425-14.693z"/>
+        <path d="M101.461 12.974H96.52l-3.996 7.012-3.997-7.012h-4.941l5.144 9.027-5.144 9.026h4.879l4.06-7.122 4.057 7.122h4.879l-5.144-9.026zm30.049-8.11h5.219v26.163h-5.219zm7.083 28.491 5.043-.988c.669 1.975 2.328 3.174 4.584 3.174 2.892 0 4.761-1.904 4.761-4.867v-2.01h-.353c-1.445 1.657-3.279 2.61-5.712 2.61-5.006 0-8.533-3.702-8.533-9.273 0-5.817 3.492-9.555 8.498-9.555 2.61 0 4.478 1.059 5.889 2.821h.353v-2.291h5.077v17.84c0 5.57-3.808 8.885-9.838 8.885-5.255 0-8.887-2.291-9.769-6.346M153.156 22c0-2.962-1.975-5.112-4.761-5.112S143.6 19.039 143.6 22c0 2.892 2.009 5.007 4.795 5.007s4.761-2.117 4.761-5.007m6.815.001c0-5.817 3.984-9.59 10.014-9.59C175.98 12.41 180 16.183 180 22c0 5.854-4.019 9.591-10.015 9.591-6.03-.001-10.014-3.773-10.014-9.59m14.774 0c0-2.997-1.975-5.112-4.761-5.112-2.821 0-4.795 2.115-4.795 5.112s1.974 5.148 4.795 5.148c2.786 0 4.761-2.15 4.761-5.148"/>
+      </svg>
+      <span class="product">MCP</span>
+    </header>
     <p>
       The LuxAlgo ecosystem as an MCP server: the
       <a href="https://www.luxalgo.com/library/">Library</a> — the
       encyclopedia of trading &amp; technical analysis — plus prop-firm
-      analysis (firms, challenges, live offers), with more areas to come.
-      Free, keyless, read-only.
+      analysis (firms, challenges, live offers) and a Monte Carlo challenge
+      simulator, with more areas to come. Free, keyless, read-only.
     </p>
     <p>Point any MCP client at <code>https://mcp.luxalgo.com/mcp</code> (streamable HTTP).</p>
+    <footer>
+      A <a href="https://www.luxalgo.com/">LuxAlgo</a> open-source project ·
+      <a href="https://github.com/LuxAlgo/luxalgo-mcp-server">GitHub</a> ·
+      <a href="https://www.npmjs.com/package/@luxalgo/mcp">npm</a>
+    </footer>
   </body>
 </html>
