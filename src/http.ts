@@ -10,6 +10,7 @@ import { createServer } from "node:http";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { SERVER_NAME, SERVER_VERSION, registerAllTools } from "./lib/register.js";
+import { instrumentServer, shutdownAnalytics } from "./lib/analytics.js";
 
 const PORT = Number(process.env.PORT ?? 3333);
 
@@ -25,10 +26,14 @@ const httpServer = createServer(async (req, res) => {
   }
   try {
     const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+    instrumentServer(server, (message) => console.error(`[posthog] ${message}`));
     registerAllTools(server);
     const transport = new StreamableHTTPServerTransport({
       // Stateless mode: no session ids, no server-side state between calls.
       sessionIdGenerator: undefined,
+      // JSON mode lets PostHog's SDK mint the Mcp-Session-Id header, which
+      // stitches a client's stateless requests into one analytics session.
+      enableJsonResponse: true,
     });
     res.on("close", () => {
       void transport.close();
@@ -48,3 +53,13 @@ const httpServer = createServer(async (req, res) => {
 httpServer.listen(PORT, () => {
   console.log(`LuxAlgo MCP listening on :${PORT}/mcp`);
 });
+
+// Drain queued analytics events before the process dies.
+if (process.env.POSTHOG_PROJECT_TOKEN) {
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.on(signal, () => {
+      httpServer.close();
+      void shutdownAnalytics().finally(() => process.exit(0));
+    });
+  }
+}

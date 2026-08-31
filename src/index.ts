@@ -11,11 +11,16 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SERVER_NAME, SERVER_VERSION, registerAllTools } from "./lib/register.js";
 import { connectionsFromEnv, registerBrokerTools } from "./lib/broker-tools.js";
+import { instrumentServer, shutdownAnalytics } from "./lib/analytics.js";
 
 const server = new McpServer({
   name: SERVER_NAME,
   version: SERVER_VERSION,
 });
+
+// Instrument before registering so every tool is wrapped. No-op unless
+// POSTHOG_PROJECT_TOKEN is set; the logger writes to stderr (stdout is MCP's).
+instrumentServer(server, (message) => console.error(`[posthog] ${message}`));
 
 registerAllTools(server);
 registerBrokerTools(server); // stdio only — never move into registerAllTools
@@ -27,6 +32,16 @@ console.error(
     ? `luxalgo-mcp: broker tools serving ${configured.length} connection(s): ${configured.join(", ")} (read-only)`
     : "luxalgo-mcp: no broker configured (keyless tools only) — call broker_setup to see the env vars",
 );
+
+// Flush queued analytics events before the process dies. Only installed when
+// analytics is on, so default signal behavior is untouched otherwise.
+if (process.env.POSTHOG_PROJECT_TOKEN) {
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.on(signal, () => {
+      void shutdownAnalytics().finally(() => process.exit(0));
+    });
+  }
+}
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
