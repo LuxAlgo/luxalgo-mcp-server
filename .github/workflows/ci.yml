@@ -49,6 +49,11 @@ jobs:
       - name: Simulator parity suite
         run: npm run test:parity
 
+      # Offline: the streaming JSON-array splitter, bounded selection, and
+      # live+archive coverage merge behind the Market Trackers tools.
+      - name: Market Trackers engine checks
+        run: npm run test:trackers
+
   licenses:
     name: Dependency license gate
     runs-on: ubuntu-latest

@@ -6,6 +6,7 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ### Added
 
+- Market Trackers tools: `trackers_datasets`, `trackers_query`, `trackers_latest`, `trackers_ticker`. The public record of US markets — congressional trades, insider (Forms 3/4/5) transactions, 13F holdings, federal contracts and grants, lobbying filings, FINRA short-sale volume, granted patents, clinical trials, FDA drug events, CFTC positioning, federal bills, FEC campaign finance, hearing transcripts, Federal Reserve communications, committee assignments, Wikipedia pageviews — read directly from the CC0 dumps published by [LuxAlgo/market-trackers](https://github.com/LuxAlgo/market-trackers) (live tree plus deep-history archive releases), streamed shard by shard under a per-call byte budget. Keyless; every row carries a primary-source `provenance.sourceUrl`.
 - `TRADEMARKS.md`, `SECURITY.md`, `CHANGELOG.md`, CODEOWNERS, and CI (build, dependency license gate, DCO check) ahead of the public release.
 
 ### Changed
