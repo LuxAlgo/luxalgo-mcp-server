@@ -12,6 +12,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerLibraryTools } from "./tools.js";
 import { registerPropfirmTools } from "./propfirm-tools.js";
 import { registerSimTools } from "./sim-tools.js";
+import { registerTrackersTools } from "./trackers-tools.js";
 import { registerEdgeTools } from "./edge-tools.js";
 
 export const SERVER_NAME = "luxalgo";
@@ -21,6 +22,7 @@ export function registerAllTools(server: McpServer) {
   registerLibraryTools(server);
   registerPropfirmTools(server);
   registerSimTools(server);
+  registerTrackersTools(server);
   // Hosted-safe: reads only the public nightly artifacts the open-source
   // edge-stats repo publishes (derived session statistics — no raw bars,
   // no keys, nothing user-specific).
