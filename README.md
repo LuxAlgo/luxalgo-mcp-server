@@ -31,6 +31,7 @@ claude mcp add --transport http luxalgo https://mcp.luxalgo.com/mcp
 | **[Library](https://www.luxalgo.com/library/)** | The encyclopedia of trading and technical analysis: hundreds of concept pages with formulas, the full indicator catalog with families and tags, and Pine Script sources where publicly served. |
 | **Challenge Simulator** | The open-source [prop-firm-sim](https://github.com/LuxAlgo/prop-firm-sim) Monte Carlo engine, running locally inside the server. Your stats, or your real R-multiple trade series, through a firm's exact ruleset: pass probability with confidence intervals, expected attempts and cost, EV over the funded horizon, optimal-risk sweeps, cross-challenge comparison. Deterministic under seed, every assumption disclosed. |
 | **Prop Firm Directory** | The live data the simulator draws from: firms, funded-account challenges with their full rulebooks (account sizes, fees, steps, profit splits, drawdown modes, trading restrictions), and current offers. |
+| **Edge Stats** | Hosted session statistics from the open-source [edge-stats](https://github.com/LuxAlgo/edge-stats) engine: how often a setup actually worked (gap fills, opening-range breakouts, day-of-week effects, event days) with the sample size and a Wilson 95% confidence interval on every number. A nightly build runs the real engine over free market data and publishes only derived statistics; these tools serve them verbatim. |
 | **Brokers** (local only) | Read-only access to your own accounts across 16 brokers and exchanges via [broker-sdk](https://github.com/LuxAlgo/broker-sdk): balances, positions, trade history, FIFO performance stats. Keys live in your MCP client config as env vars and never leave your machine. The hosted endpoint does not carry these tools, on purpose. |
 
 ## Install
@@ -160,6 +161,18 @@ The **directory** the simulator draws from, queryable directly:
 | `propfirms_get` | One firm's full dossier: profile, every challenge, live offers, written overview |
 | `propfirms_search_challenges` | Search challenges by rules (size, fee, steps, profit split, drawdown, trading restrictions) and parent firm; can attach applicable live offers |
 | `propfirms_search_offers` | Current discounts and promo codes, resolvable per firm or per challenge |
+
+### Edge Stats
+
+Hosted session statistics from the open-source [edge-stats](https://github.com/LuxAlgo/edge-stats) engine, precomputed nightly:
+
+| Tool | Description |
+| --- | --- |
+| `edge_symbols` | What the hosted store covers: symbols, session calendars, coverage windows, last build |
+| `edge_presets` | The catalog of precomputed questions, each stating in plain language what its number means |
+| `edge_report` | One result in the engine's full honesty envelope: estimate, N, Wilson 95% CI, minimum-sample guards, stability split, per-year counts, distribution, disclaimer |
+
+Every number arrives with its sample size — the engine has no code path that returns a percentage without one. Results are historical conditional frequencies, never predictions. For arbitrary composed queries or your own market data, run edge-stats locally; its own MCP server exposes the full engine over your local store.
 
 ### Brokers (local stdio only)
 
