@@ -1,8 +1,4 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/banner-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset=".github/assets/banner-light.svg">
-  <img alt="LuxAlgo MCP" src=".github/assets/banner-dark.svg" width="100%">
-</picture>
+<img alt="LuxAlgo MCP" src=".github/assets/banner.svg" width="100%">
 
 <div align="center">
 
@@ -12,7 +8,7 @@
 [![npm](https://img.shields.io/npm/v/@luxalgo/mcp?style=flat-square&label=npm&labelColor=0a0a0a&color=35a2de)](https://www.npmjs.com/package/@luxalgo/mcp)
 [![license](https://img.shields.io/npm/l/@luxalgo/mcp?style=flat-square&labelColor=0a0a0a&color=9200ff)](LICENSE)
 
-[Library](https://www.luxalgo.com/library/) · [Prop Firms](https://www.luxalgo.com/prop-firms/) · [npm](https://www.npmjs.com/package/@luxalgo/mcp) · [Endpoint](https://mcp.luxalgo.com/mcp)
+[Library](https://www.luxalgo.com/library/) · [Brokers](https://github.com/LuxAlgo/broker-sdk) · [Edge Stats](https://github.com/LuxAlgo/edge-stats) · [Market Trackers](https://github.com/LuxAlgo/market-trackers) · [Challenge Simulator](https://github.com/LuxAlgo/prop-firm-sim) · [Prop Firms](https://www.luxalgo.com/prop-firms/) · [npm](https://www.npmjs.com/package/@luxalgo/mcp) · [Endpoint](https://mcp.luxalgo.com/mcp)
 
 </div>
 
