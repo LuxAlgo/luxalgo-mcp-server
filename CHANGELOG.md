@@ -6,6 +6,7 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ### Added
 
+- Edge Stats tools (all entries, hosted included): `edge_symbols`, `edge_presets`, `edge_report`. Hosted session statistics from the open-source [edge-stats](https://github.com/LuxAlgo/edge-stats) engine, precomputed nightly and served verbatim in the engine's honesty envelope (N, Wilson 95% CI, guards, stability split, per-year counts, disclaimer). Keyless; reads only public release artifacts containing derived statistics, never raw bars.
 - `TRADEMARKS.md`, `SECURITY.md`, `CHANGELOG.md`, CODEOWNERS, and CI (build, dependency license gate, DCO check) ahead of the public release.
 
 ### Changed
