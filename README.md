@@ -8,7 +8,7 @@
 [![npm](https://img.shields.io/npm/v/@luxalgo/mcp?style=flat-square&label=npm&labelColor=0a0a0a&color=35a2de)](https://www.npmjs.com/package/@luxalgo/mcp)
 [![license](https://img.shields.io/npm/l/@luxalgo/mcp?style=flat-square&labelColor=0a0a0a&color=9200ff)](LICENSE)
 
-[Library](https://www.luxalgo.com/library/) · [Brokers](https://github.com/LuxAlgo/broker-sdk) · [Edge Stats](https://github.com/LuxAlgo/edge-stats) · [Market Trackers](https://github.com/LuxAlgo/market-trackers) · [Challenge Simulator](https://github.com/LuxAlgo/prop-firm-sim) · [Prop Firms](https://www.luxalgo.com/prop-firms/) · [npm](https://www.npmjs.com/package/@luxalgo/mcp) · [Endpoint](https://mcp.luxalgo.com/mcp)
+[Library](https://www.luxalgo.com/library/) · [Brokers](https://github.com/LuxAlgo/broker-sdk) · [Edge Stats](https://github.com/LuxAlgo/edge-stats) · [Market Trackers](https://github.com/LuxAlgo/market-trackers) · [Challenge Simulator](https://github.com/LuxAlgo/prop-firm-sim) · [Prop Firms](https://www.luxalgo.com/prop-firms/) · [Vela charts](#charts-in-your-browser-with-vela) · [npm](https://www.npmjs.com/package/@luxalgo/mcp) · [Endpoint](https://mcp.luxalgo.com/mcp)
 
 </div>
 
@@ -30,6 +30,7 @@ claude mcp add --transport http luxalgo https://mcp.luxalgo.com/mcp
 | **[Market Trackers](https://github.com/LuxAlgo/market-trackers)** | The public record of US markets from primary sources only: congressional trades, insider (Forms 3/4/5) transactions, 13F holdings, federal contracts and grants, lobbying filings, FINRA short-sale volume, granted patents, clinical trials, FDA drug events, CFTC positioning, federal bills, FEC campaign finance, hearing transcripts, Federal Reserve communications, committee assignments, Wikipedia pageviews. Read straight from the pipeline's [CC0 dumps](https://github.com/LuxAlgo/market-trackers-data) — live tree plus deep-history archives — with `provenance.sourceUrl` on every row. Data only: no signals, scores, or predictions. |
 | **Challenge Simulator** | The open-source [prop-firm-sim](https://github.com/LuxAlgo/prop-firm-sim) Monte Carlo engine, running locally inside the server. Your stats, or your real R-multiple trade series, through a firm's exact ruleset: pass probability with confidence intervals, expected attempts and cost, EV over the funded horizon, optimal-risk sweeps, cross-challenge comparison. Deterministic under seed, every assumption disclosed. |
 | **Prop Firm Directory** | The live data the simulator draws from: firms, funded-account challenges with their full rulebooks (account sizes, fees, steps, profit splits, drawdown modes, trading restrictions), and current offers. |
+| **Charts** (your browser) | Not a tool: the chart you draw with what the tools return. [Vela](https://github.com/LuxAlgo/Vela), LuxAlgo's open-source charting engine, runs the Pine Script that `library_get_source_code` hands back and paints the fills that `broker_trades` lists, in a browser tab, on your machine. [How the loop works](#charts-in-your-browser-with-vela). |
 
 ## Install
 
@@ -196,6 +197,44 @@ The live directory the simulator draws from, queryable directly:
 | `propfirms_get` | One firm's full dossier: profile, every challenge, live offers, written overview |
 | `propfirms_search_challenges` | Search challenges by rules (size, fee, steps, profit split, drawdown, trading restrictions) and parent firm; can attach applicable live offers |
 | `propfirms_search_offers` | Current discounts and promo codes, resolvable per firm or per challenge |
+
+## Charts, in your browser, with Vela
+
+Every tool above returns text and JSON. When the answer wants a chart, draw it with **[Vela](https://github.com/LuxAlgo/Vela)** (`@luxalgo/vela`, Apache-2.0), LuxAlgo's open-source charting engine: a headless chart with its own WebGL2 renderer that takes bars you already have, or fetches them from keyless public providers, and runs indicator scripts through pluggable engines. Pine Script lives in the [`@luxalgo/vela-pinets`](https://github.com/LuxAlgo/Vela-pinets) addon, which is what closes the loop with the Library: `library_get_source_code` hands an agent an indicator's exact Pine source, and Vela executes that source on a chart.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/vela-supertrend-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset=".github/assets/vela-supertrend-light.png">
+  <img alt="The Library's SuperTrend indicator, fetched through library_get_source_code, running on a Vela chart" src=".github/assets/vela-supertrend-dark.png" width="100%">
+</picture>
+
+<sub>Not a mockup: the Library's <a href="https://www.luxalgo.com/library/indicator/supertrend/">SuperTrend</a> source as returned by <code>library_get_source_code</code>, executed by <code>@luxalgo/vela-pinets</code> on a <code>@luxalgo/vela</code> 0.6 chart and screenshotted in headless Chromium. The bars are a labelled synthetic sample; point <code>data</code> at your own or register a provider for live ones.</sub>
+
+The whole demo is two script tags and five lines. `source` is the `source` field of a `library_get_source_code` result:
+
+```html
+<div id="chart" style="height: 480px"></div>
+<script src="https://cdn.jsdelivr.net/npm/@luxalgo/vela@0.6.15/dist/vela.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@luxalgo/vela-pinets@0.2.10/dist/vela-pinets.global.min.js"></script>
+<script>
+  const chart = new Vela.Vela('#chart', { data: bars, timeframe: '1D', theme: 'dark' }); // bars: [{ time, open, high, low, close, volume? }]
+  chart.registerEngine('pine', new VelaPinets.PineEngine());
+  chart.addIndicator(source);
+</script>
+```
+
+With a bundler it is the same three calls over `import { Vela } from '@luxalgo/vela'` and `import { PineEngine } from '@luxalgo/vela-pinets'`; see Vela's [quickstart](https://github.com/LuxAlgo/Vela/blob/main/docs/user/quickstart.md). The same chart paints your own trades: [Trade Journal](https://github.com/LuxAlgo/trade-journal) takes the shape `broker_trades` returns and draws entries, exits and P&L labels through Vela's native-indicator API, engine-free, in [one component](https://github.com/LuxAlgo/trade-journal/blob/main/apps/web/src/components/trade-chart.tsx) you can lift as is.
+
+**Where each piece runs.** This matters because it is the opposite of how the rest of this server works:
+
+| Piece | Where | Notes |
+| --- | --- | --- |
+| Vela | A browser tab on your machine (Canvas 2D or WebGL2). | Never inside this server, hosted or stdio, and never in an MCP response. An agent gets the Pine source and the trades as text; the chart is what you build with them. |
+| Bars | Yours, via `data`, or Vela's keyless Binance, Coinbase and Hyperliquid providers, fetched by the browser. | This server serves no market data, so a chart needs no LuxAlgo key and makes no LuxAlgo request. |
+| Pine Script | `@luxalgo/vela-pinets`, which executes the [PineTS](https://github.com/LuxAlgo/PineTS) runtime. | AGPL-3.0, licensed separately from Vela's Apache-2.0 and this server's MIT. Vela itself ships no engine and carries no Pine code. |
+| Attribution | Vela's mark, bottom-left of every chart. | Stays on unless you show equivalent attribution next to the chart; see Vela's [NOTICE](https://github.com/LuxAlgo/Vela/blob/main/NOTICE). |
+
+Vela already draws the charts in [Trade Journal](https://github.com/LuxAlgo/trade-journal) and on the hosted [Market Trackers](https://www.luxalgo.com/market-trackers), and the [Vela page](https://www.luxalgo.com/vela) runs a live one.
 
 ## Development
 
