@@ -11,6 +11,8 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 ### Changed
 
 - README redesigned around the LuxAlgo brand system.
+- README documents charting tool output with [Vela](https://github.com/LuxAlgo/Vela): the `library_get_source_code` → `@luxalgo/vela-pinets` loop, with a real rendered SuperTrend and a table of what runs where (browser, not the server; AGPL Pine addon; attribution mark).
+- The hosted root page (`mcp.luxalgo.com/`) shows a live Vela chart, rendered in the visitor's browser, with the same clarification.
 
 ## [1.3.0]
 

@@ -69,6 +69,22 @@
         font-size: 0.85rem;
         color: var(--muted);
       }
+      /* The Vela exhibit: hidden until the real chart has painted, so a
+         blocked CDN, an old browser, or a provider hiccup leaves the page
+         exactly as it was, with nothing that looks broken. */
+      .vela { display: none; margin-top: 2rem; }
+      .vela.ready { display: block; }
+      .vela .chart {
+        height: 320px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .vela .caption {
+        margin: 0.6rem 0 0;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
     </style>
   </head>
   <body>
@@ -89,10 +105,59 @@
       simulator, with more areas to come. Free, keyless, read-only.
     </p>
     <p>Point any MCP client at <code>https://mcp.luxalgo.com/mcp</code> (streamable HTTP).</p>
+    <section class="vela" id="vela" aria-label="Live chart rendered by Vela">
+      <div class="chart" id="vela-chart"></div>
+      <p class="caption">
+        Live BTC, drawn in your browser by
+        <a href="https://github.com/LuxAlgo/Vela">Vela</a>, LuxAlgo&rsquo;s
+        open-source charting engine. The server returns text; the chart is
+        what you build with it. Pair <code>library_get_source_code</code> with
+        <code>@luxalgo/vela-pinets</code> to run any Library indicator on one
+        (<a href="https://github.com/LuxAlgo/luxalgo-mcp-server#charts-in-your-browser-with-vela">how</a>).
+      </p>
+    </section>
     <footer>
       A <a href="https://www.luxalgo.com/">LuxAlgo</a> open-source project ·
       <a href="https://github.com/LuxAlgo/luxalgo-mcp-server">GitHub</a> ·
       <a href="https://www.npmjs.com/package/@luxalgo/mcp">npm</a>
     </footer>
+    <!-- Vela's self-contained browser build (window.Vela), pinned. Loaded
+         after the content so it never gates the page; the section above only
+         appears once the chart has actually painted. -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/@luxalgo/vela@0.6.15/dist/vela.global.min.js"
+      defer
+    ></script>
+    <script>
+      window.addEventListener("load", async () => {
+        const section = document.getElementById("vela");
+        const host = document.getElementById("vela-chart");
+        const api = window.Vela;
+        if (!api || !host) return;
+        try {
+          const dark = matchMedia("(prefers-color-scheme: dark)");
+          const chart = new api.Vela(
+            host,
+            {
+              symbol: "hyperliquid:BTC",
+              timeframe: "60",
+              live: true,
+              theme: dark.matches ? "dark" : "light",
+              drawings: false,
+              volume: false,
+            },
+          );
+          // ready() resolves even when the fetch came back empty, so reveal
+          // only once a load actually painted bars.
+          chart.on("load:end", ({ bars }) => {
+            if (bars > 0) section.classList.add("ready");
+          });
+          chart.data.registerProvider("hyperliquid", new api.HyperliquidProvider());
+          dark.addEventListener("change", (e) => chart.setTheme(e.matches ? "dark" : "light"));
+        } catch (_) {
+          /* The section stays hidden. */
+        }
+      });
+    </script>
   </body>
 </html>
