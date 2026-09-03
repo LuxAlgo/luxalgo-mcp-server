@@ -18,7 +18,7 @@
 
 **LuxAlgo MCP** is a LuxAlgo open-source project. Official repository: [github.com/LuxAlgo/luxalgo-mcp-server](https://github.com/LuxAlgo/luxalgo-mcp-server).
 
-It puts the LuxAlgo ecosystem behind a single MCP server: an encyclopedia of trading and technical analysis, read-only access to your own brokerage accounts, the public record of US markets (congressional trades, insider filings, lobbying, contracts, patents and more, with a primary-source link on every row), a Monte Carlo challenge simulator, and a live prop-firm directory. Free and read-only. No API key for anything hosted; the local broker tools use your own keys and never send them anywhere.
+It puts the LuxAlgo ecosystem behind a single MCP server: an encyclopedia of trading and technical analysis, read-only access to your own brokerage accounts, hosted session statistics with a sample size on every number, the public record of US markets (congressional trades, insider filings, lobbying, contracts, patents and more, with a primary-source link on every row), a Monte Carlo challenge simulator, and a live prop-firm directory. Free and read-only. No API key for anything hosted; the local broker tools use your own keys and never send them anywhere.
 
 ```bash
 claude mcp add --transport http luxalgo https://mcp.luxalgo.com/mcp
@@ -30,6 +30,7 @@ claude mcp add --transport http luxalgo https://mcp.luxalgo.com/mcp
 | --- | --- |
 | **[Library](https://www.luxalgo.com/library/)** | The encyclopedia of trading and technical analysis: hundreds of concept pages with formulas, the full indicator catalog with families and tags, and Pine Script sources where publicly served. |
 | **Brokers** (local only) | Read-only access to your own accounts across 16 brokers and exchanges via [broker-sdk](https://github.com/LuxAlgo/broker-sdk): balances, positions, trade history, FIFO performance stats. Keys live in your MCP client config as env vars and never leave your machine. The hosted endpoint does not carry these tools, on purpose. |
+| **Edge Stats** | Hosted session statistics from the open-source [edge-stats](https://github.com/LuxAlgo/edge-stats) engine: how often a setup actually worked (gap fills, opening-range breakouts, day-of-week effects, event days) with the sample size and a Wilson 95% confidence interval on every number. A nightly build runs the real engine over free market data and publishes only derived statistics; these tools serve them verbatim. |
 | **[Market Trackers](https://github.com/LuxAlgo/market-trackers)** | The public record of US markets from primary sources only: congressional trades, insider (Forms 3/4/5) transactions, 13F holdings, federal contracts and grants, lobbying filings, FINRA short-sale volume, granted patents, clinical trials, FDA drug events, CFTC positioning, federal bills, FEC campaign finance, hearing transcripts, Federal Reserve communications, committee assignments, Wikipedia pageviews. Read straight from the pipeline's [CC0 dumps](https://github.com/LuxAlgo/market-trackers-data) — live tree plus deep-history archives — with `provenance.sourceUrl` on every row. Data only: no signals, scores, or predictions. |
 | **Challenge Simulator** | The open-source [prop-firm-sim](https://github.com/LuxAlgo/prop-firm-sim) Monte Carlo engine, running locally inside the server. Your stats, or your real R-multiple trade series, through a firm's exact ruleset: pass probability with confidence intervals, expected attempts and cost, EV over the funded horizon, optimal-risk sweeps, cross-challenge comparison. Deterministic under seed, every assumption disclosed. |
 | **Prop Firm Directory** | The live data the simulator draws from: firms, funded-account challenges with their full rulebooks (account sizes, fees, steps, profit splits, drawdown modes, trading restrictions), and current offers. |
@@ -148,6 +149,18 @@ Library outputs are compact JSON with canonical `url`s for citation. Concept and
 | `broker_refresh` | Bypass the 5-minute cache and re-fetch now |
 
 Read-only by construction: the SDK's root export has no trading endpoints, the server never writes secrets anywhere, and per-broker failures are reported alongside results, never silently dropped.
+
+### Edge Stats
+
+Hosted session statistics from the open-source [edge-stats](https://github.com/LuxAlgo/edge-stats) engine, precomputed nightly:
+
+| Tool | Description |
+| --- | --- |
+| `edge_symbols` | What the hosted store covers: symbols, session calendars, coverage windows, last build |
+| `edge_presets` | The catalog of precomputed questions, each stating in plain language what its number means |
+| `edge_report` | One result in the engine's full honesty envelope: estimate, N, Wilson 95% CI, minimum-sample guards, stability split, per-year counts, distribution, disclaimer |
+
+Every number arrives with its sample size — the engine has no code path that returns a percentage without one. Results are historical conditional frequencies, never predictions. For arbitrary composed queries or your own market data, run edge-stats locally; its own MCP server exposes the full engine over your local store.
 
 ### Market Trackers
 
