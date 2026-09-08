@@ -1,28 +1,25 @@
 name: Release
 
-# Publishes @luxalgo/mcp to npm with provenance when a GitHub release is
-# published. Requires the NPM_TOKEN repository secret (an npm automation
-# token with publish rights on @luxalgo/mcp).
+# Publishes @luxalgo/mcp to npm via trusted publishing (OIDC) when a GitHub
+# release is published. No npm token is required; provenance is attached
+# automatically. The trusted publisher on npmjs.com must be configured for
+# org "LuxAlgo", repo "luxalgo-mcp-server", workflow filename "release.yml".
 on:
   release:
     types: [published]
 
-permissions:
-  contents: read
-  id-token: write # npm --provenance
-
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # GitHub-hosted runner required for OIDC
+    permissions:
+      contents: read
+      id-token: write # OIDC token for npm trusted publishing
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: 24 # ships npm 11.5.1+, required for trusted publishing
           registry-url: https://registry.npmjs.org
       - run: npm ci
       - run: npm run build
-      - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npm publish --access public
