@@ -4,6 +4,18 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+## [1.4.0]
+
+### Changed
+
+- MCP SDK v2 and the 2026-07-28 protocol: the server now runs on `@modelcontextprotocol/server` 2 (replacing `@modelcontextprotocol/sdk` 1.x) and zod 4. All three entries serve the stateless 2026-07-28 protocol and still answer 2025-era clients (current Cursor builds included) through the SDK's per-request legacy fallback — stdio via `serveStdio`, the plain-Node HTTP entry via `createMcpHandler` + `@modelcontextprotocol/node`, and the Vercel entry via `mcp-handler` 2. Tool names, input schemas, and outputs are unchanged; `POST /mcp` and `/health` are unchanged.
+- The Vercel entry now advertises the same `serverInfo` (`luxalgo` / package version) as the stdio and plain-Node entries instead of `mcp-handler`'s default.
+- `@luxalgo/prop-firm-sim-mcp` 1.3.0: the simulator tools are re-exported from its new `/tools` and `/directory` package entry points instead of deep `dist/` imports, and share its zod 4 schemas directly (no more zod 3/4 split). Parity with the upstream handlers is unchanged and covered by `npm run test:parity`.
+- `mcp-handler` moved from devDependencies to dependencies — it is imported at runtime by the Vercel function.
+- `npm run typecheck` now also checks the Vercel entry (`api/server.ts`) through `tsconfig.api.json`. It sat outside the main tsconfig's `rootDir`, and Vercel's build only transpiles, so a type error there could previously reach production unnoticed.
+- `@luxalgo/broker-sdk` ^0.5.0 (22 brokers and exchanges); the broker tools' description and the README now state that count (the 1.3.0 changelog entry below records the 16 that release shipped with).
+- `package.json`, `server.json`, and the advertised server version are aligned (they had drifted across 1.3.0 / 1.3.1).
+
 ### Added
 
 - Market Trackers tools: `trackers_datasets`, `trackers_query`, `trackers_latest`, `trackers_ticker`. The public record of US markets — congressional trades, insider (Forms 3/4/5) transactions, 13F holdings, federal contracts and grants, lobbying filings, FINRA short-sale volume, granted patents, clinical trials, FDA drug events, CFTC positioning, federal bills, FEC campaign finance, hearing transcripts, Federal Reserve communications, committee assignments, Wikipedia pageviews — read directly from the CC0 dumps published by [LuxAlgo/market-trackers](https://github.com/LuxAlgo/market-trackers) (live tree plus deep-history archive releases), streamed shard by shard under a per-call byte budget. Keyless; every row carries a primary-source `provenance.sourceUrl`.

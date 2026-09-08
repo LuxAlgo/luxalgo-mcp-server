@@ -8,7 +8,7 @@
   (src/index.ts) registers them — a hosted process has no business holding
   anyone's broker credentials.
 */
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { registerLibraryTools } from "./tools.js";
 import { registerPropfirmTools } from "./propfirm-tools.js";
 import { registerSimTools } from "./sim-tools.js";
@@ -16,7 +16,7 @@ import { registerTrackersTools } from "./trackers-tools.js";
 import { registerEdgeTools } from "./edge-tools.js";
 
 export const SERVER_NAME = "luxalgo";
-export const SERVER_VERSION = "1.3.0";
+export const SERVER_VERSION = "1.4.0";
 
 export function registerAllTools(server: McpServer) {
   registerLibraryTools(server);

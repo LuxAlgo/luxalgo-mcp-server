@@ -1,0 +1,12 @@
+{
+  // Typecheck-only config for the Vercel Functions entry. `api/` sits outside
+  // the main tsconfig's rootDir (src) because Vercel bundles it itself and it
+  // must not land in dist/. Nothing else checks it: Vercel's build transpiles
+  // without typechecking, so this is the only gate.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": ["api", "src"]
+}

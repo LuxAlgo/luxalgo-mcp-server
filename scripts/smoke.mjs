@@ -4,9 +4,9 @@
   endpoints. Pass --http <url> to test a running streamable-HTTP server
   instead. Exits non-zero on any failure.
 */
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { Client } from "@modelcontextprotocol/client";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 
 const httpUrl = process.argv.includes("--http")
   ? process.argv[process.argv.indexOf("--http") + 1]

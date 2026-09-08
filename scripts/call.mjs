@@ -6,8 +6,8 @@
     node scripts/call.mjs                          # list tools
     node scripts/call.mjs propfirms_search '{"text":"ftmo"}'
 */
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { Client } from "@modelcontextprotocol/client";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
 const [toolName, argsJson] = process.argv.slice(2);
 

@@ -1,20 +1,38 @@
 /*
   Hosted (Streamable HTTP) entry — what mcp.luxalgo.com runs. Stateless:
-  each request gets a fresh server + transport pair, so the process can
-  scale horizontally and restart freely. No secrets, no sessions.
+  the SDK builds a fresh server per request from the factory below, so the
+  process can scale horizontally and restart freely. No secrets, no sessions.
+  Speaks MCP 2026-07-28 and still serves 2025-era clients (current Cursor
+  builds included) through the SDK's per-request legacy fallback.
 
   Deploy notes: any Node 20+ host works (`node dist/http.js`, PORT env).
   On Vercel, deploy api/server.ts (mcp-handler) instead of this file.
 */
 import { createServer } from "node:http";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { toNodeHandler } from "@modelcontextprotocol/node";
+import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { SERVER_NAME, SERVER_VERSION, registerAllTools } from "./lib/register.js";
 import { instrumentServer, shutdownAnalytics } from "./lib/analytics.js";
 
 const PORT = Number(process.env.PORT ?? 3333);
 
-const httpServer = createServer(async (req, res) => {
+const mcpHandler = createMcpHandler(
+  () => {
+    const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+    instrumentServer(server, (message) => console.error(`[posthog] ${message}`));
+    registerAllTools(server);
+    return server;
+  },
+  {
+    legacy: "stateless",
+    onerror: (error) => console.error("[mcp] request error:", error),
+  },
+);
+const mcpNodeHandler = toNodeHandler(mcpHandler, {
+  onerror: (error) => console.error("[mcp] request failed:", error),
+});
+
+const httpServer = createServer((req, res) => {
   if (req.url === "/health") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true }));
@@ -24,30 +42,7 @@ const httpServer = createServer(async (req, res) => {
     res.writeHead(404).end();
     return;
   }
-  try {
-    const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
-    instrumentServer(server, (message) => console.error(`[posthog] ${message}`));
-    registerAllTools(server);
-    const transport = new StreamableHTTPServerTransport({
-      // Stateless mode: no session ids, no server-side state between calls.
-      sessionIdGenerator: undefined,
-      // JSON mode lets PostHog's SDK mint the Mcp-Session-Id header, which
-      // stitches a client's stateless requests into one analytics session.
-      enableJsonResponse: true,
-    });
-    res.on("close", () => {
-      void transport.close();
-      void server.close();
-    });
-    await server.connect(transport);
-    await transport.handleRequest(req, res);
-  } catch (error) {
-    console.error("[mcp] request failed:", error);
-    if (!res.headersSent) {
-      res.writeHead(500, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: "internal error" }));
-    }
-  }
+  void mcpNodeHandler(req, res);
 });
 
 httpServer.listen(PORT, () => {

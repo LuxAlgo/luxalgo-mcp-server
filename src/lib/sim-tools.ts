@@ -20,8 +20,7 @@
   LUXALGO_APP_ORIGIN-aware). Results are deterministic under seed.
 */
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult, McpServer } from "@modelcontextprotocol/server";
 import {
   ChallengeSpecSchema,
   DISCLAIMER,
@@ -38,8 +37,8 @@ import {
   type AdaptedChallenge,
   type DirectoryFirmRow,
 } from "@luxalgo/prop-firm-sim-core/directory";
-import { toolDefinitions, type ToolResult } from "@luxalgo/prop-firm-sim-mcp/dist/tools.js";
-import { fetchDirectory, resolveFirm } from "@luxalgo/prop-firm-sim-mcp/dist/directory.js";
+import { toolDefinitions, type ToolResult } from "@luxalgo/prop-firm-sim-mcp/tools";
+import { fetchDirectory, resolveFirm } from "@luxalgo/prop-firm-sim-mcp/directory";
 
 /* ------------------------------------------------------------------------ *
  * The six package tools, renamed to this repo's propfirms_ convention
@@ -77,43 +76,58 @@ function rewriteToolReferences(description: string): string {
 }
 
 /** Rewrite tool references inside a zod schema's field descriptions,
- *  recursively (wrappers, arrays, nested objects, unions), returning a new
- *  schema so the upstream definitions stay untouched. Descriptions are the
- *  only thing changed: agents read them in tools/list, and the upstream
- *  ones reference tool names that do not exist under those names here. */
-function rewriteSchemaDescriptions<T extends z.ZodTypeAny>(schema: T): T {
-  const def = { ...(schema._def as Record<string, unknown>) };
-  if (typeof def.description === "string") {
-    def.description = rewriteToolReferences(def.description);
-  }
-  if (def.innerType instanceof z.ZodType) {
-    def.innerType = rewriteSchemaDescriptions(def.innerType); // optional/nullable/default
-  }
-  if (def.type instanceof z.ZodType) {
-    def.type = rewriteSchemaDescriptions(def.type); // array element
-  }
-  if (def.schema instanceof z.ZodType) {
-    def.schema = rewriteSchemaDescriptions(def.schema); // effects/refinements
-  }
+ *  recursively (wrappers, arrays, records, nested objects, unions, pipes),
+ *  returning a new schema so the upstream definitions stay untouched.
+ *  Descriptions are the only thing changed: agents read them in tools/list,
+ *  and the upstream ones reference tool names that do not exist under those
+ *  names here.
+ *
+ *  zod 4 internals: the definition lives at `_zod.def`, child schemas hang
+ *  off well-known def keys, and `.describe()` text is registry metadata
+ *  (read via `schema.description`), not a def field. `clone(def)` yields a
+ *  fresh instance of the same class with every check preserved; `.describe`
+ *  then attaches the rewritten text to that new instance only. */
+function rewriteSchemaDescriptions<T extends z.ZodType>(schema: T): T {
+  const def = { ...schema._zod.def } as Record<string, unknown>;
+  const isSchema = (value: unknown): value is z.ZodType => value instanceof z.ZodType;
+  // optional / nullable / default / prefault / catch / readonly / nonoptional
+  if (isSchema(def.innerType)) def.innerType = rewriteSchemaDescriptions(def.innerType);
+  if (isSchema(def.element)) def.element = rewriteSchemaDescriptions(def.element); // array / set
+  if (isSchema(def.keyType)) def.keyType = rewriteSchemaDescriptions(def.keyType); // record / map
+  if (isSchema(def.valueType)) def.valueType = rewriteSchemaDescriptions(def.valueType);
+  if (isSchema(def.in)) def.in = rewriteSchemaDescriptions(def.in); // pipe / transform
+  if (isSchema(def.out)) def.out = rewriteSchemaDescriptions(def.out);
   if (Array.isArray(def.options)) {
-    def.options = def.options.map((option: z.ZodTypeAny) => rewriteSchemaDescriptions(option)); // unions
+    def.options = def.options.map((option: unknown) =>
+      isSchema(option) ? rewriteSchemaDescriptions(option) : option,
+    ); // union
   }
-  if (typeof def.shape === "function") {
-    const shape = (def.shape as () => Record<string, z.ZodTypeAny>)();
-    const next = Object.fromEntries(
-      Object.entries(shape).map(([key, field]) => [key, rewriteSchemaDescriptions(field)]),
-    );
-    def.shape = () => next;
+  if (def.shape !== null && typeof def.shape === "object") {
+    def.shape = Object.fromEntries(
+      Object.entries(def.shape as Record<string, unknown>).map(([key, field]) => [
+        key,
+        isSchema(field) ? rewriteSchemaDescriptions(field) : field,
+      ]),
+    ); // object
   }
-  return new (schema.constructor as new (d: unknown) => T)(def);
+  const next = schema.clone(def as unknown as T["_zod"]["def"]) as T;
+  const description = schema.description;
+  return typeof description === "string"
+    ? (next.describe(rewriteToolReferences(description)) as T)
+    : next;
 }
 
-/** rewriteSchemaDescriptions over every field of a raw shape. */
-function rewriteShapeDescriptions(
-  shape: Record<string, z.ZodTypeAny>,
-): Record<string, z.ZodTypeAny> {
+/** rewriteSchemaDescriptions over every field of a raw shape. ZodRawShape is
+ *  typed over zod-core's $ZodType; the upstream shapes are built with the
+ *  classic API, so every field is a full ZodType at runtime (asserted). */
+function rewriteShapeDescriptions(shape: z.ZodRawShape): z.ZodRawShape {
   return Object.fromEntries(
-    Object.entries(shape).map(([key, field]) => [key, rewriteSchemaDescriptions(field)]),
+    Object.entries(shape).map(([key, field]) => {
+      if (!(field instanceof z.ZodType)) {
+        throw new Error(`upstream inputShape.${key} is not a zod classic schema`);
+      }
+      return [key, rewriteSchemaDescriptions(field)];
+    }),
   );
 }
 
@@ -805,7 +819,7 @@ export function registerSimTools(server: McpServer): void {
       {
         title: def.title,
         description: rewriteToolReferences(def.description) + (ROUTING_NOTES[localName] ?? ""),
-        inputSchema: rewriteShapeDescriptions(def.inputShape),
+        inputSchema: z.object(rewriteShapeDescriptions(def.inputShape)),
       },
       async (args: unknown): Promise<CallToolResult> => {
         const result = await def.handler(args);
@@ -840,7 +854,7 @@ export function registerSimTools(server: McpServer): void {
         "authoritative for current rules (check lastVerified). Expected costs use the directory's " +
         "listed challenge prices; full firm profiles and live offers are directory data " +
         "(propfirms_get, propfirms_search_offers).",
-      inputSchema: passRatesSchema.shape,
+      inputSchema: passRatesSchema,
     },
     async (args: unknown): Promise<CallToolResult> => (await handlePassRates(args)) as CallToolResult,
   );
@@ -870,7 +884,7 @@ export function registerSimTools(server: McpServer): void {
         "costs use the directory's listed prices (live discounts are NOT applied); prices, firm " +
         "profiles, and current offers are directory data (propfirms_search_challenges, " +
         "propfirms_get, propfirms_search_offers).",
-      inputSchema: validateStrategySchema.shape,
+      inputSchema: validateStrategySchema,
     },
     async (args: unknown): Promise<CallToolResult> => (await handleValidateStrategy(args)) as CallToolResult,
   );

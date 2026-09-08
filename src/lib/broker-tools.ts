@@ -1,6 +1,6 @@
 /*
   The broker tools — read-only portfolio access over @luxalgo/broker-sdk
-  (16 brokers & exchanges, the user's own keys). LOCAL (stdio) ENTRY ONLY:
+  (22 brokers & exchanges, the user's own keys). LOCAL (stdio) ENTRY ONLY:
   credentials come exclusively from environment variables in the user's own
   MCP client config, so these tools must never be registered on the hosted
   entries — a hosted process has no business holding anyone's broker keys.
@@ -15,7 +15,7 @@
   BROKERS_HYPERLIQUID_WALLET_ADDRESS, …
 */
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import {
   connect,
   listBrokers,
@@ -139,8 +139,8 @@ export function registerBrokerTools(server: McpServer, env: NodeJS.ProcessEnv = 
     {
       title: "Broker connection setup & status",
       description:
-        "Every broker this server can connect to (16 brokers & exchanges via @luxalgo/broker-sdk), the environment variables its credentials go in, whether each is set in this session (never the values), and the one-line guide to creating each key with read-only scope. Call this first when no broker data comes back, or when the user asks how to connect an account.",
-      inputSchema: {},
+        "Every broker this server can connect to (22 brokers & exchanges via @luxalgo/broker-sdk), the environment variables its credentials go in, whether each is set in this session (never the values), and the one-line guide to creating each key with read-only scope. Call this first when no broker data comes back, or when the user asks how to connect an account.",
+      inputSchema: z.object({}),
     },
     async () => json(describeBrokers(env)),
   );
@@ -151,7 +151,7 @@ export function registerBrokerTools(server: McpServer, env: NodeJS.ProcessEnv = 
       title: "List connected brokerage accounts",
       description:
         "All connected accounts across every configured broker: stable id, name, broker, currency, total equity, and cash when reported. Uses a short-lived cache; call broker_refresh for live numbers. Read-only — this server cannot trade.",
-      inputSchema: {},
+      inputSchema: z.object({}),
     },
     async () => {
       const { snapshots, failures } = await state.snapshots();
@@ -173,9 +173,9 @@ export function registerBrokerTools(server: McpServer, env: NodeJS.ProcessEnv = 
       title: "Open positions",
       description:
         "Open positions across all connected accounts: symbol, quantity (negative means short), market value in the account currency when the broker prices it, plus asset class and average entry price where reported. Optionally filter by broker id.",
-      inputSchema: {
+      inputSchema: z.object({
         broker: z.string().optional().describe("Broker id to filter by, e.g. 'alpaca' or 'kraken'"),
-      },
+      }),
     },
     async ({ broker }) => {
       const { snapshots, failures } = await state.snapshots();
@@ -200,11 +200,11 @@ export function registerBrokerTools(server: McpServer, env: NodeJS.ProcessEnv = 
       title: "Trade history",
       description:
         "Executed trades across all connected accounts (the most recent window each broker exposes), newest first. Optionally filter by broker id and/or symbol. To simulate prop-firm challenge odds from this history, pass this tool's JSON result (the {trades: [...]} object) straight into propfirms_simulate_trades as tradeLogText, with importRisk set to the risk taken per trade. Filter to one broker/account first when several are connected: mixed-account histories are refused rather than replayed as one equity curve.",
-      inputSchema: {
+      inputSchema: z.object({
         broker: z.string().optional().describe("Broker id to filter by"),
         symbol: z.string().optional().describe("Symbol to filter by, e.g. 'BTC' or 'AAPL'"),
         limit: z.number().int().positive().max(500).optional().describe("Max trades to return (default 100)"),
-      },
+      }),
     },
     async ({ broker, symbol, limit }) => {
       const { snapshots, failures } = await state.snapshots();
@@ -224,7 +224,7 @@ export function registerBrokerTools(server: McpServer, env: NodeJS.ProcessEnv = 
       title: "Portfolio performance stats",
       description:
         "Computed performance across the whole portfolio: total equity, equity by broker, top positions, and FIFO-matched trade stats — win rate, average win/loss, realized PnL, per-symbol breakdown. Amounts stay in each account's native currency, so mixed-currency totals are approximate. For prop-firm challenge odds from these stats, feed winRate plus avgWin/avgLoss converted to R-multiples (divide by the average amount risked per trade) into propfirms_simulate; for odds that respect the real trade sequence, use broker_trades with propfirms_simulate_trades instead.",
-      inputSchema: {},
+      inputSchema: z.object({}),
     },
     async () => {
       const { snapshots, failures } = await state.snapshots();
@@ -244,7 +244,7 @@ export function registerBrokerTools(server: McpServer, env: NodeJS.ProcessEnv = 
       title: "Refresh broker data",
       description:
         "Bypass the 5-minute cache and re-fetch every configured broker right now. Returns per-broker success/failure.",
-      inputSchema: {},
+      inputSchema: z.object({}),
     },
     async () => {
       const { snapshots, failures } = await state.refresh();

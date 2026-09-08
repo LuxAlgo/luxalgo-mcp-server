@@ -5,7 +5,7 @@
   carries canonical URLs so agents can cite pages.
 */
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import {
   CONCEPT_FAMILIES,
   FAMILY_NAMES,
@@ -81,7 +81,7 @@ export function registerLibraryTools(server: McpServer) {
       title: "Search the LuxAlgo Library",
       description:
         "Search the LuxAlgo Library — the encyclopedia of trading and technical analysis. One query over 800+ concepts (alias-aware: 'stochastics' finds Stochastic Oscillator) and 800+ ready-to-use indicators. Start here whenever you have a name, informal term, or topic; results carry slugs for the get tools plus canonical URLs for citation.",
-      inputSchema: {
+      inputSchema: z.object({
         query: z
           .string()
           .min(1)
@@ -96,7 +96,7 @@ export function registerLibraryTools(server: McpServer) {
           ),
         family: familyEnum.optional().describe("Narrow to one concept family"),
         limit: z.number().int().min(1).max(50).optional().describe("Max results (default 10)"),
-      },
+      }),
     },
     async ({ query, type, family, limit }) => {
       const max = limit ?? 10;
@@ -170,14 +170,14 @@ export function registerLibraryTools(server: McpServer) {
       title: "Get a Library concept",
       description:
         "Explain a trading concept: the Library's full write-up as markdown — definition, formula, how traders read it, and its indicator implementations. Use for any 'what is X / how does X work' question. Needs the exact slug — find it with library_search or library_list_concepts.",
-      inputSchema: {
+      inputSchema: z.object({
         slug: z
           .string()
           .min(1)
           .describe(
             "Exact concept slug, e.g. 'rsi' or 'order-blocks' — from search or list results",
           ),
-      },
+      }),
     },
     async ({ slug }) => {
       const concepts = await getConcepts();
@@ -209,9 +209,9 @@ export function registerLibraryTools(server: McpServer) {
       title: "Get a Library indicator",
       description:
         "Details for one indicator: what it does, how to read it, family, concept links, preview image — plus whether its source code is available (fetch the code itself with library_get_source_code). Use when the user asks about a specific indicator.",
-      inputSchema: {
+      inputSchema: z.object({
         slug: z.string().min(1).describe("Indicator slug, e.g. 'tri-star'"),
-      },
+      }),
     },
     async ({ slug }) => {
       const result = await getIndicatorBySlug(slug);
@@ -244,9 +244,9 @@ export function registerLibraryTools(server: McpServer) {
       title: "Get an indicator's source code",
       description:
         "The full, working source code of a Library indicator (works on TradingView). Kept separate from library_get_indicator because sources are long — call it only when the user wants the code itself.",
-      inputSchema: {
+      inputSchema: z.object({
         slug: z.string().min(1).describe("Indicator slug"),
-      },
+      }),
     },
     async ({ slug }) => {
       const result = await getIndicatorBySlug(slug);
@@ -279,11 +279,11 @@ export function registerLibraryTools(server: McpServer) {
       title: "List Library concepts",
       description:
         "Browse every trading and technical-analysis concept in the Library — paginated, optionally one family. Use to enumerate a topic area or find slugs for library_get_concept; for keyword lookup prefer library_search.",
-      inputSchema: {
+      inputSchema: z.object({
         family: familyEnum.optional(),
         page: z.number().int().min(0).optional().describe("Default 0"),
         page_size: z.number().int().min(1).max(200).optional().describe("Default 50"),
-      },
+      }),
     },
     async ({ family, page, page_size }) => {
       const concepts = await getConcepts();
@@ -312,7 +312,7 @@ export function registerLibraryTools(server: McpServer) {
       title: "List Library indicators",
       description:
         "Browse the indicator catalog with filters and server-side sorting (newest first by default). Filter by family, concept slug (implementations of one concept), tags (ids from library_list_tags, AND-combined), trading platform, or plan tier. Use for structured browsing — 'latest indicators', 'everything in the volatility family', 'indicators implementing liquidity sweeps'; for keyword discovery prefer library_search.",
-      inputSchema: {
+      inputSchema: z.object({
         family: familyEnum.optional(),
         text: z.string().optional().describe("Server-side text filter"),
         concept: z
@@ -335,7 +335,7 @@ export function registerLibraryTools(server: McpServer) {
         direction: z.enum(["asc", "desc"]).optional(),
         page: z.number().int().min(0).optional().describe("Default 0"),
         page_size: z.number().int().min(1).max(100).optional().describe("Default 24"),
-      },
+      }),
     },
     async ({ family, text, concept, tags, platform, tier, sort, direction, page, page_size }) => {
       const sortKey =
@@ -376,7 +376,7 @@ export function registerLibraryTools(server: McpServer) {
       title: "List indicator tags",
       description:
         "The Library's indicator tag vocabulary (behavioral traits like 'Volatility', 'Trailing-Stop', 'Repainting Functionality'). Returns ids to pass as the tags filter of library_list_indicators — tags are orthogonal to the concept-family taxonomy.",
-      inputSchema: {},
+      inputSchema: z.object({}),
     },
     async () => {
       const tags = await getLibraryTags();
@@ -392,7 +392,7 @@ export function registerLibraryTools(server: McpServer) {
       title: "List concept families",
       description:
         "The Library's top-level taxonomy: 17 families of trading concepts (trend, momentum, SMC/ICT, statistics, …) with concept counts and hub links. The natural first call for orientation.",
-      inputSchema: {},
+      inputSchema: z.object({}),
     },
     async () => {
       const concepts = await getConcepts();
@@ -416,9 +416,9 @@ export function registerLibraryTools(server: McpServer) {
       title: "Get a family hub",
       description:
         "A family's hub page as markdown — the written overview of that school of analysis plus its complete concept roster. Use after library_list_families, or when the user asks about a whole area like 'SMC' or 'Wyckoff'.",
-      inputSchema: {
+      inputSchema: z.object({
         key: familyEnum.describe("Family key, e.g. 'smc-ict'"),
-      },
+      }),
     },
     async ({ key }) => {
       const [content, concepts] = await Promise.all([

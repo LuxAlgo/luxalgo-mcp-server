@@ -14,7 +14,7 @@
 */
 import { PostHog } from "posthog-node";
 import { instrument } from "@posthog/mcp";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 
 let client: PostHog | undefined;
 

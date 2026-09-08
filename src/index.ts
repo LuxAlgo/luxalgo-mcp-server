@@ -7,23 +7,29 @@
   tools are LOCAL ONLY, on purpose — keys never leave this machine, so the
   hosted entries never register them.
 */
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { McpServer } from "@modelcontextprotocol/server";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { SERVER_NAME, SERVER_VERSION, registerAllTools } from "./lib/register.js";
 import { connectionsFromEnv, registerBrokerTools } from "./lib/broker-tools.js";
 import { instrumentServer, shutdownAnalytics } from "./lib/analytics.js";
 
-const server = new McpServer({
-  name: SERVER_NAME,
-  version: SERVER_VERSION,
-});
+/** One fully registered server. serveStdio() calls this once per connection
+ *  (MCP 2026-07-28 pins one instance for the connection's lifetime and also
+ *  serves 2025-era clients from the same factory). */
+function createServer(): McpServer {
+  const server = new McpServer({
+    name: SERVER_NAME,
+    version: SERVER_VERSION,
+  });
 
-// Instrument before registering so every tool is wrapped. No-op unless
-// POSTHOG_PROJECT_TOKEN is set; the logger writes to stderr (stdout is MCP's).
-instrumentServer(server, (message) => console.error(`[posthog] ${message}`));
+  // Instrument before registering so every tool is wrapped. No-op unless
+  // POSTHOG_PROJECT_TOKEN is set; the logger writes to stderr (stdout is MCP's).
+  instrumentServer(server, (message) => console.error(`[posthog] ${message}`));
 
-registerAllTools(server);
-registerBrokerTools(server); // stdio only — never move into registerAllTools
+  registerAllTools(server);
+  registerBrokerTools(server); // stdio only — never move into registerAllTools
+  return server;
+}
 
 // stderr only — stdout belongs to the MCP protocol.
 const configured = connectionsFromEnv(process.env).map((c) => c.broker);
@@ -43,5 +49,4 @@ if (process.env.POSTHOG_PROJECT_TOKEN) {
   }
 }
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
+serveStdio(() => createServer());

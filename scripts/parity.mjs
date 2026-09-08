@@ -7,10 +7,10 @@
 
   Run after every @luxalgo/prop-firm-sim-* version bump: npm run test:parity
 */
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { toolDefinitions } from "@luxalgo/prop-firm-sim-mcp/dist/tools.js";
-import { fetchDirectory, resolveFirm } from "@luxalgo/prop-firm-sim-mcp/dist/directory.js";
+import { Client } from "@modelcontextprotocol/client";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { toolDefinitions } from "@luxalgo/prop-firm-sim-mcp/tools";
+import { fetchDirectory, resolveFirm } from "@luxalgo/prop-firm-sim-mcp/directory";
 import { ChallengeSpecSchema, simulate } from "@luxalgo/prop-firm-sim-core";
 import { adaptFirm } from "@luxalgo/prop-firm-sim-core/directory";
 
