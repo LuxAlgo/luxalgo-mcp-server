@@ -51,12 +51,12 @@
     "prepare": "npm run build",
     "prepublishOnly": "npm run build",
     "start": "node dist/index.js",
-    "start:http": "node dist/http.js",
+    "start:http": "node dist/entries/node-http.js",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.api.json",
-    "test": "node scripts/smoke.mjs",
-    "test:http": "node scripts/smoke.mjs --http http://localhost:3333/mcp",
-    "test:parity": "node scripts/parity.mjs",
-    "test:trackers": "node scripts/trackers-check.mjs"
+    "test": "node test/smoke.mjs",
+    "test:http": "node test/smoke.mjs --http http://localhost:3333/mcp",
+    "test:parity": "node test/parity.mjs",
+    "test:trackers": "node test/trackers-check.mjs"
   },
   "dependencies": {
     "@luxalgo/broker-sdk": "^0.5.0",

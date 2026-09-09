@@ -269,14 +269,34 @@ npm install
 npm run build
 npm start            # stdio
 npm run start:http   # streamable HTTP on :3333/mcp
-npm test               # smoke suite over stdio (hits live endpoints)
+npm test               # smoke suite over stdio (hits live endpoints); --only library,edge for a subset
+npm run test:http      # the same suite against a running HTTP entry on :3333
 npm run test:parity    # simulator tools vs upstream package + raw engine
 npm run test:trackers  # offline checks of the Market Trackers streaming engine
 ```
 
+Layout — one directory per concern, one directory per tool domain:
+
+```
+src/
+  index.ts            the `luxalgo-mcp` binary → entries/stdio.ts
+  entries/            stdio.ts (local), node-http.ts (plain Node), hosted.ts (shared by node-http and api/server.ts)
+  server/             manifest.ts (the list of tool modules; protected / local-only derived from it),
+                      create-server.ts (registration shared by every entry), version.ts (serverInfo)
+  tools/<domain>/     index.ts exports a ToolModule (name, tool names, protected, localOnly, register);
+                      api.ts wraps the domain's endpoints; the rest is the domain's own
+  tools/_shared/      result/format helpers and the ToolModule contract
+  auth/               OAuth: config, gate, verify, metadata, challenge, runtime, protected-tool, local/ (stdio client)
+  platform/           app-client.ts (the one HTTP client for the LuxAlgo app), analytics.ts
+api/server.ts         the Vercel function
+test/                 smoke.mjs runner + smoke/<domain>.mjs suites, parity.mjs, trackers-check.mjs
+```
+
+Adding a tool domain: create `src/tools/<domain>/index.ts` exporting a `ToolModule` and list it in `src/server/manifest.ts`; registration asserts the module registers exactly the tools it declares. Mark tools that need a signed-in user in `protectedTools` (and register them with `registerProtectedTool`), and modules that read local credentials with `localOnly`.
+
 Optional env: `LUXALGO_APP_ORIGIN` and `LUXALGO_SITE_ORIGIN` point the server at non-production environments; `MARKET_TRACKERS_DUMPS_ORIGIN` (default `https://raw.githubusercontent.com/LuxAlgo/market-trackers-data/main`) and `MARKET_TRACKERS_DATA_REPO` point the Market Trackers tools at another dumps tree.
 
-OAuth env (see `src/lib/auth/config.ts`): the authorization server is always `LUXALGO_APP_ORIGIN` + `/api/auth`; `MCP_RESOURCE` (default `https://mcp.luxalgo.com/mcp`) is this server's resource identifier and token audience — it must equal the app's `LUXALGO_MCP_SERVER_RESOURCE`. For local end-to-end work: `LUXALGO_APP_ORIGIN=http://localhost:3001 MCP_RESOURCE=http://localhost:3333/mcp npm run start:http`, with the app running on 3001 and the same `MCP_RESOURCE` exported for `npx -y @luxalgo/mcp login` / the stdio server. `LUXALGO_AUTH_CHALLENGE=result` makes the hosted entries let an anonymous protected call reach the tool (which answers the in-band `_meta["mcp/www_authenticate"]` challenge) instead of short-circuiting with HTTP 401 — the default; invalid tokens are always a 401. `npm test` covers the anonymous paths and the advertised `securitySchemes` on both transports.
+OAuth env (see `src/auth/config.ts`): the authorization server is always `LUXALGO_APP_ORIGIN` + `/api/auth`; `MCP_RESOURCE` (default `https://mcp.luxalgo.com/mcp`) is this server's resource identifier and token audience — it must equal the app's `LUXALGO_MCP_SERVER_RESOURCE`. For local end-to-end work: `LUXALGO_APP_ORIGIN=http://localhost:3001 MCP_RESOURCE=http://localhost:3333/mcp npm run start:http`, with the app running on 3001 and the same `MCP_RESOURCE` exported for `npx -y @luxalgo/mcp login` / the stdio server. `LUXALGO_AUTH_CHALLENGE=result` makes the hosted entries let an anonymous protected call reach the tool (which answers the in-band `_meta["mcp/www_authenticate"]` challenge) instead of short-circuiting with HTTP 401 — the default; invalid tokens are always a 401. `npm test` covers the anonymous paths and the advertised `securitySchemes` on both transports.
 
 ## Disclaimer
 
