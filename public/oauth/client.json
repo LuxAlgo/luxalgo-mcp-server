@@ -1,0 +1,15 @@
+{
+  "client_id": "https://mcp.luxalgo.com/oauth/client.json",
+  "client_name": "LuxAlgo MCP (local)",
+  "client_uri": "https://mcp.luxalgo.com",
+  "redirect_uris": ["http://127.0.0.1/callback", "http://localhost/callback"],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "none",
+  "token_endpoint_auth_methods_supported": ["none"],
+  "application_type": "native",
+  "scope": "openid profile email offline_access",
+  "software_id": "luxalgo-mcp-server",
+  "policy_uri": "https://www.luxalgo.com/legal/privacy-policy/",
+  "tos_uri": "https://www.luxalgo.com/legal/terms-of-service/"
+}

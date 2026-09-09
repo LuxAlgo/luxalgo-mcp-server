@@ -4,6 +4,17 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+### Added
+
+- OAuth 2.1 sign-in with a LuxAlgo account, with [app.luxalgo.com](https://app.luxalgo.com) as the authorization server and this server as an RFC 9728 protected resource (`https://mcp.luxalgo.com/mcp`). Public tools keep working anonymously; protected tools need a signed-in user. This server makes no entitlement decisions of its own: once the caller has a token, every request a tool makes to the app carries it as a bearer, and the app resolves the user and their plan exactly as it does for a browser session — answering `401` (→ sign-in challenge) or `403` with the failing permission (→ "your plan does not include this") when appropriate.
+  - Hosted entries (Vercel and plain Node) serve `/.well-known/oauth-protected-resource` (root and path-inserted forms), verify bearer tokens offline against the app's JWKS (issuer, audience, expiry; DPoP-bound tokens are refused since the resource advertises no DPoP support), and refuse an anonymous call to a protected tool with `401` + `WWW-Authenticate` pointing at the metadata — "lazy" auth, so `initialize` and `tools/list` never prompt. `LUXALGO_AUTH_CHALLENGE=result` switches the anonymous-protected-call case to an in-band tool error carrying `_meta["mcp/www_authenticate"]`.
+  - `tools/list` declares a per-tool `securitySchemes` (`noauth` / `oauth2` + scopes), the extension ChatGPT keys its per-tool linking on; other clients ignore it.
+  - Local (stdio) entry: `npx -y @luxalgo/mcp login` / `logout` / `status`. The local server is itself the OAuth client (authorization code + PKCE, loopback redirect, refresh tokens; identified by the Client ID Metadata Document at `/oauth/client.json`, or DCR against a non-https resource). Tokens are stored owner-only under the user's config dir (`LUXALGO_MCP_AUTH_FILE` to override) and refreshed silently. With a client that supports URL-mode elicitation (MCP 2026-07-28), the first protected call signs in in-session instead.
+  - First protected tool: `luxalgo_account` — plan tier, entitlements and profile basics from the app's `/api/account/me`, on every entry.
+- New runtime dependencies: `jose` (JWT verification) and `@modelcontextprotocol/client` (the SDK's OAuth client, previously dev-only).
+- Env: `MCP_RESOURCE` (resource identifier / token audience, default `https://mcp.luxalgo.com/mcp`); the issuer follows the existing `LUXALGO_APP_ORIGIN`.
+- The smoke suite (`npm test`, `npm run test:http`) now also checks the advertised `securitySchemes` on the wire and the unauthenticated behaviour of `luxalgo_account` on both transports.
+
 ## [1.4.0]
 
 ### Changed

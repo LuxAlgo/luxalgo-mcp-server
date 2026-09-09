@@ -35,6 +35,60 @@ async function callStructured(client, name, args) {
   };
 }
 
+/**
+ * tools/list as raw JSON-RPC (2025-era framing, which both entries still
+ * serve), bypassing the client SDK's schema parsing so extension fields such
+ * as `securitySchemes` survive.
+ */
+async function rawToolsList() {
+  const request = { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} };
+  if (httpUrl) {
+    const response = await fetch(httpUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        "mcp-protocol-version": "2025-06-18",
+      },
+      body: JSON.stringify(request),
+    });
+    const text = await response.text();
+    const json = text.startsWith("{") ? text : (text.match(/^data: (.*)$/m)?.[1] ?? "{}");
+    return JSON.parse(json).result?.tools ?? [];
+  }
+  const { spawn } = await import("node:child_process");
+  const child = spawn(process.execPath, ["dist/index.js"], { stdio: ["pipe", "pipe", "ignore"] });
+  const done = new Promise((resolve, reject) => {
+    let buffer = "";
+    child.stdout.on("data", (chunk) => {
+      buffer += chunk;
+      for (const line of buffer.split("\n")) {
+        if (!line.trim()) continue;
+        try {
+          const message = JSON.parse(line);
+          if (message.id === 1) resolve(message.result?.tools ?? []);
+        } catch {
+          // partial line — keep buffering
+        }
+      }
+    });
+    child.on("error", reject);
+    setTimeout(() => reject(new Error("raw stdio tools/list timed out")), 15_000).unref();
+  });
+  const init = {
+    jsonrpc: "2.0",
+    id: 0,
+    method: "initialize",
+    params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "smoke-raw", version: "0" } },
+  };
+  child.stdin.write(`${JSON.stringify(init)}\n${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n${JSON.stringify(request)}\n`);
+  try {
+    return await done;
+  } finally {
+    child.kill();
+  }
+}
+
 const client = new Client({ name: "smoke", version: "0.0.0" });
 const transport = httpUrl
   ? new StreamableHTTPClientTransport(new URL(httpUrl))
@@ -73,6 +127,7 @@ const expected = [
   "edge_symbols",
   "edge_presets",
   "edge_report",
+  "luxalgo_account", // protected — needs a LuxAlgo sign-in (OAuth); checked below
 ];
 // Broker tools are local-only: present over stdio, absent on the hosted entries.
 const brokerExpected = [
@@ -97,6 +152,54 @@ check(
     : brokerExpected.every((n) => names.includes(n)),
   names.filter((n) => n.startsWith("broker_")).join(", ") || "none",
 );
+
+// OAuth advertisement — every tool declares its auth policy (securitySchemes,
+// OpenAI's MCP extension): public tools `noauth`, protected ones `oauth2`.
+// The SDK client strips fields it does not know, so read the raw wire.
+const rawTools = await rawToolsList();
+const schemesOf = (name) => rawTools.find((t) => t.name === name)?.securitySchemes ?? [];
+check(
+  "every public tool advertises securitySchemes: [noauth] on the wire",
+  rawTools.length === expectedAll.length &&
+    rawTools
+      .filter((t) => t.name !== "luxalgo_account")
+      .every((t) => Array.isArray(t.securitySchemes) && t.securitySchemes.some((s) => s.type === "noauth")),
+  `${rawTools.length} tools; library_search → ${JSON.stringify(schemesOf("library_search"))}`,
+);
+check(
+  "luxalgo_account advertises securitySchemes: [oauth2 + scopes] on the wire",
+  schemesOf("luxalgo_account").some((s) => s.type === "oauth2" && Array.isArray(s.scopes) && s.scopes.includes("openid")),
+  JSON.stringify(schemesOf("luxalgo_account")),
+);
+
+// luxalgo_account without a sign-in. Hosted: the transport refuses with 401 +
+// WWW-Authenticate before the tool runs (the client SDK surfaces that as an
+// UnauthorizedError because this smoke client has no OAuth provider). Stdio:
+// there is no transport status, so the tool itself answers the in-band
+// challenge — isError with _meta["mcp/www_authenticate"] and the login hint.
+if (httpUrl) {
+  let thrown;
+  try {
+    await client.callTool({ name: "luxalgo_account", arguments: {} });
+  } catch (error) {
+    thrown = error;
+  }
+  check(
+    "hosted luxalgo_account without a token is refused at the transport (401 challenge)",
+    thrown !== undefined && /401|unauthorized/i.test(String(thrown?.message ?? thrown)),
+    String(thrown?.message ?? thrown ?? "no error").slice(0, 120),
+  );
+} else {
+  const account = await client.callTool({ name: "luxalgo_account", arguments: {} });
+  const challenge = account._meta?.["mcp/www_authenticate"]?.[0] ?? "";
+  check(
+    "stdio luxalgo_account without a sign-in answers the in-band OAuth challenge",
+    account.isError === true &&
+      /^Bearer resource_metadata="https?:\/\/[^"]+\/\.well-known\/oauth-protected-resource/.test(challenge) &&
+      /npx -y @luxalgo\/mcp login/.test(account.content?.[0]?.text ?? ""),
+    challenge.slice(0, 100) || (account.content?.[0]?.text ?? "").slice(0, 100),
+  );
+}
 
 if (!httpUrl) {
   // No BROKERS_* env in this run: setup lists everything unconfigured and

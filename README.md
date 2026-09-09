@@ -116,6 +116,24 @@ Runs every hosted tool locally, and unlocks the broker tools. Set read-only cred
 
 Env var names derive from each broker's credential fields: `BROKERS_<BROKER>_<FIELD>` (for example `BROKERS_OKX_PASSPHRASE`, `BROKERS_IBKR_FLEX_FLEX_TOKEN`). The `broker_setup` tool lists every supported broker, its exact variables, and a one-line guide to creating each key with read-only scope, which is all this server ever needs.
 
+### Signing in with LuxAlgo (optional)
+
+Almost everything here is keyless and works without an account. A few tools — marked **account** below — need to know who you are; they use your LuxAlgo account through standard OAuth 2.1, with [app.luxalgo.com](https://app.luxalgo.com) as the authorization server. Nothing is required up front: every client can connect, list tools and use the public ones anonymously, and sign-in is only requested when you first call an account tool.
+
+**Hosted (ChatGPT, Claude, Cursor, any remote connector).** The server advertises its [protected-resource metadata](https://mcp.luxalgo.com/.well-known/oauth-protected-resource/mcp) and answers an unauthenticated account-tool call with a `401` + `WWW-Authenticate` challenge; MCP clients handle the rest (discovery, PKCE, consent screen in your browser) and keep the token for you. Each tool also declares its policy in `tools/list` (`securitySchemes`: `noauth` for public tools, `oauth2` for account tools), so ChatGPT's per-tool linking works as well. Clients may identify themselves via Client ID Metadata Documents or Dynamic Client Registration — the app accepts both.
+
+**Local (stdio).** The server running on your machine is itself the OAuth client. Sign in once:
+
+```bash
+npx -y @luxalgo/mcp login     # opens your browser; tokens are stored under your user config dir (0600)
+npx -y @luxalgo/mcp status    # who is signed in, token expiry
+npx -y @luxalgo/mcp logout
+```
+
+Tokens live in `~/.config/luxalgo/mcp-auth.json` (`%APPDATA%\luxalgo\mcp-auth.json` on Windows, or `LUXALGO_MCP_AUTH_FILE`), are refreshed automatically, and are only ever sent to the LuxAlgo app. If your MCP client supports URL-mode elicitation (MCP 2026-07-28), you can skip the command: the first account-tool call asks the client to open the sign-in page and continues once you approve. Otherwise the tool answers with the challenge and the `login` hint.
+
+**What the token is for.** This server never decides what you are entitled to — its code is public, so any such check would be decorative. Instead, once you are signed in, every request a tool makes to the LuxAlgo app carries your token, and the app resolves your account and plan from it exactly as it does when you use the web app. Public tools work without it; with it, the app can tailor what they return. When the app declines — no valid sign-in (`401`) or a feature outside your plan (`403`) — the tool reports that, naming the permission involved.
+
 ## Tools
 
 ### Library
@@ -133,6 +151,14 @@ Env var names derive from each broker's credential fields: `BROKERS_<BROKER>_<FI
 | `library_get_family` | A family hub as markdown plus concept roster |
 
 Library outputs are compact JSON with canonical `url`s for citation. Concept and family pages are also directly fetchable as markdown: append `.md` to any concept URL.
+
+### Account (sign-in required)
+
+| Tool | Description |
+| --- | --- |
+| `luxalgo_account` | The signed-in user's plan tier, entitlements (alerts, historical bars, AI credits, …) and profile basics — so an agent can tailor answers to what the plan actually allows |
+
+These are the only tools that need a LuxAlgo account; see [Signing in with LuxAlgo](#signing-in-with-luxalgo-optional). Without a sign-in they return an OAuth challenge instead of data — never a silent fallback.
 
 ### Brokers (local stdio only)
 
@@ -249,6 +275,8 @@ npm run test:trackers  # offline checks of the Market Trackers streaming engine
 ```
 
 Optional env: `LUXALGO_APP_ORIGIN` and `LUXALGO_SITE_ORIGIN` point the server at non-production environments; `MARKET_TRACKERS_DUMPS_ORIGIN` (default `https://raw.githubusercontent.com/LuxAlgo/market-trackers-data/main`) and `MARKET_TRACKERS_DATA_REPO` point the Market Trackers tools at another dumps tree.
+
+OAuth env (see `src/lib/auth/config.ts`): the authorization server is always `LUXALGO_APP_ORIGIN` + `/api/auth`; `MCP_RESOURCE` (default `https://mcp.luxalgo.com/mcp`) is this server's resource identifier and token audience — it must equal the app's `LUXALGO_MCP_SERVER_RESOURCE`. For local end-to-end work: `LUXALGO_APP_ORIGIN=http://localhost:3001 MCP_RESOURCE=http://localhost:3333/mcp npm run start:http`, with the app running on 3001 and the same `MCP_RESOURCE` exported for `npx -y @luxalgo/mcp login` / the stdio server. `LUXALGO_AUTH_CHALLENGE=result` makes the hosted entries let an anonymous protected call reach the tool (which answers the in-band `_meta["mcp/www_authenticate"]` challenge) instead of short-circuiting with HTTP 401 — the default; invalid tokens are always a 401. `npm test` covers the anonymous paths and the advertised `securitySchemes` on both transports.
 
 ## Disclaimer
 
