@@ -22,9 +22,13 @@ export type ChallengeReason = {
 
 /** The `WWW-Authenticate` value; RFC 7235 quoted-string escaping on the free text. */
 export function challengeHeader(reason: ChallengeReason = {}): string {
-  const parts = [`resource_metadata="${PRM_URL}"`, `scope="${OAUTH_SCOPES.join(" ")}"`];
+  // Parameter order is free per RFC 7235; this is the order Anthropic's
+  // lazy-auth guide shows, kept identical to remove one variable when
+  // comparing against their sample.
+  const parts: string[] = [];
   if (reason.error) parts.push(`error="${reason.error}"`);
   if (reason.description) parts.push(`error_description="${quote(reason.description)}"`);
+  parts.push(`resource_metadata="${PRM_URL}"`, `scope="${OAUTH_SCOPES.join(" ")}"`);
   return `Bearer ${parts.join(", ")}`;
 }
 

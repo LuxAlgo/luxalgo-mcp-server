@@ -47,7 +47,10 @@ export function withLuxalgoAuth(next: AuthenticatedNext): (request: Request) => 
     }
 
     if (AUTH_CHALLENGE_MODE === "http" && (await invokesProtectedTool(request))) {
-      return unauthorizedResponse();
+      // RFC 6750 §3.1 would omit `error` when no credentials were sent at all;
+      // Anthropic's lazy-auth recipe includes `error="invalid_token"` on this
+      // exact response, so we match their canonical shape byte for byte.
+      return unauthorizedResponse({ error: "invalid_token", description: "Authentication required for this tool" });
     }
     return next(request, undefined);
   };

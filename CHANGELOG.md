@@ -4,9 +4,15 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+### Added
+
+- `LUXALGO_SECURITY_SCHEMES=off` removes the per-tool `securitySchemes` hint from `tools/list`. Added to test whether Claude.ai's connector reads that field when it decides to sign users in at connect time; the 401 challenge on protected calls is unchanged.
+
 ### Changed
 
-- README: Claude (web/desktop/mobile) install instructions, including the connector dialog's *Required when the server asks* setting that gives the anonymous-until-needed behaviour (the dialog defaults to signing in at connect because it detects the OAuth metadata). `docs/auth.md` notes the same so nobody treats the connect-time popup as a server bug.
+- The anonymous 401 on a protected tool now carries `error="invalid_token", error_description="Authentication required for this tool"` and lists the challenge parameters in the order Anthropic's lazy-authentication guide shows — the same signal, byte-compatible with their sample. The smoke suite asserts the wire response (status + header) instead of the SDK client's error text.
+
+- README: Claude (web/desktop/mobile) install instructions. Claude.ai signs in at connect time for any server with discoverable OAuth metadata — it fetches the well-known PRM itself after a successful anonymous handshake, under either *Authentication* setting — so the docs now say so instead of promising lazy auth there. `docs/auth.md` records the observed request sequence so nobody treats the connect-time popup as a server bug.
 
 ## [1.4.1]
 

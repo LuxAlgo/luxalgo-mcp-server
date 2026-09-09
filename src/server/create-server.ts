@@ -17,6 +17,7 @@
 */
 import { McpServer } from "@modelcontextprotocol/server";
 import { advertiseSecuritySchemes, instrumentToolRegistration } from "../auth/instrument.js";
+import { SECURITY_SCHEMES_ENABLED } from "../auth/config.js";
 import { hostedAuthRuntime, type AuthRuntime } from "../auth/runtime.js";
 import { instrumentServer } from "../platform/analytics.js";
 import { PROTECTED_TOOL_NAMES, TOOL_MODULES } from "./manifest.js";
@@ -48,7 +49,7 @@ export function registerLuxalgoTools(server: McpServer, options: ServerOptions):
     module.register(server, { auth });
     assertModuleManifest(module, [...registered].slice(before));
   }
-  advertiseSecuritySchemes(server, PROTECTED_TOOL_NAMES);
+  if (SECURITY_SCHEMES_ENABLED) advertiseSecuritySchemes(server, PROTECTED_TOOL_NAMES);
 }
 
 /** A new, fully registered server with this package's identity. */

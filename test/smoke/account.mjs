@@ -7,16 +7,22 @@ export async function run({ client, check, httpUrl }) {
   // there is no transport status, so the tool itself answers the in-band
   // challenge — isError with _meta["mcp/www_authenticate"] and the login hint.
   if (httpUrl) {
-    let thrown;
-    try {
-      await client.callTool({ name: "luxalgo_account", arguments: {} });
-    } catch (error) {
-      thrown = error;
-    }
+    // Raw fetch: the SDK client hides the status. Anthropic's lazy-auth recipe
+    // is exact about this response — HTTP 401 with
+    // `WWW-Authenticate: Bearer error="invalid_token", …, resource_metadata="…", scope="…"`.
+    const response = await fetch(httpUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "luxalgo_account", arguments: {} } }),
+    });
+    const challenge = response.headers.get("www-authenticate") ?? "";
     check(
-      "hosted luxalgo_account without a token is refused at the transport (401 challenge)",
-      thrown !== undefined && /401|unauthorized/i.test(String(thrown?.message ?? thrown)),
-      String(thrown?.message ?? thrown ?? "no error").slice(0, 120),
+      "hosted luxalgo_account without a token is refused at the transport (401 + WWW-Authenticate)",
+      response.status === 401 &&
+        /^Bearer error="invalid_token", /.test(challenge) &&
+        /resource_metadata="https?:\/\/[^"]+\/\.well-known\/oauth-protected-resource/.test(challenge) &&
+        /scope="openid /.test(challenge),
+      `${response.status} ${challenge.slice(0, 120)}`,
     );
   } else {
     const account = await client.callTool({ name: "luxalgo_account", arguments: {} });
@@ -24,7 +30,7 @@ export async function run({ client, check, httpUrl }) {
     check(
       "stdio luxalgo_account without a sign-in answers the in-band OAuth challenge",
       account.isError === true &&
-        /^Bearer resource_metadata="https?:\/\/[^"]+\/\.well-known\/oauth-protected-resource/.test(challenge) &&
+        /^Bearer .*resource_metadata="https?:\/\/[^"]+\/\.well-known\/oauth-protected-resource/.test(challenge) &&
         /npx -y @luxalgo\/mcp login/.test(account.content?.[0]?.text ?? ""),
       challenge.slice(0, 100) || (account.content?.[0]?.text ?? "").slice(0, 100),
     );

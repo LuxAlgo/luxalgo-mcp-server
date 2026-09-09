@@ -76,3 +76,14 @@ export const CLIENT_METADATA_URL = MCP_ORIGIN.startsWith("https://") ? `${MCP_OR
  */
 export const AUTH_CHALLENGE_MODE: "http" | "result" =
   trimmed(process.env.LUXALGO_AUTH_CHALLENGE) === "result" ? "result" : "http";
+
+/**
+ * Whether tools/list carries a per-tool `securitySchemes` array (OpenAI's
+ * MCP extension: `noauth` / `oauth2` + scopes). ChatGPT uses it to show
+ * which tools unlock after linking; it is not part of Anthropic's lazy-auth
+ * recipe, and a client that reads it sees "oauth2" before any 401 has been
+ * sent. LUXALGO_SECURITY_SCHEMES=off drops the field so the anonymous
+ * tools/list looks exactly like an authless server's — the 401 challenge on
+ * a protected call is unaffected. Default: on.
+ */
+export const SECURITY_SCHEMES_ENABLED = trimmed(process.env.LUXALGO_SECURITY_SCHEMES) !== "off";

@@ -63,21 +63,31 @@ export async function run({ client, check, callJson, callStructured, httpUrl, ra
   // OAuth advertisement — every tool declares its auth policy (securitySchemes,
   // OpenAI's MCP extension): public tools `noauth`, protected ones `oauth2`.
   // The SDK client strips fields it does not know, so read the raw wire.
+  // LUXALGO_SECURITY_SCHEMES=off (read from this process's env — export it
+  // for the server under test too) must leave the wire free of the field.
   const rawTools = await rawToolsList();
   const schemesOf = (name) => rawTools.find((t) => t.name === name)?.securitySchemes ?? [];
-  check(
-    "every public tool advertises securitySchemes: [noauth] on the wire",
-    rawTools.length === expectedAll.length &&
-      rawTools
-        .filter((t) => t.name !== "luxalgo_account")
-        .every((t) => Array.isArray(t.securitySchemes) && t.securitySchemes.some((s) => s.type === "noauth")),
-    `${rawTools.length} tools; library_search → ${JSON.stringify(schemesOf("library_search"))}`,
-  );
-  check(
-    "luxalgo_account advertises securitySchemes: [oauth2 + scopes] on the wire",
-    schemesOf("luxalgo_account").some((s) => s.type === "oauth2" && Array.isArray(s.scopes) && s.scopes.includes("openid")),
-    JSON.stringify(schemesOf("luxalgo_account")),
-  );
+  if (process.env.LUXALGO_SECURITY_SCHEMES?.trim() === "off") {
+    check(
+      "LUXALGO_SECURITY_SCHEMES=off: no tool carries securitySchemes on the wire",
+      rawTools.length === expectedAll.length && rawTools.every((t) => !("securitySchemes" in t)),
+      `${rawTools.length} tools; with field: ${rawTools.filter((t) => "securitySchemes" in t).length}`,
+    );
+  } else {
+    check(
+      "every public tool advertises securitySchemes: [noauth] on the wire",
+      rawTools.length === expectedAll.length &&
+        rawTools
+          .filter((t) => t.name !== "luxalgo_account")
+          .every((t) => Array.isArray(t.securitySchemes) && t.securitySchemes.some((s) => s.type === "noauth")),
+      `${rawTools.length} tools; library_search → ${JSON.stringify(schemesOf("library_search"))}`,
+    );
+    check(
+      "luxalgo_account advertises securitySchemes: [oauth2 + scopes] on the wire",
+      schemesOf("luxalgo_account").some((s) => s.type === "oauth2" && Array.isArray(s.scopes) && s.scopes.includes("openid")),
+      JSON.stringify(schemesOf("luxalgo_account")),
+    );
+  }
 
   // serverInfo — the hardcoded SERVER_VERSION (src/server/version.ts) must track package.json.
   const pkg = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
