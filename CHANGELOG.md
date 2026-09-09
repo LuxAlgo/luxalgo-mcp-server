@@ -2,6 +2,12 @@
 
 Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows [semver](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- README: Claude (web/desktop/mobile) install instructions, including the connector dialog's *Required when the server asks* setting that gives the anonymous-until-needed behaviour (the dialog defaults to signing in at connect because it detects the OAuth metadata). `docs/auth.md` notes the same so nobody treats the connect-time popup as a server bug.
+
 ## [1.4.1]
 
 ### Changed

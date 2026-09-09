@@ -120,6 +120,8 @@ request with no token
 
 On stdio there is no HTTP status, so a protected tool with no sign-in always answers the in-band form: `isError: true`, human text with the `login` hint, and `_meta["mcp/www_authenticate"]` with the same challenge string (`signInRequiredResult` in `src/auth/challenge.ts`).
 
+**A sign-in popup at connect time in Claude.ai is not a bug in this server.** When a custom connector is added, Claude probes the well-known metadata paths, detects OAuth, and defaults its *Authentication* setting to "Always required"; the user can switch it to "Required when the server asks", which is the lazy behaviour described above. This server sends no 401 during `initialize` or `tools/list`. Do not "fix" it by removing the well-known metadata (RFC 9728 §3 requires it and other clients depend on it) or by loosening the gate — point people at the README's Claude install note instead.
+
 ---
 
 ## 6. What happens when the app says no

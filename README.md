@@ -40,6 +40,10 @@ The hosted server is one URL:
 https://mcp.luxalgo.com/mcp
 ```
 
+### Claude (web, desktop, mobile)
+
+Customize → Connectors → **Add custom connector**, URL `https://mcp.luxalgo.com/mcp`. Under **Authentication**, choose **Required when the server asks**: the dialog pre-selects *Always required* because it detects this server's OAuth metadata, but with *Required when the server asks* Claude connects anonymously, every keyless tool works right away, and the sign-in card only appears the first time you call an account tool. (Older one-screen versions of the dialog have no Authentication selector and always sign in at connect; the tools work the same afterwards.)
+
 ### Claude Code
 
 ```bash
@@ -120,7 +124,7 @@ Env var names derive from each broker's credential fields: `BROKERS_<BROKER>_<FI
 
 Almost everything here is keyless and works without an account. A few tools — marked **account** below — need to know who you are; they use your LuxAlgo account through standard OAuth 2.1, with [app.luxalgo.com](https://app.luxalgo.com) as the authorization server. Nothing is required up front: every client can connect, list tools and use the public ones anonymously, and sign-in is only requested when you first call an account tool.
 
-**Hosted (ChatGPT, Claude, Cursor, any remote connector).** The server advertises its [protected-resource metadata](https://mcp.luxalgo.com/.well-known/oauth-protected-resource/mcp) and answers an unauthenticated account-tool call with a `401` + `WWW-Authenticate` challenge; MCP clients handle the rest (discovery, PKCE, consent screen in your browser) and keep the token for you. Each tool also declares its policy in `tools/list` (`securitySchemes`: `noauth` for public tools, `oauth2` for account tools), so ChatGPT's per-tool linking works as well. Clients may identify themselves via Client ID Metadata Documents or Dynamic Client Registration — the app accepts both.
+**Hosted (ChatGPT, Claude, Cursor, any remote connector).** The server advertises its [protected-resource metadata](https://mcp.luxalgo.com/.well-known/oauth-protected-resource/mcp) and answers an unauthenticated account-tool call with a `401` + `WWW-Authenticate` challenge; MCP clients handle the rest (discovery, PKCE, consent screen in your browser) and keep the token for you. Each tool also declares its policy in `tools/list` (`securitySchemes`: `noauth` for public tools, `oauth2` for account tools), so ChatGPT's per-tool linking works as well. Clients may identify themselves via Client ID Metadata Documents or Dynamic Client Registration — the app accepts both. One client-side detail: Claude's connector dialog detects the OAuth metadata and defaults to signing in at connect time; pick **Required when the server asks** there to get the anonymous-until-needed behaviour (see [Install](#claude-web-desktop-mobile)).
 
 **Local (stdio).** The server running on your machine is itself the OAuth client. Sign in once:
 
