@@ -107,6 +107,7 @@ console.log(`Connected via ${httpUrl ? `HTTP (${httpUrl})` : "stdio"}\n`);
 const suites = [
   ["surface", () => import("./smoke/surface.mjs")],
   ["account", () => import("./smoke/account.mjs")],
+  ["journal", () => import("./smoke/journal.mjs")],
   ["broker", () => import("./smoke/broker.mjs"), { stdioOnly: true }],
   ["library", () => import("./smoke/library.mjs")],
   ["propfirms", () => import("./smoke/propfirms.mjs")],

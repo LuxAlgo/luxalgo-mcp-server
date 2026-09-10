@@ -2,14 +2,16 @@
   The one HTTP client for the LuxAlgo app API (JSON, `{data, errors}`
   envelope) and the marketing site's plain-markdown routes. Domain modules
   wrap specific endpoints on top of this (tools/library/api.ts,
-  tools/propfirms/api.ts, tools/account/tools.ts).
+  tools/propfirms/api.ts, tools/journal/api.ts, tools/account/tools.ts).
 
-  Everything is read-only and works without credentials. When the caller
-  has signed in with LuxAlgo, though, every app request carries their OAuth
-  access token (see auth/access-context.ts): the app resolves the user from
-  it exactly as from a browser session, and it — never this server — decides
-  what that user may see. Its answers map to two typed errors: 401 → sign in
-  (AppAuthError), 403 → the plan does not allow it (AppPermissionError).
+  Reads (`appGet`) work without credentials. When the caller has signed in
+  with LuxAlgo, though, every app request carries their OAuth access token
+  (see auth/access-context.ts): the app resolves the user from it exactly as
+  from a browser session, and it — never this server — decides what that
+  user may see. Writes (`appSend`) always need that token — the user's own
+  journal is the only thing this server ever writes, and only as them. The
+  app's answers map to two typed errors: 401 → sign in (AppAuthError),
+  403 → the plan does not allow it (AppPermissionError).
 */
 import { currentAccess, type Access } from "../auth/access-context.js";
 
@@ -63,15 +65,57 @@ export async function appGet<T>(
   query?: Record<string, string | undefined>,
   options: AppGetOptions = {},
 ): Promise<T> {
+  const access = options.access === undefined ? currentAccess() : options.access;
+  const headers: Record<string, string> = { accept: "application/json" };
+  if (access) headers.authorization = `Bearer ${access.token}`;
+  return readEnvelope<T>(pathname, await fetch(appUrl(pathname, query), { headers }));
+}
+
+export type AppSendOptions = {
+  query?: Record<string, string | undefined>;
+  /** JSON-encoded request body; omit for body-less requests. */
+  body?: unknown;
+};
+
+/**
+ * A write to the app (POST / PATCH / PUT / DELETE) as the signed-in user.
+ * Always sends the ambient token — there is no anonymous form, because a
+ * write on nobody's behalf is never meaningful here — and throws the same
+ * AppAuthError the app would answer when no token is present, so a caller
+ * without one gets the sign-in challenge before any request goes out.
+ */
+export async function appSend<T>(
+  method: "POST" | "PATCH" | "PUT" | "DELETE",
+  pathname: string,
+  options: AppSendOptions = {},
+): Promise<T> {
+  const access = currentAccess();
+  if (!access) throw new AppAuthError(pathname);
+  const headers: Record<string, string> = { accept: "application/json", authorization: `Bearer ${access.token}` };
+  const init: RequestInit = { method, headers };
+  if (options.body !== undefined) {
+    headers["content-type"] = "application/json";
+    init.body = JSON.stringify(options.body);
+  }
+  return readEnvelope<T>(pathname, await fetch(appUrl(pathname, options.query), init));
+}
+
+function appUrl(pathname: string, query?: Record<string, string | undefined>): URL {
   const url = new URL(pathname, APP_API_ORIGIN);
   for (const [key, value] of Object.entries(query ?? {})) {
     if (value !== undefined && value !== "") url.searchParams.set(key, value);
   }
-  const access = options.access === undefined ? currentAccess() : options.access;
-  const headers: Record<string, string> = { accept: "application/json" };
-  if (access) headers.authorization = `Bearer ${access.token}`;
+  return url;
+}
 
-  const response = await fetch(url, { headers });
+/**
+ * Unwraps the app's `{data, errors}` envelope. 401 and 403 become the typed
+ * errors above; any other failure carries the app's own message when it sent
+ * one (routes answer 400/404 with a plain-language reason — "Trade not found",
+ * "Nothing to update" — which is what the caller needs to recover) and a
+ * generic status line otherwise.
+ */
+async function readEnvelope<T>(pathname: string, response: Response): Promise<T> {
   const text = await response.text();
   let payload: { data?: T; errors?: ApiErrorBody[] } | undefined;
   try {
@@ -90,7 +134,7 @@ export async function appGet<T>(
     );
   }
   if (!response.ok) {
-    throw new AppApiError(`LuxAlgo API ${response.status} for ${pathname}`, response.status);
+    throw new AppApiError(firstError?.message ?? `LuxAlgo API ${response.status} for ${pathname}`, response.status);
   }
   if (payload === undefined) throw new AppApiError(`Non-JSON response for ${pathname}`, response.status);
   if (firstError) throw new AppApiError(firstError.message, response.status);
