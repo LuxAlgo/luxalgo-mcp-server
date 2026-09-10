@@ -32,7 +32,8 @@ export type JournalAccount = {
 export type JournalBoot = {
   available: boolean;
   asOf: string;
-  timeZone: string;
+  /** The effective journal timezone (IANA). Absent on app builds that predate the field — see journalTimeZone in tools.ts. */
+  timeZone?: string;
   accounts: JournalAccount[];
   settings: { timezone: string } | null;
 };
