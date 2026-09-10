@@ -9,12 +9,27 @@
   --only <suite>[,<suite>], e.g. `node test/smoke.mjs --only library,edge`.
 */
 import { Client } from "@modelcontextprotocol/client";
-import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/client/stdio";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 const httpUrl = process.argv.includes("--http")
   ? process.argv[process.argv.indexOf("--http") + 1]
   : null;
+
+/**
+ * The suite asserts ANONYMOUS behaviour (protected tools answer the sign-in
+ * challenge), and its protected-tool calls include a write. The stdio server
+ * under test must therefore never see this machine's login store — a
+ * developer who ran `luxalgo-mcp login` would otherwise have the suite call
+ * the real app as them and create a real journal note. Point the store at a
+ * file that does not exist.
+ */
+const stdioEnv = {
+  ...getDefaultEnvironment(),
+  LUXALGO_MCP_AUTH_FILE: join(tmpdir(), "luxalgo-mcp-smoke-no-login", "absent.json"),
+};
 
 let failures = 0;
 function check(label, condition, detail = "") {
@@ -61,7 +76,7 @@ async function rawToolsList() {
     return JSON.parse(json).result?.tools ?? [];
   }
   const { spawn } = await import("node:child_process");
-  const child = spawn(process.execPath, ["dist/index.js"], { stdio: ["pipe", "pipe", "ignore"] });
+  const child = spawn(process.execPath, ["dist/index.js"], { stdio: ["pipe", "pipe", "ignore"], env: stdioEnv });
   const done = new Promise((resolve, reject) => {
     let buffer = "";
     child.stdout.on("data", (chunk) => {
@@ -100,7 +115,7 @@ const only = process.argv.includes("--only")
 const client = new Client({ name: "smoke", version: "0.0.0" });
 const transport = httpUrl
   ? new StreamableHTTPClientTransport(new URL(httpUrl))
-  : new StdioClientTransport({ command: process.execPath, args: ["dist/index.js"] });
+  : new StdioClientTransport({ command: process.execPath, args: ["dist/index.js"], env: stdioEnv });
 await client.connect(transport);
 console.log(`Connected via ${httpUrl ? `HTTP (${httpUrl})` : "stdio"}\n`);
 

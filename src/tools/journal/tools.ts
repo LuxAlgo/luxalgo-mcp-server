@@ -35,6 +35,7 @@ import {
   listTrades,
   searchNotes,
   updateNote,
+  type JournalBoot,
   type JournalTradeSummary,
   type TradeAnnotationsPatch,
 } from "./api.js";
@@ -92,6 +93,13 @@ const fillInput = z.object({
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
+/**
+ * The journal timezone. The boot call states it (`timeZone`); on app builds
+ * that predate the field, fall back to the stored setting and then to UTC,
+ * which is the app's own default when the user never chose one.
+ */
+const journalTimeZone = (boot: JournalBoot): string => boot.timeZone ?? boot.settings?.timezone ?? "UTC";
+
 /** The current YYYY-MM in a timezone (a bad zone name throws a RangeError → tool error). */
 function currentMonthKey(timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit" }).formatToParts(new Date());
@@ -141,7 +149,7 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
         const boot = await getJournalBoot();
         return json({
           asOf: boot.asOf,
-          timeZone: boot.timeZone,
+          timeZone: journalTimeZone(boot),
           accounts: boot.accounts,
           settings: boot.settings,
           ...(boot.accounts.length === 0 ? { note: NO_ACCOUNTS_NOTE } : {}),
@@ -203,7 +211,7 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
     },
     async ({ month, accounts }) =>
       guarded(async () => {
-        const monthKey = month ?? currentMonthKey((await getJournalBoot()).timeZone);
+        const monthKey = month ?? currentMonthKey(journalTimeZone(await getJournalBoot()));
         return json(await getCalendar({ month: monthKey, accounts }));
       }),
   );
