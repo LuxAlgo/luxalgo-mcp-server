@@ -34,6 +34,7 @@ import {
   getVocabulary,
   listTrades,
   searchNotes,
+  TRADE_SORT_FIELDS,
   updateNote,
   type JournalBoot,
   type JournalTradeSummary,
@@ -73,7 +74,11 @@ const tradeKeyInput = z
     "The trade's `key` exactly as returned by journal_list_trades, journal_get_day, journal_search_notes or journal_add_trade. Never construct one.",
   );
 
-const cursorInput = z.string().min(1).optional().describe("`nextCursor` from the previous page.");
+const cursorInput = z
+  .string()
+  .min(1)
+  .optional()
+  .describe("`nextCursor` from the previous page; keep every other argument identical.");
 
 const listInput = (what: string, max: number) =>
   z.array(z.string().trim().min(1).max(max)).max(20).optional().describe(what);
@@ -237,7 +242,7 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
     {
       title: "List journal trades",
       description:
-        "Trade summaries newest first — `key`, account, symbol, asset class, direction, status (open/win/loss/breakeven), open and close times, quantity and open quantity, average entry/exit, gross and net P&L, fees, fill count, duration, realized R, tags, rating, reviewed flag, hasNotes — keyset-paginated: pass `nextCursor` back as `cursor`. Filter by account ids, open-day window (`from`/`to` day keys; open positions always stay listed), symbol, direction, status or one exact tag. Summaries carry no fills or note text: journal_get_trade with the `key` has those.",
+        "Trade summaries — `key`, account, symbol, asset class, direction, status (open/win/loss/breakeven), open and close times, quantity and open quantity, average entry/exit, gross and net P&L, fees, fill count, duration, realized R, tags, rating, reviewed flag, hasNotes — newest-opened first by default. `sort` orders by any of openedAt, closedAt, netPnl, grossPnl, durationMs, quantity, symbol or rating (names match the response fields); `order` is desc unless set, except symbol which defaults to asc. Trades lacking the sort value (open trades for closedAt/durationMs, unrated for rating) come last in either order; netPnl is after fees, grossPnl before. Filter by account ids, open-day window (`from`/`to` are inclusive YYYY-MM-DD day keys in the journal timezone, applied to the trade's open day; open positions are always listed), symbol, direction, status or one exact tag. Keyset-paginated: pass `nextCursor` back as `cursor` with the same sort, order and filters. Examples: biggest winners this month = from/to + sort netPnl; worst by gross = sort grossPnl, order asc, status loss; longest holds = sort durationMs. Summaries carry no fills or note text: journal_get_trade with the `key` has those.",
       inputSchema: z.object({
         accounts: accountsInput,
         from: fromInput,
@@ -246,6 +251,14 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
         direction: z.enum(["long", "short"]).optional(),
         status: z.enum(["open", "win", "loss", "breakeven"]).optional(),
         tag: z.string().trim().min(1).max(40).optional().describe("Trades carrying exactly this tag (see journal_list_tags)."),
+        sort: z
+          .enum(TRADE_SORT_FIELDS)
+          .optional()
+          .describe("Field to order by; default openedAt. Trades without a value for it come last in either order."),
+        order: z
+          .enum(["asc", "desc"])
+          .optional()
+          .describe("Default desc (largest / latest first); symbol defaults to asc (A→Z)."),
         limit: z.number().int().min(1).max(100).optional().describe("Page size, default 25."),
         cursor: cursorInput,
       }),
