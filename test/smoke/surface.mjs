@@ -2,6 +2,24 @@
 
 import { readFile } from "node:fs/promises";
 
+/** Every protected tool (module `protectedTools`), in tools/list order. */
+export const PROTECTED = [
+  "luxalgo_account",
+  "journal_list_accounts",
+  "journal_overview",
+  "journal_calendar",
+  "journal_breakdown",
+  "journal_list_trades",
+  "journal_get_trade",
+  "journal_get_day",
+  "journal_list_tags",
+  "journal_search_notes",
+  "journal_add_trade",
+  "journal_update_trade",
+  "journal_write_note",
+  "journal_update_note",
+];
+
 export async function run({ client, check, callJson, callStructured, httpUrl, rawToolsList }) {
   // tools/list
   const { tools } = await client.listTools();
@@ -34,7 +52,7 @@ export async function run({ client, check, callJson, callStructured, httpUrl, ra
     "edge_symbols",
     "edge_presets",
     "edge_report",
-    "luxalgo_account", // protected — needs a LuxAlgo sign-in (OAuth); checked below
+    ...PROTECTED, // need a LuxAlgo sign-in (OAuth); checked below
   ];
   // Broker tools are local-only: present over stdio, absent on the hosted entries.
   const brokerExpected = [
@@ -74,18 +92,21 @@ export async function run({ client, check, callJson, callStructured, httpUrl, ra
       `${rawTools.length} tools; with field: ${rawTools.filter((t) => "securitySchemes" in t).length}`,
     );
   } else {
+    const isProtected = new Set(PROTECTED);
     check(
       "every public tool advertises securitySchemes: [noauth] on the wire",
       rawTools.length === expectedAll.length &&
         rawTools
-          .filter((t) => t.name !== "luxalgo_account")
+          .filter((t) => !isProtected.has(t.name))
           .every((t) => Array.isArray(t.securitySchemes) && t.securitySchemes.some((s) => s.type === "noauth")),
       `${rawTools.length} tools; library_search → ${JSON.stringify(schemesOf("library_search"))}`,
     );
+    const oauth = (name) =>
+      schemesOf(name).some((s) => s.type === "oauth2" && Array.isArray(s.scopes) && s.scopes.includes("openid"));
     check(
-      "luxalgo_account advertises securitySchemes: [oauth2 + scopes] on the wire",
-      schemesOf("luxalgo_account").some((s) => s.type === "oauth2" && Array.isArray(s.scopes) && s.scopes.includes("openid")),
-      JSON.stringify(schemesOf("luxalgo_account")),
+      `all ${PROTECTED.length} protected tools advertise securitySchemes: [oauth2 + scopes] on the wire`,
+      PROTECTED.every(oauth),
+      PROTECTED.filter((name) => !oauth(name)).join(", ") || `luxalgo_account → ${JSON.stringify(schemesOf("luxalgo_account"))}`,
     );
   }
 

@@ -160,7 +160,7 @@ import type { AuthRuntime } from "../../auth/runtime.js";              // only t
 From the platform side:
 
 ```ts
-import { appGet, AppAuthError, AppPermissionError, isNotFound } from "../../platform/app-client.js";
+import { appGet, appSend, AppAuthError, AppPermissionError, isNotFound } from "../../platform/app-client.js";
 ```
 
 `appGet(pathname, query?, { access? })`:
@@ -168,6 +168,8 @@ import { appGet, AppAuthError, AppPermissionError, isNotFound } from "../../plat
 - `access` omitted → uses the ambient token (the normal case — do this).
 - `access: null` → **anonymous on purpose**. Use only for data that is cached in-process and shared by every caller (see `getConcepts` in `tools/library/api.ts`): a personalised response must never be cached and served to someone else.
 - `access: someAccess` → explicit token. Protected handlers receive their `Access` as a parameter, but the ambient one is already set to the same value, so you will not need this.
+
+`appSend(method, pathname, { query?, body? })` — POST / PATCH / PUT / DELETE as the signed-in user (see `tools/journal/api.ts`). It always uses the ambient token and has no `access` option: with no token it throws `AppAuthError` before sending anything, so an anonymous caller gets the sign-in challenge rather than a half-made write. Only protected tools should call it, and only against routes that act on the user's own data.
 
 Nothing else in `src/auth/` is for tools. In particular, do not import `currentAccess`/`runWithAccess`, `verifyAccessToken`, anything from `auth/local/`, or `config.ts` constants.
 
@@ -235,7 +237,7 @@ export const thingModule: ToolModule = {
 
 - `if (user.plan !== "premium") return toolError(...)` — never. The app route decides; you get a 403 mapped for you.
 - Reading, storing, logging, or printing a token. Tools do not see tokens; `Access` is only in the protected handler's parameter list for identity (`userId`, `email`) and you rarely need even that.
-- Calling `fetch()` against `app.luxalgo.com` directly. Always `appGet()`; it is the only place the header is attached and the only place 401/403 are typed.
+- Calling `fetch()` against `app.luxalgo.com` directly. Always `appGet()` / `appSend()`; they are the only place the header is attached and the only place 401/403 are typed.
 - Caching a response that was fetched with a user's token. If you need an in-process cache, fetch with `access: null`.
 - Adding an entry to `PROTECTED_TOOL_NAMES` by hand — it is derived from the module manifests.
 - Importing from `src/auth/local/`, `src/auth/gate.ts`, `src/auth/verify.ts`, or touching `src/entries/` or `api/server.ts`.
@@ -250,7 +252,7 @@ export const thingModule: ToolModule = {
 - the exact tool set per entry (the local-only broker tools are absent when hosted);
 - an anonymous call to a protected tool is refused with the RFC 9728 challenge (HTTP 401 when hosted, in-band `_meta` on stdio).
 
-When you add a tool, add it to the `expected` list in `test/smoke/surface.mjs` and a check in your domain's `test/smoke/<domain>.mjs`. If you added a protected tool, the `noauth` assertion in `surface.mjs` currently excludes only `luxalgo_account` by name — extend that filter.
+When you add a tool, add it to the `expected` list in `test/smoke/surface.mjs` and a check in your domain's `test/smoke/<domain>.mjs`. A protected tool goes in the `PROTECTED` list there instead: it feeds `expected`, the `noauth` assertion excludes it, and the `oauth2` assertion covers it. `test/smoke/journal.mjs` is the template for a protected domain — it checks a read and a write are both refused anonymously (401 hosted, in-band on stdio) and that the input schemas reach the wire.
 
 For a local end-to-end run against a development app: `LUXALGO_APP_ORIGIN=http://localhost:3001 MCP_RESOURCE=http://localhost:3333/mcp`, with the app's `LUXALGO_MCP_SERVER_RESOURCE` set to the same resource; then `npx -y @luxalgo/mcp login` with the same env for the stdio side.
 
@@ -282,7 +284,7 @@ src/auth/
   instrument.ts      instrumentToolRegistration (ambient token + error mapping), advertiseSecuritySchemes
   protected-tool.ts  registerProtectedTool
   local/             the stdio process as an OAuth client: cli, login (PKCE + loopback), provider, runtime, store
-src/platform/app-client.ts   appGet — the only HTTP client for the app; attaches the ambient token; types 401/403
+src/platform/app-client.ts   appGet / appSend — the only HTTP client for the app; attaches the ambient token; types 401/403
 src/server/manifest.ts       TOOL_MODULES → PROTECTED_TOOL_NAMES, local-only modules
 src/server/create-server.ts  registration order: analytics → instrument → modules (asserted) → securitySchemes
 public/oauth/client.json     Client ID Metadata Document identifying the local client
