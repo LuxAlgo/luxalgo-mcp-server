@@ -25,6 +25,7 @@ claude mcp add --transport http luxalgo https://mcp.luxalgo.com/mcp
 | Area | What you get |
 | --- | --- |
 | **[Library](https://www.luxalgo.com/library/)** | The encyclopedia of trading and technical analysis: hundreds of concept pages with formulas, the full indicator catalog with families and tags, and Pine Script sources where publicly served. |
+| **Trade Journal** (sign-in) | Your own journal in the LuxAlgo app: the dashboard (metrics, Edge Score, equity curve), the P&L calendar, breakdowns by weekday / hold time / symbol / tag and more, every trade with its fills and annotations, day notes — and the writes that keep it alive: log fills by hand, annotate trades (tags, mistakes, rating, stop and target, review), write notes. Always as you, on your data; the app owns the rules. |
 | **Brokers** (local only) | Read-only access to your own accounts across 22 brokers and exchanges via [broker-sdk](https://github.com/LuxAlgo/broker-sdk): balances, positions, trade history, FIFO performance stats. Keys live in your MCP client config as env vars and never leave your machine. The hosted endpoint does not carry these tools, on purpose. |
 | **Edge Stats** | Hosted session statistics from the open-source [edge-stats](https://github.com/LuxAlgo/edge-stats) engine: how often a setup actually worked (gap fills, opening-range breakouts, day-of-week effects, event days) with the sample size and a Wilson 95% confidence interval on every number. A nightly build runs the real engine over free market data and publishes only derived statistics; these tools serve them verbatim. |
 | **[Market Trackers](https://github.com/LuxAlgo/market-trackers)** | The public record of US markets from primary sources only: congressional trades, insider (Forms 3/4/5) transactions, 13F holdings, federal contracts and grants, lobbying filings, FINRA short-sale volume, granted patents, clinical trials, FDA drug events, CFTC positioning, federal bills, FEC campaign finance, hearing transcripts, Federal Reserve communications, committee assignments, Wikipedia pageviews. Read straight from the pipeline's [CC0 dumps](https://github.com/LuxAlgo/market-trackers-data) — live tree plus deep-history archives — with `provenance.sourceUrl` on every row. Data only: no signals, scores, or predictions. |
@@ -122,7 +123,7 @@ Env var names derive from each broker's credential fields: `BROKERS_<BROKER>_<FI
 
 ### Signing in with LuxAlgo (optional)
 
-Almost everything here is keyless and works without an account. A few tools — marked **account** below — need to know who you are; they use your LuxAlgo account through standard OAuth 2.1, with [app.luxalgo.com](https://app.luxalgo.com) as the authorization server. Nothing is required up front: every client can connect, list tools and use the public ones anonymously, and sign-in is only requested when you first call an account tool.
+Almost everything here is keyless and works without an account. The tools in the **Account** and **Trade Journal** sections below need to know who you are; they use your LuxAlgo account through standard OAuth 2.1, with [app.luxalgo.com](https://app.luxalgo.com) as the authorization server. Nothing is required up front: every client can connect, list tools and use the public ones anonymously, and sign-in is only requested when you first call an account tool.
 
 **Hosted (ChatGPT, Claude, Cursor, any remote connector).** The server advertises its [protected-resource metadata](https://mcp.luxalgo.com/.well-known/oauth-protected-resource/mcp) and answers an unauthenticated account-tool call with a `401` + `WWW-Authenticate` challenge; MCP clients handle the rest (discovery, PKCE, consent screen in your browser) and keep the token for you. Each tool also declares its policy in `tools/list` (`securitySchemes`: `noauth` for public tools, `oauth2` for account tools), so ChatGPT's per-tool linking works as well. Clients may identify themselves via Client ID Metadata Documents or Dynamic Client Registration — the app accepts both. One client-side exception: Claude.ai/Desktop connectors sign in at connect time whenever OAuth metadata is discoverable, regardless of their *Authentication* setting (see [Install](#claude-web-desktop-mobile)); ChatGPT, Cursor, Claude Code and the stdio server get the anonymous-until-needed flow.
 
@@ -162,7 +163,27 @@ Library outputs are compact JSON with canonical `url`s for citation. Concept and
 | --- | --- |
 | `luxalgo_account` | The signed-in user's plan tier, entitlements (alerts, historical bars, AI credits, …) and profile basics — so an agent can tailor answers to what the plan actually allows |
 
-These are the only tools that need a LuxAlgo account; see [Signing in with LuxAlgo](#signing-in-with-luxalgo-optional). Without a sign-in they return an OAuth challenge instead of data — never a silent fallback.
+### Trade Journal (sign-in required)
+
+Your own trade journal in the LuxAlgo app — the same accounts, trades, annotations and notes the app shows — read and written as you. Dates are `YYYY-MM-DD` day keys in your journal timezone (`journal_list_accounts` reports it); account filters take ids from the same call.
+
+| Tool | Description |
+| --- | --- |
+| `journal_list_accounts` | Journal accounts (broker-synced, imported or manual; currency, initial balance, lot method, last sync, archived state) and the journal timezone — the first call, since every `accounts` filter takes these ids |
+| `journal_overview` | The dashboard for a window: performance metrics, Edge Score, per-day P&L, equity curve, open positions, accounts and settings; `compare` adds the previous equal-length window |
+| `journal_calendar` | One month of the P&L calendar: day cells, weekly and monthly totals, trading and winning days |
+| `journal_breakdown` | Closed trades grouped by weekday, time of day, hold time, symbol, side, position size, tag, rating and asset class — where the P&L comes from |
+| `journal_list_trades` | Trade summaries, keyset-paginated; filter by accounts, open-day window, symbol, direction, status, tag; sort by opened/closed time, net or gross P&L, duration, quantity, symbol or rating, either direction |
+| `journal_get_trade` | One trade in full: fills (reported values, corrections, hidden), per-exit P&L, every annotation |
+| `journal_get_day` | A single day's stats, trades and notes |
+| `journal_list_tags` | The user's annotation vocabulary — tags, mistakes, playbooks with usage counts — so new annotations reuse existing words |
+| `journal_search_notes` | Day notes and trade notes as one newest-first stream; text query, day window, symbol and account filters, paginated |
+| `journal_add_trade` | Log a trade by hand: its fills into a manual or import account; returns the resulting trade(s) |
+| `journal_update_trade` | Annotate a trade: notes, tags (replace or add/remove), mistakes, playbook, rating, stop loss, profit target, reviewed |
+| `journal_write_note` | Add a note to a day |
+| `journal_update_note` | Replace a day note's text or move it to another day |
+
+The journal tools and `luxalgo_account` are the only tools that need a LuxAlgo account; see [Signing in with LuxAlgo](#signing-in-with-luxalgo-optional). Without a sign-in they return an OAuth challenge instead of data — never a silent fallback. The write tools act only as the signed-in user and only on that user's journal; the app validates and owns every change.
 
 ### Brokers (local stdio only)
 
