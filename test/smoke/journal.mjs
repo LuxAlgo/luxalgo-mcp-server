@@ -78,6 +78,14 @@ export async function run({ client, check, httpUrl, rawToolsList }) {
     ["journal_list_trades", "journal_search_notes"].every((name) => props(name).includes("cursor") && props(name).includes("limit")),
     `${props("journal_list_trades").join(", ")} | ${props("journal_search_notes").join(", ")}`,
   );
+  const sort = schemaOf("journal_list_trades").properties?.sort;
+  const order = schemaOf("journal_list_trades").properties?.order;
+  check(
+    "journal_list_trades sorts by the eight summary fields the app orders on, asc or desc",
+    JSON.stringify(sort?.enum) === JSON.stringify(["openedAt", "closedAt", "netPnl", "grossPnl", "durationMs", "quantity", "symbol", "rating"]) &&
+      JSON.stringify(order?.enum) === JSON.stringify(["asc", "desc"]),
+    `sort=${JSON.stringify(sort?.enum)} order=${JSON.stringify(order?.enum)}`,
+  );
   check(
     "journal_calendar's month and journal_get_day's date are optional/required as designed",
     !(schemaOf("journal_calendar").required ?? []).includes("month") && (schemaOf("journal_get_day").required ?? []).includes("date"),

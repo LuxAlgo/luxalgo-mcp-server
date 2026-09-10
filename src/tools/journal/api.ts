@@ -116,6 +116,10 @@ export type JournalTradesPage = {
   nextCursor: string | null;
 };
 
+/** Sort keys for the trade list — named exactly after the summary field they order by. */
+export const TRADE_SORT_FIELDS = ["openedAt", "closedAt", "netPnl", "grossPnl", "durationMs", "quantity", "symbol", "rating"] as const;
+export type TradeSortField = (typeof TRADE_SORT_FIELDS)[number];
+
 export type JournalDay = {
   asOf: string;
   timeZone: string;
@@ -201,6 +205,8 @@ export const listTrades = (query: {
   direction?: "long" | "short";
   status?: "open" | "win" | "loss" | "breakeven";
   tag?: string;
+  sort?: TradeSortField;
+  order?: "asc" | "desc";
   limit?: number;
   cursor?: string;
 }) =>
@@ -212,6 +218,8 @@ export const listTrades = (query: {
     direction: query.direction,
     status: query.status,
     tag: query.tag,
+    sort: query.sort,
+    order: query.order,
     limit: numParam(query.limit),
     cursor: query.cursor,
   });

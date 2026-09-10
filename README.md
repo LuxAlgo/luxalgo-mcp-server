@@ -173,7 +173,7 @@ Your own trade journal in the LuxAlgo app — the same accounts, trades, annotat
 | `journal_overview` | The dashboard for a window: performance metrics, Edge Score, per-day P&L, equity curve, open positions, accounts and settings; `compare` adds the previous equal-length window |
 | `journal_calendar` | One month of the P&L calendar: day cells, weekly and monthly totals, trading and winning days |
 | `journal_breakdown` | Closed trades grouped by weekday, time of day, hold time, symbol, side, position size, tag, rating and asset class — where the P&L comes from |
-| `journal_list_trades` | Trade summaries newest first, keyset-paginated; filter by accounts, open-day window, symbol, direction, status, tag |
+| `journal_list_trades` | Trade summaries, keyset-paginated; filter by accounts, open-day window, symbol, direction, status, tag; sort by opened/closed time, net or gross P&L, duration, quantity, symbol or rating, either direction |
 | `journal_get_trade` | One trade in full: fills (reported values, corrections, hidden), per-exit P&L, every annotation |
 | `journal_get_day` | A single day's stats, trades and notes |
 | `journal_list_tags` | The user's annotation vocabulary — tags, mistakes, playbooks with usage counts — so new annotations reuse existing words |
