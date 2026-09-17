@@ -11,12 +11,12 @@
   REACTIVE_AUTH_ONLY (see config.ts) inverts the discovery surface: the
   well-known forms answer 404 so a host probing them at connect time finds
   nothing, and the document is served at PRM_REACTIVE_PATH instead — a URL
-  clients only learn from the 401's `resource_metadata`. In that mode this
-  module also answers POST /register: hosts whose well-known probes all 404
-  can fall through to RFC 7591 dynamic client registration on this origin,
-  and a proper OAuth error ("not supported here") reads as "connect without
-  auth" where a bare 404 reads as a broken server (same reasoning as the
-  official lazy-auth example's /register handler).
+  clients only learn from the 401's `resource_metadata`. /register stays 404
+  in that mode, like any authless origin's: the official lazy-auth example
+  answers it with an RFC 7591 "not supported" error instead, but claude.ai
+  surfaces that 400 as a fatal "couldn't register with the sign-in service"
+  (observed Sep 2026, ofid_2cd7aff4fae8efdd) rather than concluding "no auth
+  here" — a 404 is the shape of the authless servers it does connect to.
 */
 import {
   AUTH_ISSUER,
@@ -44,8 +44,6 @@ const CORS = {
   "access-control-max-age": "86400",
 };
 
-const REGISTER_PATH = "/register";
-
 const cleanPath = (pathname: string): string => pathname.replace(/\/+$/, "") || "/";
 
 /**
@@ -56,15 +54,13 @@ const cleanPath = (pathname: string): string => pathname.replace(/\/+$/, "") || 
 export function isProtectedResourceMetadataPath(pathname: string): boolean {
   const clean = cleanPath(pathname);
   if (clean === PRM_ROOT_PATH || clean === PRM_PATH) return true;
-  return REACTIVE_AUTH_ONLY && (clean === PRM_REACTIVE_PATH || clean === REGISTER_PATH);
+  return REACTIVE_AUTH_ONLY && clean === PRM_REACTIVE_PATH;
 }
 
 export function protectedResourceMetadataResponse(request: Request): Response {
   if (REACTIVE_AUTH_ONLY) {
-    const clean = cleanPath(new URL(request.url).pathname);
-    if (clean === REGISTER_PATH) return registrationNotSupportedResponse(request);
     // The well-known forms are hidden — indistinguishable from an unserved path.
-    if (clean !== PRM_REACTIVE_PATH) return new Response(null, { status: 404 });
+    if (cleanPath(new URL(request.url).pathname) !== PRM_REACTIVE_PATH) return new Response(null, { status: 404 });
   }
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS });
@@ -80,17 +76,4 @@ export function protectedResourceMetadataResponse(request: Request): Response {
       "cache-control": "public, max-age=900, must-revalidate",
     },
   });
-}
-
-/** RFC 7591 error — this origin never registers clients; the app's authorization server does. */
-function registrationNotSupportedResponse(request: Request): Response {
-  if (request.method !== "POST") return new Response(null, { status: 404 });
-  return new Response(
-    JSON.stringify({
-      error: "invalid_request",
-      error_description:
-        "Dynamic client registration is not supported on this origin. Authentication is requested per tool via WWW-Authenticate on 401.",
-    }),
-    { status: 400, headers: { "content-type": "application/json", "cache-control": "no-store" } },
-  );
 }
