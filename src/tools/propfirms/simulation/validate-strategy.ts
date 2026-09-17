@@ -320,6 +320,7 @@ export function registerValidateStrategyTool(server: McpServer): void {
     "propfirms_validate_strategy",
     {
       title: "Screen a strategy across all challenges",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "Answer 'which challenges would MY strategy actually pass?' in one call: simulate the given " +
         "strategy through every simulatable challenge in the live directory (optionally scoped by " +

@@ -232,6 +232,7 @@ export function registerPassRatesTool(server: McpServer): void {
     "propfirms_pass_rates",
     {
       title: "Reference pass rates per archetype",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "Reference challenge pass rates computed live from the directory's encoded rules with the same " +
         "engine, seed (42), path count (10,000) and reference archetypes luxalgo.com/prop-firms uses — " +

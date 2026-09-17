@@ -222,6 +222,7 @@ export function registerTrackersTools(server: McpServer) {
     "trackers_datasets",
     {
       title: "List Market Trackers datasets",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "The Market Trackers catalog: every dataset of US public-record market data the LuxAlgo pipeline publishes as CC0 dumps — congressional trades, insider (Forms 3/4/5) transactions, 13F holdings, federal contracts and grants, lobbying filings, FINRA short-sale volume, granted patents, clinical trials, FDA drug events, CFTC positioning, federal bills, FEC campaign finance, hearing transcripts, Federal Reserve communications, committee assignments, Wikipedia pageviews. Returns each dataset's row count, freshness, the years with data (live tree vs deep-history archives), and whether it is ticker-searchable. Pass dataset for the full field roster, filterable paths, caveats, per-year coverage, source health, and dump URLs — read it before composing trackers_query filters.",
       inputSchema: z.object({
@@ -249,6 +250,7 @@ export function registerTrackersTools(server: McpServer) {
     "trackers_query",
     {
       title: "Query a Market Trackers dataset",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "Search one Market Trackers dataset by ticker, free text, exact field values, and event-date range, with paging and newest/oldest ordering. Data is read from year-sharded CC0 dumps: pass years (or since/until) to choose which years to read — default is the newest year with data. Deep-history years (see archiveYears in trackers_datasets) can be tens of MB compressed each, so read them one or two at a time; the tool refuses selections over its byte budget and says how to narrow. Every row carries provenance.sourceUrl (the SEC filing, disclosure, award, or record it came from). Examples: insider purchases at NVDA in 2024 → dataset insider-transactions, ticker NVDA, years [2024], where {code: 'P'}; a senator's trades → congress-trades, text 'Tuberville'; who lobbied on a bill → lobbying-filings, text 'H.R.1234'.",
       inputSchema: z.object({
@@ -327,6 +329,7 @@ export function registerTrackersTools(server: McpServer) {
     "trackers_latest",
     {
       title: "Newest Market Trackers rows",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "What the last daily publish added to one dataset — the newest ingestion day's rows (the dumps' latest.json), optionally narrowed by ticker or text. The cheapest way to see what is new: today's insider filings, this week's congressional disclosures, the latest lobbying registrations. Not available for snapshot-only bulk datasets (patents); use trackers_query there.",
       inputSchema: z.object({
@@ -376,6 +379,7 @@ export function registerTrackersTools(server: McpServer) {
     "trackers_ticker",
     {
       title: "Ticker across Market Trackers",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "One ticker across every ticker-bearing Market Trackers dataset for one year (default: the current year): insider transactions, congressional trades, 13F holdings, federal contracts and grants, lobbying filings by the company, short-sale volume, clinical trials, FDA events, patents, Wikipedia pageviews. Returns per-dataset match counts with the newest rows of each — a public-record dossier from primary sources. Deep-history archive years too large for one fan-out are listed under skipped with the trackers_query call that reads them.",
       inputSchema: z.object({

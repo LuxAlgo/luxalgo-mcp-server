@@ -28,6 +28,7 @@ export function registerLibraryTools(server: McpServer) {
     "library_search",
     {
       title: "Search the LuxAlgo Library",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "Search the LuxAlgo Library — the encyclopedia of trading and technical analysis. One query over 800+ concepts (alias-aware: 'stochastics' finds Stochastic Oscillator) and 800+ ready-to-use indicators. Start here whenever you have a name, informal term, or topic; results carry slugs for the get tools plus canonical URLs for citation.",
       inputSchema: z.object({
@@ -117,6 +118,7 @@ export function registerLibraryTools(server: McpServer) {
     "library_get_concept",
     {
       title: "Get a Library concept",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "Explain a trading concept: the Library's full write-up as markdown — definition, formula, how traders read it, and its indicator implementations. Use for any 'what is X / how does X work' question. Needs the exact slug — find it with library_search or library_list_concepts.",
       inputSchema: z.object({
@@ -156,6 +158,7 @@ export function registerLibraryTools(server: McpServer) {
     "library_get_indicator",
     {
       title: "Get a Library indicator",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "Details for one indicator: what it does, how to read it, family, concept links, preview image — plus whether its source code is available (fetch the code itself with library_get_source_code). Use when the user asks about a specific indicator.",
       inputSchema: z.object({
@@ -191,6 +194,7 @@ export function registerLibraryTools(server: McpServer) {
     "library_get_source_code",
     {
       title: "Get an indicator's source code",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "The full, working source code of a Library indicator (works on TradingView). Kept separate from library_get_indicator because sources are long — call it only when the user wants the code itself.",
       inputSchema: z.object({
@@ -226,6 +230,7 @@ export function registerLibraryTools(server: McpServer) {
     "library_list_concepts",
     {
       title: "List Library concepts",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "Browse every trading and technical-analysis concept in the Library — paginated, optionally one family. Use to enumerate a topic area or find slugs for library_get_concept; for keyword lookup prefer library_search.",
       inputSchema: z.object({
@@ -259,6 +264,7 @@ export function registerLibraryTools(server: McpServer) {
     "library_list_indicators",
     {
       title: "List Library indicators",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "Browse the indicator catalog with filters and server-side sorting (newest first by default). Filter by family, concept slug (implementations of one concept), tags (ids from library_list_tags, AND-combined), trading platform, or plan tier. Use for structured browsing — 'latest indicators', 'everything in the volatility family', 'indicators implementing liquidity sweeps'; for keyword discovery prefer library_search.",
       inputSchema: z.object({
@@ -323,6 +329,7 @@ export function registerLibraryTools(server: McpServer) {
     "library_list_tags",
     {
       title: "List indicator tags",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "The Library's indicator tag vocabulary (behavioral traits like 'Volatility', 'Trailing-Stop', 'Repainting Functionality'). Returns ids to pass as the tags filter of library_list_indicators — tags are orthogonal to the concept-family taxonomy.",
       inputSchema: z.object({}),
@@ -339,6 +346,7 @@ export function registerLibraryTools(server: McpServer) {
     "library_list_families",
     {
       title: "List concept families",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "The Library's top-level taxonomy: 17 families of trading concepts (trend, momentum, SMC/ICT, statistics, …) with concept counts and hub links. The natural first call for orientation.",
       inputSchema: z.object({}),
@@ -363,6 +371,7 @@ export function registerLibraryTools(server: McpServer) {
     "library_get_family",
     {
       title: "Get a family hub",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "A family's hub page as markdown — the written overview of that school of analysis plus its complete concept roster. Use after library_list_families, or when the user asks about a whole area like 'SMC' or 'Wyckoff'.",
       inputSchema: z.object({

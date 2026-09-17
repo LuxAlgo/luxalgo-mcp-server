@@ -240,6 +240,7 @@ export function registerPropfirmTools(server: McpServer) {
     "propfirms_search",
     {
       title: "Search prop firms",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "Search LuxAlgo's prop-firm catalog (proprietary trading firms offering funded accounts). Combine firm filters (platforms, markets, payment/payout methods, country availability, Trustpilot, year founded) with nested challenge filters (account size, price, steps, profit split, trading rules) and offer filters — a firm matches when at least one of its challenges/offers matches all of them. Omit every filter to list all firms. Use include to nest the matching challenges, live offers, and the written overview; for one firm's full dossier prefer propfirms_get. Uncaptured (null) fields are omitted from results; nested challenges reference offers via offerIds into the firm-level offers list. This tool returns directory data (what exists and on what terms), not outcomes: for simulated pass odds on a challenge found here, use propfirms_pass_rates or propfirms_simulate with its firm and challenge ids.",
       inputSchema: z.object({
@@ -290,6 +291,7 @@ export function registerPropfirmTools(server: McpServer) {
     "propfirms_get",
     {
       title: "Get a prop firm",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "One prop firm's full dossier by slug: general profile (platforms, markets, payments, Trustpilot, restricted countries), every challenge with its rules, live offers with promo codes and affiliate links, and the written overview (about, rules, payout policy, FAQ). Find slugs with propfirms_search. Uncaptured (null) fields are omitted; challenges reference applicable offers via offerIds into the firm-level offers list. For simulated pass odds on this firm's challenges (reference archetypes, same engine as luxalgo.com/prop-firms), use propfirms_pass_rates.",
       inputSchema: z.object({
@@ -315,6 +317,7 @@ export function registerPropfirmTools(server: McpServer) {
     "propfirms_search_challenges",
     {
       title: "Search prop-firm challenges",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "Search funded-account challenges across all visible prop firms. Filter by challenge rules (account size, fee, steps, profit split, drawdown mode, news/copy/auto trading, weekend holding, …) and by parent-firm properties. Pass propfirmId to list one firm's challenges, or challengeId to fetch specific ones. include=['offers'] returns a deduplicated top-level offers list, with each challenge referencing its applicable offers via offerIds (firm-wide offers included). Uncaptured (null) rule fields are omitted from results and never match filters. This returns each challenge's listed rules and terms, not outcomes: to simulate a challenge found here pass its ids to propfirms_simulate or propfirms_pass_rates, and to screen one strategy across many challenges at once use propfirms_validate_strategy.",
       inputSchema: z.object({
@@ -349,6 +352,7 @@ export function registerPropfirmTools(server: McpServer) {
     "propfirms_search_offers",
     {
       title: "Search prop-firm offers",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "Search promotional offers (discounts and promo codes) across prop firms — defaults to live (active, unexpired) offers only. propfirmId narrows to one firm; challengeId resolves the offers that apply to a challenge (firm-wide offers included). Every offer carries the promo code, discount, end date, and affiliate link.",
       inputSchema: z.object({

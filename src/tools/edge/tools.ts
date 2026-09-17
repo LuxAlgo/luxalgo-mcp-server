@@ -25,6 +25,7 @@ export function registerEdgeTools(server: McpServer) {
     "edge_symbols",
     {
       title: "Hosted Edge Stats coverage",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "What the hosted Edge Stats store covers: the symbols, their session calendars, coverage windows, session counts, and when the nightly build last ran. Session statistics (how often a setup actually worked, with sample sizes and confidence intervals) come from the open-source edge-stats engine over free market data. Start here, then edge_presets for the questions you can ask, then edge_report for a result.",
       inputSchema: z.object({}),
@@ -52,6 +53,7 @@ export function registerEdgeTools(server: McpServer) {
     "edge_presets",
     {
       title: "List Edge Stats report presets",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "The catalog of session-statistics questions the hosted store precomputes nightly — gap fills, opening-range breakouts, day-of-week effects, event-day behavior, and more. Each preset states in plain language what its number means. Returns preset ids for edge_report.",
       inputSchema: z.object({
@@ -88,6 +90,7 @@ export function registerEdgeTools(server: McpServer) {
     "edge_report",
     {
       title: "Get a hosted Edge Stats report",
+      annotations: { readOnlyHint: true, openWorldHint: true },
       description:
         "One precomputed session-statistics result: P(outcome | conditions) for a preset on a hosted symbol, in the engine's full honesty envelope — the estimate with N and a Wilson 95% confidence interval, minimum-sample guards, a first-half vs second-half stability split, per-year counts, the value distribution where the outcome is continuous, and the disclaimer. Historical conditional frequencies, not predictions. Preset ids come from edge_presets; symbols from edge_symbols.",
       inputSchema: z.object({

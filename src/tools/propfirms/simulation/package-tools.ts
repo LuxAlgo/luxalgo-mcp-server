@@ -131,6 +131,7 @@ export function registerPackageSimTools(server: McpServer): void {
         title: def.title,
         description: rewriteToolReferences(def.description) + (ROUTING_NOTES[localName] ?? ""),
         inputSchema: z.object(rewriteShapeDescriptions(def.inputShape)),
+        annotations: { readOnlyHint: true, openWorldHint: true },
       },
       async (args: unknown): Promise<CallToolResult> => {
         const result = await def.handler(args);
