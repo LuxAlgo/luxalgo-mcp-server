@@ -43,7 +43,29 @@ export const JWKS_URL = `${AUTH_ISSUER}/jwks`;
  */
 export const PRM_ROOT_PATH = "/.well-known/oauth-protected-resource";
 export const PRM_PATH = `${PRM_ROOT_PATH}${new URL(MCP_RESOURCE).pathname.replace(/\/+$/, "")}`;
-export const PRM_URL = `${MCP_ORIGIN}${PRM_PATH}`;
+
+/**
+ * Reactive-only auth discovery — the claude.ai workaround (anthropics/
+ * claude-ai-mcp#1013). claude.ai's broker probes the well-known PRM at
+ * connect time and treats its existence as "always requires sign-in",
+ * starting OAuth before any 401. LUXALGO_REACTIVE_AUTH_ONLY=on hides the
+ * well-known forms (404) and serves the document at PRM_REACTIVE_PATH
+ * instead, a URL clients only learn from the 401's `resource_metadata` —
+ * discovery becomes purely reactive. Same trick, flag name and default as
+ * the official example (modelcontextprotocol/ext-apps,
+ * examples/lazy-auth-server, REACTIVE_AUTH_ONLY).
+ *
+ * Deliberately violates RFC 9728 §3: a client that probes the well-known
+ * path itself instead of honouring `resource_metadata` cannot sign in while
+ * this is on — verify sign-in in Claude Code, Cursor and ChatGPT after
+ * enabling. Default: off (standard RFC 9728). Remove once #1013 is fixed.
+ */
+export const REACTIVE_AUTH_ONLY = trimmed(process.env.LUXALGO_REACTIVE_AUTH_ONLY) === "on";
+
+/** Where the PRM lives in reactive mode — outside /.well-known so connect-time probes find nothing. */
+export const PRM_REACTIVE_PATH = "/auth/prm";
+
+export const PRM_URL = `${MCP_ORIGIN}${REACTIVE_AUTH_ONLY ? PRM_REACTIVE_PATH : PRM_PATH}`;
 
 /**
  * Scopes the app's authorization server supports. `offline_access` gets a
