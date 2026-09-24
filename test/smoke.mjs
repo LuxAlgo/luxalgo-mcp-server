@@ -5,7 +5,8 @@
   instead. Exits non-zero on any failure.
 
   One suite per tool domain under smoke/ (mirroring src/tools/), plus
-  `surface` (tools/list, securitySchemes, serverInfo). Run a subset with
+  `surface` (tools/list, securitySchemes, serverInfo) and, over HTTP,
+  `discovery` (OAuth discovery on the standard and the Claude host). Run a subset with
   --only <suite>[,<suite>], e.g. `node test/smoke.mjs --only library,edge`.
 */
 import { Client } from "@modelcontextprotocol/client";
@@ -122,6 +123,7 @@ console.log(`Connected via ${httpUrl ? `HTTP (${httpUrl})` : "stdio"}\n`);
 const suites = [
   ["surface", () => import("./smoke/surface.mjs")],
   ["account", () => import("./smoke/account.mjs")],
+  ["discovery", () => import("./smoke/discovery.mjs"), { httpOnly: true }],
   ["journal", () => import("./smoke/journal.mjs")],
   ["broker", () => import("./smoke/broker.mjs"), { stdioOnly: true }],
   ["library", () => import("./smoke/library.mjs")],
@@ -134,6 +136,7 @@ const context = { client, check, callJson, callStructured, httpUrl, rawToolsList
 for (const [name, load, options = {}] of suites) {
   if (only && !only.has(name)) continue;
   if (options.stdioOnly && httpUrl) continue;
+  if (options.httpOnly && !httpUrl) continue;
   console.log(`\n== ${name}`);
   const { run } = await load();
   await run(context);

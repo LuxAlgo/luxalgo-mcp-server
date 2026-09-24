@@ -10,7 +10,7 @@
 */
 import { createRemoteJWKSet, errors as joseErrors, jwtVerify, type JWTPayload } from "jose";
 import type { AuthInfo } from "@modelcontextprotocol/server";
-import { AUTH_ISSUER, JWKS_URL, MCP_RESOURCE } from "./config.js";
+import { AUTH_ISSUER, JWKS_URL } from "./config.js";
 
 /** Why a presented token was refused — becomes the RFC 6750 `error` code. */
 export class TokenError extends Error {
@@ -30,12 +30,17 @@ const getJwks = () => (jwks ??= createRemoteJWKSet(new URL(JWKS_URL)));
 /** What a verified token tells us; `userId` is better-auth's user id (`sub`). */
 export type VerifiedToken = AuthInfo & { extra: { userId: string; email?: string } };
 
-export async function verifyAccessToken(token: string): Promise<VerifiedToken> {
+/**
+ * `resource` is the audience accepted: the identifier of the host the token
+ * was presented to (surface.ts). A token minted for the standard address is
+ * refused on the Claude one and vice versa — each is a resource of its own.
+ */
+export async function verifyAccessToken(token: string, resource: string): Promise<VerifiedToken> {
   let payload: JWTPayload;
   try {
     ({ payload } = await jwtVerify(token, getJwks(), {
       issuer: AUTH_ISSUER,
-      audience: MCP_RESOURCE,
+      audience: resource,
       clockTolerance: 30,
     }));
   } catch (error) {
@@ -59,7 +64,7 @@ export async function verifyAccessToken(token: string): Promise<VerifiedToken> {
     clientId: typeof payload.client_id === "string" ? payload.client_id : "",
     scopes,
     expiresAt: payload.exp,
-    resource: new URL(MCP_RESOURCE),
+    resource: new URL(resource),
     extra: {
       userId: payload.sub,
       ...(typeof payload.email === "string" ? { email: payload.email } : {}),

@@ -13,14 +13,19 @@
      is what ChatGPT's per-tool linking UI is documented to key on, and it
      is the only shape available on stdio, where there is no HTTP status.
 */
-import { MCP_RESOURCE, OAUTH_SCOPES, PRM_URL } from "./config.js";
+import { OAUTH_SCOPES } from "./config.js";
+import { currentSurface } from "./surface.js";
 
 export type ChallengeReason = {
   error?: "invalid_token" | "insufficient_scope" | "invalid_request";
   description?: string;
 };
 
-/** The `WWW-Authenticate` value; RFC 7235 quoted-string escaping on the free text. */
+/**
+ * The `WWW-Authenticate` value; RFC 7235 quoted-string escaping on the free
+ * text. `resource_metadata` names the PRM of the host the request came in on
+ * (surface.ts) — on the Claude host that is the only way to find it.
+ */
 export function challengeHeader(reason: ChallengeReason = {}): string {
   // Parameter order is free per RFC 7235; this is the order Anthropic's
   // lazy-auth guide shows, kept identical to remove one variable when
@@ -28,17 +33,18 @@ export function challengeHeader(reason: ChallengeReason = {}): string {
   const parts: string[] = [];
   if (reason.error) parts.push(`error="${reason.error}"`);
   if (reason.description) parts.push(`error_description="${quote(reason.description)}"`);
-  parts.push(`resource_metadata="${PRM_URL}"`, `scope="${OAUTH_SCOPES.join(" ")}"`);
+  parts.push(`resource_metadata="${currentSurface().prmUrl}"`, `scope="${OAUTH_SCOPES.join(" ")}"`);
   return `Bearer ${parts.join(", ")}`;
 }
 
 export function unauthorizedResponse(reason: ChallengeReason = {}): Response {
   const status = reason.error === "insufficient_scope" ? 403 : 401;
+  const surface = currentSurface();
   return new Response(
     JSON.stringify({
       error: reason.error ?? "unauthorized",
-      error_description: reason.description ?? `Sign in with LuxAlgo to use this tool (resource ${MCP_RESOURCE}).`,
-      resource_metadata: PRM_URL,
+      error_description: reason.description ?? `Sign in with LuxAlgo to use this tool (resource ${surface.resource}).`,
+      resource_metadata: surface.prmUrl,
     }),
     {
       status,

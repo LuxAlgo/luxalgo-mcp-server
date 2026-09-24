@@ -12,6 +12,10 @@
       so a client that believes it is signed in learns about an expired or
       revoked token immediately (401) instead of silently downgrading.
 
+  The gate also decides which address the request came in on (surface.ts)
+  and runs the rest of the request on it: discovery, the challenge and the
+  accepted token audience all follow the host.
+
   The gate is transport-agnostic: it takes a web-standard Request and hands
   the verified identity to `next`, which mounts it however its MCP handler
   wants it (mcp-handler reads `request.auth`; the SDK's handler takes an
@@ -22,37 +26,41 @@ import { unauthorizedResponse } from "./challenge.js";
 import { isProtectedTool } from "../server/manifest.js";
 import { TokenError, verifyAccessToken, type VerifiedToken } from "./verify.js";
 import { isProtectedResourceMetadataPath, protectedResourceMetadataResponse } from "./metadata.js";
+import { runOnSurface, surfaceFor } from "./surface.js";
 
 export type AuthenticatedNext = (request: Request, auth: VerifiedToken | undefined) => Promise<Response>;
 
 export function withLuxalgoAuth(next: AuthenticatedNext): (request: Request) => Promise<Response> {
   return async (request) => {
-    if (isProtectedResourceMetadataPath(new URL(request.url).pathname)) {
-      return protectedResourceMetadataResponse(request);
-    }
-
-    const token = bearerToken(request.headers.get("authorization"));
-    if (token !== undefined) {
-      if (token.length === 0) {
-        return unauthorizedResponse({ error: "invalid_request", description: "Empty bearer token" });
+    const surface = surfaceFor(request);
+    return runOnSurface(surface, async () => {
+      if (isProtectedResourceMetadataPath(new URL(request.url).pathname)) {
+        return protectedResourceMetadataResponse(request, surface);
       }
-      try {
-        return await next(request, await verifyAccessToken(token));
-      } catch (error) {
-        if (error instanceof TokenError) {
-          return unauthorizedResponse({ error: error.code, description: error.message });
+
+      const token = bearerToken(request.headers.get("authorization"));
+      if (token !== undefined) {
+        if (token.length === 0) {
+          return unauthorizedResponse({ error: "invalid_request", description: "Empty bearer token" });
         }
-        throw error;
+        try {
+          return await next(request, await verifyAccessToken(token, surface.resource));
+        } catch (error) {
+          if (error instanceof TokenError) {
+            return unauthorizedResponse({ error: error.code, description: error.message });
+          }
+          throw error;
+        }
       }
-    }
 
-    if (AUTH_CHALLENGE_MODE === "http" && (await invokesProtectedTool(request))) {
-      // RFC 6750 §3.1 would omit `error` when no credentials were sent at all;
-      // Anthropic's lazy-auth recipe includes `error="invalid_token"` on this
-      // exact response, so we match their canonical shape byte for byte.
-      return unauthorizedResponse({ error: "invalid_token", description: "Authentication required for this tool" });
-    }
-    return next(request, undefined);
+      if (AUTH_CHALLENGE_MODE === "http" && (await invokesProtectedTool(request))) {
+        // RFC 6750 §3.1 would omit `error` when no credentials were sent at all;
+        // Anthropic's lazy-auth recipe includes `error="invalid_token"` on this
+        // exact response, so we match their canonical shape byte for byte.
+        return unauthorizedResponse({ error: "invalid_token", description: "Authentication required for this tool" });
+      }
+      return next(request, undefined);
+    });
   };
 }
 
