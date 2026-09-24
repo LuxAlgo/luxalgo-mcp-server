@@ -1,18 +1,19 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.LuxAlgo/luxalgo-mcp-server",
-  "description": "The LuxAlgo ecosystem for AI agents: the Library encyclopedia of trading & technical analysis, prop-firm analysis (firms, challenges, live offers, a Monte Carlo challenge simulator), and Market Trackers — the public record of US markets (congressional trades, insider filings, lobbying, contracts, patents and more) from CC0 dumps. Free, keyless; account tools use an optional LuxAlgo sign-in (OAuth 2.1).",
+  "title": "LuxAlgo MCP",
+  "description": "LuxAlgo for AI agents: the Library, prop firms, Market Trackers, Edge Stats, and your Trade Journal",
   "repository": {
     "url": "https://github.com/LuxAlgo/luxalgo-mcp-server",
     "source": "github"
   },
-  "websiteUrl": "https://www.luxalgo.com/",
-  "version": "1.4.1",
+  "websiteUrl": "https://www.luxalgo.com/mcp",
+  "version": "1.5.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@luxalgo/mcp",
-      "version": "1.4.1",
+      "version": "1.5.0",
       "transport": {
         "type": "stdio"
       }

@@ -1,0 +1,16 @@
+# The image needs package.json, package-lock.json, tsconfig.json, src/, LICENSE
+# and NOTICE. Keep everything else, local builds and secrets included, out of the
+# build context.
+.git
+.github
+.vercel
+node_modules
+dist
+api
+docs
+public
+scripts
+test
+*.log
+.env
+.env.*
