@@ -2,6 +2,8 @@
 
 <div align="center">
 
+# LuxAlgo MCP
+
 <a href="https://cursor.com/en/install-mcp?name=luxalgo&config=eyJ1cmwiOiJodHRwczovL21jcC5sdXhhbGdvLmNvbS9tY3AifQ=="><img src="https://custom-icon-badges.demolab.com/badge/Install_in_Cursor-0a0a0a?style=for-the-badge&logo=cursor-ai-white" alt="Install in Cursor" /></a>&nbsp;<a href="https://vscode.dev/redirect/mcp/install?name=luxalgo&config=%7B%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fmcp.luxalgo.com%2Fmcp%22%7D"><img src="https://custom-icon-badges.demolab.com/badge/Install_in_VS_Code-0a0a0a?style=for-the-badge&logo=vsc" alt="Install in VS Code" /></a>
 
 [![CI](https://img.shields.io/github/actions/workflow/status/LuxAlgo/luxalgo-mcp-server/ci.yml?branch=main&style=flat-square&label=ci&labelColor=0a0a0a)](https://github.com/LuxAlgo/luxalgo-mcp-server/actions/workflows/ci.yml)
@@ -12,9 +14,9 @@
 
 </div>
 
-**LuxAlgo MCP** is a LuxAlgo open-source project. Official repository: [github.com/LuxAlgo/luxalgo-mcp-server](https://github.com/LuxAlgo/luxalgo-mcp-server).
+**LuxAlgo MCP** is a LuxAlgo open-source project. Overview and setup: [luxalgo.com/mcp](https://www.luxalgo.com/mcp).
 
-It puts the LuxAlgo ecosystem behind a single MCP server: an encyclopedia of trading and technical analysis, read-only access to your own brokerage accounts, hosted session statistics with a sample size on every number, the public record of US markets (congressional trades, insider filings, lobbying, contracts, patents and more, with a primary-source link on every row), a Monte Carlo challenge simulator, and a live prop-firm directory. Free and read-only. No API key for anything hosted; the local broker tools use your own keys and never send them anywhere.
+It puts the LuxAlgo ecosystem behind a single MCP server: an encyclopedia of trading and technical analysis, your LuxAlgo trade journal, read-only access to your own brokerage accounts, hosted session statistics with a sample size on every number, the public record of US markets (congressional trades, insider filings, lobbying, contracts, patents and more, with a primary-source link on every row), a Monte Carlo challenge simulator, and a live prop-firm directory. No API key for anything hosted: the public tools are free and read-only, the Trade Journal and account tools use your LuxAlgo sign-in, and the local broker tools use your own keys and never send them anywhere.
 
 ```bash
 claude mcp add --transport http luxalgo https://mcp.luxalgo.com/mcp
@@ -24,14 +26,14 @@ claude mcp add --transport http luxalgo https://mcp.luxalgo.com/mcp
 
 | Area | What you get |
 | --- | --- |
-| **[Library](https://www.luxalgo.com/library/)** | The encyclopedia of trading and technical analysis: hundreds of concept pages with formulas, the full indicator catalog with families and tags, and Pine Script sources where publicly served. |
+| **[Library](https://www.luxalgo.com/library/)** | The encyclopedia of trading and technical analysis: hundreds of concept pages with formulas, the full indicator catalog with families and tags, and Pine Script® sources where publicly served. |
 | **Trade Journal** (sign-in) | Your own journal in the LuxAlgo app: the dashboard (metrics, Edge Score, equity curve), the P&L calendar, breakdowns by weekday / hold time / symbol / tag and more, every trade with its fills and annotations, day notes — and the writes that keep it alive: log fills by hand, annotate trades (tags, mistakes, rating, stop and target, review), write notes. Always as you, on your data; the app owns the rules. |
 | **Brokers** (local only) | Read-only access to your own accounts across 22 brokers and exchanges via [broker-sdk](https://github.com/LuxAlgo/broker-sdk): balances, positions, trade history, FIFO performance stats. Keys live in your MCP client config as env vars and never leave your machine. The hosted endpoint does not carry these tools, on purpose. |
 | **Edge Stats** | Hosted session statistics from the open-source [edge-stats](https://github.com/LuxAlgo/edge-stats) engine: how often a setup actually worked (gap fills, opening-range breakouts, day-of-week effects, event days) with the sample size and a Wilson 95% confidence interval on every number. A nightly build runs the real engine over free market data and publishes only derived statistics; these tools serve them verbatim. |
 | **[Market Trackers](https://github.com/LuxAlgo/market-trackers)** | The public record of US markets from primary sources only: congressional trades, insider (Forms 3/4/5) transactions, 13F holdings, federal contracts and grants, lobbying filings, FINRA short-sale volume, granted patents, clinical trials, FDA drug events, CFTC positioning, federal bills, FEC campaign finance, hearing transcripts, Federal Reserve communications, committee assignments, Wikipedia pageviews. Read straight from the pipeline's [CC0 dumps](https://github.com/LuxAlgo/market-trackers-data) — live tree plus deep-history archives — with `provenance.sourceUrl` on every row. Data only: no signals, scores, or predictions. |
 | **Challenge Simulator** | The open-source [prop-firm-sim](https://github.com/LuxAlgo/prop-firm-sim) Monte Carlo engine, running locally inside the server. Your stats, or your real R-multiple trade series, through a firm's exact ruleset: pass probability with confidence intervals, expected attempts and cost, EV over the funded horizon, optimal-risk sweeps, cross-challenge comparison. Deterministic under seed, every assumption disclosed. |
 | **Prop Firm Directory** | The live data the simulator draws from: firms, funded-account challenges with their full rulebooks (account sizes, fees, steps, profit splits, drawdown modes, trading restrictions), and current offers. |
-| **Charts** (your browser) | Not a tool: the chart you draw with what the tools return. [Vela](https://github.com/LuxAlgo/Vela), LuxAlgo's open-source charting engine, runs the Pine Script that `library_get_source_code` hands back and paints the fills that `broker_trades` lists, in a browser tab, on your machine. [How the loop works](#charts-in-your-browser-with-vela). |
+| **Charts** (your browser) | Not a tool: the chart you draw with what the tools return. [Vela](https://github.com/LuxAlgo/Vela), LuxAlgo's open-source charting engine, runs the Pine Script® that `library_get_source_code` hands back and paints the fills that `broker_trades` lists, in a browser tab, on your machine. [How the loop works](#charts-in-your-browser-with-vela). |
 
 ## Install
 
@@ -251,7 +253,7 @@ The live directory the simulator draws from, queryable directly:
 
 ## Charts, in your browser, with Vela
 
-Every tool above returns text and JSON. When the answer wants a chart, draw it with **[Vela](https://github.com/LuxAlgo/Vela)** (`@luxalgo/vela`, Apache-2.0), LuxAlgo's open-source charting engine: a headless chart with its own WebGL2 renderer that takes bars you already have, or fetches them from keyless public providers, and runs indicator scripts through pluggable engines. Pine Script lives in the [`@luxalgo/vela-pinets`](https://github.com/LuxAlgo/Vela-pinets) addon, which is what closes the loop with the Library: `library_get_source_code` hands an agent an indicator's exact Pine source, and Vela executes that source on a chart.
+Every tool above returns text and JSON. When the answer wants a chart, draw it with **[Vela](https://github.com/LuxAlgo/Vela)** (`@luxalgo/vela`, Apache-2.0), LuxAlgo's open-source charting engine: a headless chart with its own WebGL2 renderer that takes bars you already have, or fetches them from keyless public providers, and runs indicator scripts through pluggable engines. Pine Script® lives in the [`@luxalgo/vela-pinets`](https://github.com/LuxAlgo/Vela-pinets) addon, which is what closes the loop with the Library: `library_get_source_code` hands an agent an indicator's exact Pine source, and Vela executes that source on a chart.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset=".github/assets/vela-supertrend-dark.png">
@@ -282,7 +284,7 @@ With a bundler it is the same three calls over `import { Vela } from '@luxalgo/v
 | --- | --- | --- |
 | Vela | A browser tab on your machine (Canvas 2D or WebGL2). | Never inside this server, hosted or stdio, and never in an MCP response. An agent gets the Pine source and the trades as text; the chart is what you build with them. |
 | Bars | Yours, via `data`, or Vela's keyless Binance, Coinbase and Hyperliquid providers, fetched by the browser. | This server serves no market data, so a chart needs no LuxAlgo key and makes no LuxAlgo request. |
-| Pine Script | `@luxalgo/vela-pinets`, which executes the [PineTS](https://github.com/LuxAlgo/PineTS) runtime. | AGPL-3.0, licensed separately from Vela's Apache-2.0 and this server's MIT. Vela itself ships no engine and carries no Pine code. |
+| Pine Script® | `@luxalgo/vela-pinets`, which executes the [PineTS](https://github.com/LuxAlgo/PineTS) runtime. | AGPL-3.0, licensed separately from Vela's Apache-2.0 and this server's MIT. Vela itself ships no engine and carries no Pine code. |
 | Attribution | Vela's mark, bottom-left of every chart. | Stays on unless you show equivalent attribution next to the chart; see Vela's [NOTICE](https://github.com/LuxAlgo/Vela/blob/main/NOTICE). |
 
 Vela already draws the charts in [Trade Journal](https://github.com/LuxAlgo/trade-journal) and on the hosted [Market Trackers](https://www.luxalgo.com/market-trackers), and the [Vela page](https://www.luxalgo.com/vela) runs a live one.
@@ -329,6 +331,6 @@ Nothing this server returns is investment advice. Simulation outputs are modeled
 
 ## License
 
-Code is [MIT](LICENSE) © LuxAlgo Global, LLC. Library content and Pine Script sources served by this server keep their own licenses; see [NOTICE](NOTICE).
+Code is [MIT](LICENSE) © LuxAlgo Global, LLC. Library content and Pine Script® sources served by this server keep their own licenses; see [NOTICE](NOTICE).
 
 The LuxAlgo name and logo are trademarks of LuxAlgo Global, LLC; see [TRADEMARKS.md](TRADEMARKS.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).

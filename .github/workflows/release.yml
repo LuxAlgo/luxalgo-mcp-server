@@ -1,25 +1,100 @@
 name: Release
 
-# Publishes @luxalgo/mcp to npm via trusted publishing (OIDC) when a GitHub
-# release is published. No npm token is required; provenance is attached
-# automatically. The trusted publisher on npmjs.com must be configured for
-# org "LuxAlgo", repo "luxalgo-mcp-server", workflow filename "release.yml".
+# Publishes @luxalgo/mcp to npm via trusted publishing (OIDC), then the same
+# version to the official MCP Registry (server.json, as
+# io.github.LuxAlgo/luxalgo-mcp-server). Runs when a GitHub release is
+# published, or by hand: Actions > Release > Run workflow, on main.
+#
+# No npm token or registry secret: npm and the registry both accept this job's
+# GitHub OIDC token, and npm attaches provenance automatically. The trusted
+# publisher on npmjs.com must be configured for org "LuxAlgo", repo
+# "luxalgo-mcp-server", workflow filename "release.yml", so keep this name.
+#
+# Safe to re-run: when package.json's version is already on npm, the npm
+# publish is skipped and the run goes on to the registry.
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 jobs:
   publish:
+    # A manual run publishes the branch it is started on, so only main may.
+    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest # GitHub-hosted runner required for OIDC
     permissions:
       contents: read
-      id-token: write # OIDC token for npm trusted publishing
+      id-token: write # OIDC token for npm trusted publishing and the MCP Registry login
+    env:
+      # Pinned publisher CLI: https://github.com/modelcontextprotocol/registry/releases
+      # If the login step fails with "invalid audience", this pin is older than
+      # the registry deployment: bump it to the current release.
+      MCP_PUBLISHER_VERSION: v1.8.1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24 # ships npm 11.5.1+, required for trusted publishing
           registry-url: https://registry.npmjs.org
+
+      # server.json is what the registry receives, so it must name the version
+      # this run puts on npm.
+      - name: Check that package.json and server.json agree
+        id: version
+        run: |
+          VERSION=$(jq -r .version package.json)
+          SERVER=$(jq -r .version server.json)
+          PACKAGE=$(jq -r '.packages[0].version' server.json)
+          if [ "$SERVER" != "$VERSION" ] || [ "$PACKAGE" != "$VERSION" ]; then
+            echo "::error file=server.json::server.json has version $SERVER and packages[0].version $PACKAGE; package.json has $VERSION"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - run: npm ci
       - run: npm run build
-      - run: npm publish --access public
+
+      - name: Check whether this version is already on npm
+        id: npm
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # npm view prints nothing (and may exit non-zero) for a version npm does not have.
+          if [ "$(npm view "@luxalgo/mcp@$VERSION" version 2>/dev/null || true)" = "$VERSION" ]; then
+            echo "::notice::@luxalgo/mcp@$VERSION is already on npm; skipping npm publish"
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm
+        if: steps.npm.outputs.published != 'true'
+        run: npm publish --access public
+
+      # The registry reads this version from npm and checks its mcpName against
+      # server.json's name; a fresh publish can take a moment to show up there.
+      - name: Wait for the version on npm
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          NAME=$(jq -r .name server.json)
+          URL="https://registry.npmjs.org/@luxalgo%2Fmcp/$VERSION"
+          for _ in $(seq 1 12); do
+            if [ "$(curl -fsS "$URL" 2>/dev/null | jq -r '.mcpName // empty' 2>/dev/null)" = "$NAME" ]; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::npm does not show @luxalgo/mcp@$VERSION with mcpName $NAME after 2 minutes"
+          exit 1
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/$MCP_PUBLISHER_VERSION/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+          ./mcp-publisher --version
+
+      - name: Log in to the MCP Registry
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to the MCP Registry
+        run: ./mcp-publisher publish

@@ -4,6 +4,8 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-09-24
+
 ### Added
 
 - **Trade Journal tools** (`journal_*`, thirteen, all sign-in required): the signed-in user's journal in the LuxAlgo app. Reads — `journal_list_accounts` (accounts + the journal timezone; the first call, since every `accounts` filter takes its ids), `journal_overview` (metrics, Edge Score, daily P&L, equity curve, open positions, accounts and settings for a window, with an optional previous-window comparison), `journal_calendar`, `journal_breakdown` (P&L by weekday, time of day, hold time, symbol, side, size, tag, rating, asset class), `journal_list_trades` (keyset-paginated summaries with account / day-window / symbol / direction / status / tag filters), `journal_get_trade` (fills, per-exit P&L, all annotations), `journal_get_day`, `journal_list_tags` (the user's tag / mistake / playbook vocabulary with usage counts), `journal_search_notes` (day notes and trade notes as one paginated, text-searchable stream). Writes — `journal_add_trade` (fills into a manual or import account; returns the resulting trades), `journal_update_trade` (notes, tags and mistakes with replace or add/remove forms, playbook, rating, stop loss, profit target, reviewed), `journal_write_note`, `journal_update_note`. Everything runs as the signed-in user against the app's `/api/journal/*` routes; the app owns validation and entitlements as for every other tool.
@@ -11,6 +13,8 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 - `appSend()` in `src/platform/app-client.ts`: the first write path to the app (POST / PATCH / PUT / DELETE), sharing `appGet`'s envelope handling and 401/403 mapping. It has no anonymous form — with no ambient token it throws `AppAuthError` before any request goes out, so a caller without a sign-in meets the challenge, not a half-made write.
 - `LUXALGO_SECURITY_SCHEMES=off` removes the per-tool `securitySchemes` hint from `tools/list`. Added to test whether Claude.ai's connector reads that field when it decides to sign users in at connect time; the 401 challenge on protected calls is unchanged. (Ruled out: production ran with it off and Claude.ai still signed users in at connect — the well-known PRM probe is the trigger; tracked as [claude-ai-mcp#1013](https://github.com/anthropics/claude-ai-mcp/issues/1013).)
 - `LUXALGO_REACTIVE_AUTH_ONLY=on` (default off) makes auth discovery purely reactive while [claude-ai-mcp#1013](https://github.com/anthropics/claude-ai-mcp/issues/1013) is open: the two well-known PRM paths answer 404 and the metadata document moves to `/auth/prm` (clients learn it from the 401's `resource_metadata`), leaving the anonymous origin indistinguishable from an authless server's — `/register` included, which stays 404: the official `modelcontextprotocol/ext-apps` lazy-auth example (`REACTIVE_AUTH_ONLY`, which this ports) answers it with an RFC 7591 "not supported" error, but claude.ai surfaces that 400 as a fatal registration failure instead of connecting without auth. Deliberately non-RFC 9728 while on — see `docs/auth.md` §5 for what to verify after enabling.
+- `Dockerfile` and `.dockerignore`: an image that runs the stdio server (`node dist/index.js`), for MCP directories such as Glama that build the repository and introspect the running server.
+- The Release workflow publishes `server.json` to the official MCP Registry (`io.github.LuxAlgo/luxalgo-mcp-server`) after the npm publish, with a pinned `mcp-publisher` and GitHub OIDC (no secret). It can also be started by hand from main (`workflow_dispatch`), and it skips `npm publish` when the version is already on npm, so a re-run still reaches the registry step.
 
 ### Changed
 
@@ -20,6 +24,8 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 - The anonymous 401 on a protected tool now carries `error="invalid_token", error_description="Authentication required for this tool"` and lists the challenge parameters in the order Anthropic's lazy-authentication guide shows — the same signal, byte-compatible with their sample. The smoke suite asserts the wire response (status + header) instead of the SDK client's error text.
 
 - README: Claude (web/desktop/mobile) install instructions. Claude.ai signs in at connect time for any server with discoverable OAuth metadata — it fetches the well-known PRM itself after a successful anonymous handshake, under either *Authentication* setting — so the docs now say so instead of promising lazy auth there. `docs/auth.md` records the observed request sequence so nobody treats the connect-time popup as a server bug.
+- `server.json`: a registry description within the schema's 100-character limit (the previous 405-character one failed validation), a `title`, and `websiteUrl` [luxalgo.com/mcp](https://www.luxalgo.com/mcp). `package.json` gains the same `homepage` and a description that includes Edge Stats and the Trade Journal.
+- README: an H1 and a link to [luxalgo.com/mcp](https://www.luxalgo.com/mcp).
 
 ## [1.4.1]
 
