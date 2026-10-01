@@ -4,6 +4,15 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+### Added
+
+- `library_get_source_code` returns `chart_url` next to `quant_url` when the indicator runs only on the LuxAlgo chart. It opens through the app, which sends it to the chart's current address (`vela.luxalgo.com` once the charts move there). `quant_url` stays for existing clients.
+- **Claude-only host** `https://claude.mcp.luxalgo.com/mcp`, the workaround for [claude-ai-mcp#1013](https://github.com/anthropics/claude-ai-mcp/issues/1013) (claude.ai starts OAuth at connect time for any server whose well-known PRM it finds). Same server and tools; on that host the well-known PRM paths answer 404, the metadata lives at `/auth/prm` (clients learn it from the 401's `resource_metadata`), `/register` stays 404 and `tools/list` carries no `securitySchemes` — so the anonymous surface looks authless and claude.ai signs users in only when a protected tool is called. It is its own resource identifier (token audience), the standard host's with `claude.` in front; the app must list it as a resource (`getLuxalgoClaudeMcpServerResource`). `https://mcp.luxalgo.com/mcp` stays standard RFC 9728 for every other client. The host is picked per request (`src/auth/surface.ts`); a new `discovery` smoke suite checks both. Remove once #1013 is fixed.
+
+### Removed
+
+- `LUXALGO_REACTIVE_AUTH_ONLY` and `LUXALGO_SECURITY_SCHEMES`, both added in 1.5.0 while chasing #1013. Hiding the well-known PRM for the whole origin fixed Claude but broke every standard client (ChatGPT's app submission: "couldn't detect OAuth metadata"); the Claude-only host above does the same thing without touching the standard one. `securitySchemes` was ruled out as the trigger and is now always on for the standard host.
+
 ## [1.5.0] - 2026-09-24
 
 ### Added

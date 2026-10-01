@@ -9,12 +9,15 @@
                                 (OpenAI's MCP extension: `noauth` for public
                                 tools, `oauth2` + scopes for protected ones)
                                 so ChatGPT knows which tools unlock after
-                                linking; other clients ignore the field
+                                linking; other clients ignore the field.
+                                Left out on the Claude host (surface.ts),
+                                whose anonymous surface must look authless
 */
 import type { McpServer, ServerContext } from "@modelcontextprotocol/server";
 import { OAUTH_SCOPES } from "./config.js";
 import { appErrorResult } from "./errors.js";
 import { runWithAccess } from "./access-context.js";
+import { currentSurface } from "./surface.js";
 import type { AuthRuntime } from "./runtime.js";
 
 /**
@@ -49,9 +52,9 @@ export function instrumentToolRegistration(server: McpServer, runtime: AuthRunti
 }
 
 /**
- * Adds `securitySchemes` to every tool in tools/list. The SDK builds that
- * response from a fixed field set, so the list handler is wrapped after all
- * tools are registered.
+ * Adds `securitySchemes` to every tool in tools/list, on hosts that want it
+ * (surface.ts). The SDK builds that response from a fixed field set, so the
+ * list handler is wrapped after all tools are registered.
  */
 export function advertiseSecuritySchemes(server: McpServer, protectedTools: ReadonlySet<string>): void {
   type ListHandler = (request: unknown, ctx: unknown) => Promise<{ tools: Array<{ name: string } & Record<string, unknown>> }>;
@@ -63,6 +66,7 @@ export function advertiseSecuritySchemes(server: McpServer, protectedTools: Read
   const oauthScheme = [{ type: "oauth2", scopes: [...OAUTH_SCOPES] }];
   server.server.setRequestHandler("tools/list", (async (request: unknown, ctx: unknown) => {
     const result = await original(request, ctx);
+    if (!currentSurface().securitySchemes) return result;
     return {
       ...result,
       tools: result.tools.map((tool) => ({

@@ -95,7 +95,7 @@ export async function run({ client, check, callJson, httpUrl }) {
         : source.payload.reason === "runs-in-quant"),
     source.payload.available
       ? `${source.payload.source?.length} chars of source`
-      : `reason=${source.payload.reason}, quant_url=${!!source.payload.quant_url}`,
+      : `reason=${source.payload.reason}, chart_url=${!!source.payload.chart_url}, quant_url=${!!source.payload.quant_url}`,
   );
 
   // library_get_indicator — unknown slug
