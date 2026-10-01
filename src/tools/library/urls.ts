@@ -8,3 +8,10 @@ export const familyMdUrl = (key: string) => `${SITE_ORIGIN}/library/family/${key
 export const indicatorUrl = (slug: string) => `${SITE_ORIGIN}/library/indicator/${slug}/`;
 export const quantUrl = (pineScriptCodeId: string) =>
   `${APP_API_ORIGIN}/quant?pineScriptCodeId=${encodeURIComponent(pineScriptCodeId)}`;
+
+/*
+  The chart link to give users. It always goes through the app: the app redirects
+  `/quant` to the chart's current address, on vela.luxalgo.com once the app's
+  `vela-live` flag is on for that user, so this link never needs its own switch.
+*/
+export const chartUrl = quantUrl;

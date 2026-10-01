@@ -19,7 +19,7 @@ import {
   queryIndicators,
 } from "./api.js";
 import { nearestConcepts, rank } from "./search.js";
-import { conceptMdUrl, conceptUrl, familyMdUrl, familyUrl, indicatorUrl, quantUrl } from "./urls.js";
+import { chartUrl, conceptMdUrl, conceptUrl, familyMdUrl, familyUrl, indicatorUrl, quantUrl } from "./urls.js";
 
 const familyEnum = z.enum(CONCEPT_FAMILIES);
 
@@ -219,7 +219,11 @@ export function registerLibraryTools(server: McpServer) {
           : {
               reason: "runs-in-quant",
               ...(indicator.pineScriptCodeId
-                ? { quant_url: quantUrl(indicator.pineScriptCodeId) }
+                ? {
+                    // chart_url is the link to give users; quant_url stays for existing clients.
+                    chart_url: chartUrl(indicator.pineScriptCodeId),
+                    quant_url: quantUrl(indicator.pineScriptCodeId),
+                  }
                 : {}),
             }),
       });
