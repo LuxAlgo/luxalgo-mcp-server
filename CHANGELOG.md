@@ -6,8 +6,13 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ### Added
 
-- `library_get_source_code` returns `chart_url` next to `quant_url` when the indicator runs only on the LuxAlgo chart. It opens through the app, which sends it to the chart's current address (`vela.luxalgo.com` once the charts move there). `quant_url` stays for existing clients.
+- `library_get_source_code` returns `chart_url` next to `quant_url` when the indicator runs only on the LuxAlgo chart. It opens the indicator on Vela, LuxAlgo's charts, at `https://vela.luxalgo.com/chart?pineScriptCodeId=…`; `LUXALGO_CHART_ORIGIN` points it at a non-production Vela. `quant_url` is unchanged for existing clients, and the app redirects it to the same chart.
+- Server `instructions` in `initialize`, on every entry (stdio, plain-Node HTTP, Vercel): LuxAlgo is the AI trading & charting platform, Vela is its charts at `https://vela.luxalgo.com/chart` with Quant, our coding agent, built in, and a returned `chart_url` is the link to give users. A `surface` smoke check asserts it.
 - **Claude-only host** `https://claude.mcp.luxalgo.com/mcp`, the workaround for [claude-ai-mcp#1013](https://github.com/anthropics/claude-ai-mcp/issues/1013) (claude.ai starts OAuth at connect time for any server whose well-known PRM it finds). Same server and tools; on that host the well-known PRM paths answer 404, the metadata lives at `/auth/prm` (clients learn it from the 401's `resource_metadata`), `/register` stays 404 and `tools/list` carries no `securitySchemes` — so the anonymous surface looks authless and claude.ai signs users in only when a protected tool is called. It is its own resource identifier (token audience), the standard host's with `claude.` in front; the app must list it as a resource (`getLuxalgoClaudeMcpServerResource`). `https://mcp.luxalgo.com/mcp` stays standard RFC 9728 for every other client. The host is picked per request (`src/auth/surface.ts`); a new `discovery` smoke suite checks both. Remove once #1013 is fixed.
+
+### Changed
+
+- README and the landing page name the open-source library **Vela for Developers**, LuxAlgo's open-source charting library, linking [velacharts.dev](https://velacharts.dev) instead of the old luxalgo.com/vela page, and point to Vela, LuxAlgo's charts, at [vela.luxalgo.com/chart](https://vela.luxalgo.com/chart).
 
 ### Removed
 

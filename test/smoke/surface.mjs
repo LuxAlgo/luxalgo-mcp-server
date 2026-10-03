@@ -1,4 +1,4 @@
-/* Tool surface: tools/list matches the documented set per entry, every tool advertises securitySchemes, serverInfo matches package.json. */
+/* Tool surface: tools/list matches the documented set per entry, every tool advertises securitySchemes, serverInfo matches package.json, instructions point at Vela. */
 
 import { readFile } from "node:fs/promises";
 
@@ -109,5 +109,13 @@ export async function run({ client, check, callJson, callStructured, httpUrl, ra
     `serverInfo is luxalgo@${pkg.version} (package.json)`,
     serverInfo?.name === "luxalgo" && serverInfo?.version === pkg.version,
     `${serverInfo?.name}@${serverInfo?.version}`,
+  );
+
+  // instructions — agents learn on connect where a chart link takes the user.
+  const instructions = client.getInstructions() ?? "";
+  check(
+    "on connect, the server tells agents that Vela is LuxAlgo's charts and to send users to chart_url",
+    instructions.includes("Vela") && instructions.includes("https://vela.luxalgo.com/chart") && instructions.includes("chart_url"),
+    instructions ? `${instructions.length} chars` : "no instructions",
   );
 }

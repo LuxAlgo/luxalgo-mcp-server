@@ -20,7 +20,7 @@ import { advertiseSecuritySchemes, instrumentToolRegistration } from "../auth/in
 import { hostedAuthRuntime, type AuthRuntime } from "../auth/runtime.js";
 import { instrumentServer } from "../platform/analytics.js";
 import { PROTECTED_TOOL_NAMES, TOOL_MODULES } from "./manifest.js";
-import { SERVER_NAME, SERVER_VERSION } from "./version.js";
+import { SERVER_INSTRUCTIONS, SERVER_NAME, SERVER_VERSION } from "./version.js";
 
 export type ServerOptions = {
   /**
@@ -53,7 +53,7 @@ export function registerLuxalgoTools(server: McpServer, options: ServerOptions):
 
 /** A new, fully registered server with this package's identity. */
 export function createLuxalgoServer(options: ServerOptions): McpServer {
-  const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+  const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { instructions: SERVER_INSTRUCTIONS });
   registerLuxalgoTools(server, options);
   return server;
 }

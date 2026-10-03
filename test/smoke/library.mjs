@@ -1,5 +1,10 @@
 /* Library tools against the live app API. */
 
+import { chartUrl, quantUrl } from "../../dist/tools/library/urls.js";
+
+const CHART_ORIGIN = process.env.LUXALGO_CHART_ORIGIN ?? "https://vela.luxalgo.com";
+const APP_ORIGIN = process.env.LUXALGO_APP_ORIGIN ?? "https://app.luxalgo.com";
+
 export async function run({ client, check, callJson, httpUrl }) {
   // library_list_families
   const families = await callJson(client, "library_list_families", {});
@@ -92,10 +97,24 @@ export async function run({ client, check, callJson, httpUrl }) {
     !source.isError &&
       (source.payload.available
         ? typeof source.payload.source === "string" && source.payload.source.length > 0
-        : source.payload.reason === "runs-in-quant"),
+        : source.payload.reason === "runs-in-quant" &&
+          (!source.payload.chart_url || source.payload.chart_url.startsWith(`${CHART_ORIGIN}/chart?pineScriptCodeId=`))),
     source.payload.available
       ? `${source.payload.source?.length} chars of source`
       : `reason=${source.payload.reason}, chart_url=${!!source.payload.chart_url}, quant_url=${!!source.payload.quant_url}`,
+  );
+
+  // Chart links. Most Library indicators serve their source, so the live call above rarely
+  // returns one; check the links this build hands out directly.
+  check(
+    "an indicator that runs only on LuxAlgo links to it on a Vela chart",
+    chartUrl("abc 123") === `${CHART_ORIGIN}/chart?pineScriptCodeId=abc%20123`,
+    chartUrl("abc 123"),
+  );
+  check(
+    "existing clients keep the quant_url link they already read",
+    quantUrl("abc 123") === `${APP_ORIGIN}/quant?pineScriptCodeId=abc%20123`,
+    quantUrl("abc 123"),
   );
 
   // library_get_indicator — unknown slug

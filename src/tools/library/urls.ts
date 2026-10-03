@@ -10,8 +10,14 @@ export const quantUrl = (pineScriptCodeId: string) =>
   `${APP_API_ORIGIN}/quant?pineScriptCodeId=${encodeURIComponent(pineScriptCodeId)}`;
 
 /*
-  The chart link to give users. It always goes through the app: the app redirects
-  `/quant` to the chart's current address, on vela.luxalgo.com once the app's
-  `vela-live` flag is on for that user, so this link never needs its own switch.
+  Where the charts live: Vela, on its own host, while the API and sign-in stay on the
+  app. LUXALGO_CHART_ORIGIN points chart links at a non-production Vela.
 */
-export const chartUrl = quantUrl;
+const CHART_ORIGIN = process.env.LUXALGO_CHART_ORIGIN ?? "https://vela.luxalgo.com";
+
+/*
+  The chart link to give users: the indicator opened on a Vela chart. quantUrl above is
+  kept unchanged for existing clients; the app redirects it to this same address.
+*/
+export const chartUrl = (pineScriptCodeId: string) =>
+  `${CHART_ORIGIN}/chart?pineScriptCodeId=${encodeURIComponent(pineScriptCodeId)}`;
