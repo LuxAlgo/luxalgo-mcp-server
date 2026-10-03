@@ -15,13 +15,13 @@
 */
 import { createMcpHandler } from "mcp-handler";
 import { flushAnalytics } from "../src/platform/analytics.js";
-import { SERVER_NAME, SERVER_VERSION, registerHostedTools, withLuxalgoAuth } from "../src/entries/hosted.js";
+import { SERVER_INSTRUCTIONS, SERVER_NAME, SERVER_VERSION, registerHostedTools, withLuxalgoAuth } from "../src/entries/hosted.js";
 
 const mcpHandler = createMcpHandler(
   (server) => registerHostedTools(server),
-  // Same identity as the stdio and plain-Node entries (otherwise
-  // mcp-handler advertises its own default serverInfo).
-  { serverInfo: { name: SERVER_NAME, version: SERVER_VERSION } },
+  // Same identity and instructions as the stdio and plain-Node entries
+  // (otherwise mcp-handler advertises its own default serverInfo).
+  { serverInfo: { name: SERVER_NAME, version: SERVER_VERSION }, instructions: SERVER_INSTRUCTIONS },
 );
 
 const gatedHandler = withLuxalgoAuth(async (request, auth) => {
