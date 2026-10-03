@@ -16,7 +16,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { registerLuxalgoTools } from "../server/create-server.js";
-import { SERVER_NAME, SERVER_VERSION } from "../server/version.js";
+import { SERVER_INSTRUCTIONS, SERVER_NAME, SERVER_VERSION } from "../server/version.js";
 import { connectionsFromEnv } from "../tools/broker/tools.js";
 import { shutdownAnalytics } from "../platform/analytics.js";
 import { createLocalAuthRuntime } from "../auth/local/runtime.js";
@@ -76,7 +76,7 @@ function serve(): void {
   // clients from the same factory). The auth runtime holds the server so it
   // can ask the client to open the sign-in URL (URL-mode elicitation).
   serveStdio(() => {
-    const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+    const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { instructions: SERVER_INSTRUCTIONS });
     registerLuxalgoTools(server, { entry: "local", auth: createLocalAuthRuntime(server, log), log });
     return server;
   });

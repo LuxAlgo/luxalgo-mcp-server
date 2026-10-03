@@ -14,7 +14,7 @@ import { createLuxalgoServer, registerLuxalgoTools } from "../server/create-serv
 
 export { withLuxalgoAuth } from "../auth/gate.js";
 export { isProtectedResourceMetadataPath } from "../auth/metadata.js";
-export { SERVER_NAME, SERVER_VERSION } from "../server/version.js";
+export { SERVER_INSTRUCTIONS, SERVER_NAME, SERVER_VERSION } from "../server/version.js";
 
 const log = (message: string) => console.error(message);
 
