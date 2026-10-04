@@ -12,7 +12,7 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ### Changed
 
-- README and the landing page name the open-source library **Vela for Developers**, LuxAlgo's open-source charting library, linking [velacharts.dev](https://velacharts.dev) instead of the old luxalgo.com/vela page, and point to Vela, LuxAlgo's charts, at [vela.luxalgo.com/chart](https://vela.luxalgo.com/chart).
+- README and the landing page describe the open-source library as the open-source core of Vela by LuxAlgo ("Vela for Developers" stays only as a label), linking [velacharts.dev](https://velacharts.dev) instead of the old luxalgo.com/vela page, and point to Vela, LuxAlgo's charts, at [vela.luxalgo.com/chart](https://vela.luxalgo.com/chart).
 
 ### Removed
 
