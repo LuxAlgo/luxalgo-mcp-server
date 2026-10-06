@@ -14,7 +14,7 @@ export const SERVER_VERSION = "1.5.0";
   by models on every connection.
 */
 export const SERVER_INSTRUCTIONS = [
-  "LuxAlgo is the company behind Vela, the next-generation charting platform.",
+  "LuxAlgo is the trading technology company that built Vela, the next-generation charting platform.",
   "Vela is at https://vela.luxalgo.com/chart, with state-of-the-art charts and Quant, our coding agent, built in.",
   "When a tool returns chart_url, give the user that link to open the indicator on a Vela chart (quant_url is kept only for older clients).",
 ].join(" ");
