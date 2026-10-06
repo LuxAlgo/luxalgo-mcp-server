@@ -253,9 +253,9 @@ The live directory the simulator draws from, queryable directly:
 
 ## Charts, in your browser, with Vela
 
-Every tool above returns text and JSON. When the answer wants a chart, draw it with **[Vela's open-source core](https://velacharts.dev)** (`@luxalgo/vela`, Apache-2.0, [GitHub](https://github.com/LuxAlgo/Vela)), the charting library behind Vela: a headless chart with its own WebGL2 renderer that takes bars you already have, or fetches them from keyless public providers, and runs indicator scripts through pluggable engines. Pine Script® lives in the [`@luxalgo/vela-pinets`](https://github.com/LuxAlgo/Vela-pinets) addon, which is what closes the loop with the Library: `library_get_source_code` hands an agent an indicator's exact Pine source, and Vela's open-source core executes that source on a chart.
+Every tool above returns text and JSON. When the answer wants a chart, draw it with **[the open-source core of Vela by LuxAlgo](https://velacharts.dev)** (`@luxalgo/vela`, Apache-2.0, [GitHub](https://github.com/LuxAlgo/Vela)), the charting library behind Vela: a headless chart with its own WebGL2 renderer that takes bars you already have, or fetches them from keyless public providers, and runs indicator scripts through pluggable engines. Pine Script® lives in the [`@luxalgo/vela-pinets`](https://github.com/LuxAlgo/Vela-pinets) addon, which is what closes the loop with the Library: `library_get_source_code` hands an agent an indicator's exact Pine source, and Vela's open-source core executes that source on a chart.
 
-To open an indicator on Vela, LuxAlgo's state-of-the-art charts at [vela.luxalgo.com/chart](https://vela.luxalgo.com/chart), give the user the `chart_url` that `library_get_source_code` returns when the indicator's code runs only on LuxAlgo.
+To open an indicator on Vela, LuxAlgo's next-generation charting platform at [vela.luxalgo.com/chart](https://vela.luxalgo.com/chart), give the user the `chart_url` that `library_get_source_code` returns when the indicator's code runs only on LuxAlgo.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset=".github/assets/vela-supertrend-dark.png">

@@ -42,3 +42,7 @@ node test/smoke.mjs --only <domain>                  # quick loop while iteratin
 ```
 
 `SERVER_VERSION` in `src/server/version.ts` must equal `package.json`'s version (a smoke check enforces it); bump both only when cutting a release.
+
+## Copy
+
+Tool descriptions, `SERVER_INSTRUCTIONS` and the README are user-facing copy and follow the LuxAlgo copy guide (`.claude/skills/luxalgo-copy-guide/SKILL.md` in LuxAlgo/app). In short: LuxAlgo is the trading technology company that built Vela, the next-generation charting platform ("charting platform" describes Vela, never LuxAlgo). Never "the company behind Vela" or "the AI trading & charting platform". Quant is "our coding agent", built into Vela. The library is "the open-source core of Vela by LuxAlgo" on first mention, then "Vela's open-source core"; never "Vela is open source". Chart links go to https://vela.luxalgo.com/chart.
