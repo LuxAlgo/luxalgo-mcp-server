@@ -136,12 +136,12 @@ export async function run({ check, httpUrl }) {
     JSON.parse(openaiText.startsWith("{") ? openaiText : (openaiText.match(/^data: (.*)$/m)?.[1] ?? "{}")).result?.tools ?? [];
   const openaiJson = JSON.stringify(openaiTools);
   check(
-    "OpenAI address lists the trimmed toolset: no offers, promo codes or affiliate links; trackers_ticker only",
+    "OpenAI address lists the trimmed toolset: no offers, promo codes, affiliate links, political datasets or name search",
     openaiTools.length > 0 &&
       !openaiTools.some((t) => t.name === "propfirms_search_offers") &&
       !/promo|affiliate|fec-|congress-hearings/i.test(openaiJson) &&
-      !openaiTools.some((t) => ["trackers_datasets", "trackers_query", "trackers_latest"].includes(t.name)) &&
-      openaiTools.some((t) => t.name === "trackers_ticker"),
+      !/fec-|congress-hearings/.test(openaiJson) &&
+      !("text" in (openaiTools.find((t) => t.name === "trackers_query")?.inputSchema?.properties ?? { text: 1 })),
     `${openaiTools.length} tools`,
   );
 }
