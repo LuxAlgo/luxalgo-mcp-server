@@ -7,6 +7,8 @@
 import { z } from "zod";
 import type { CallToolResult, McpServer } from "@modelcontextprotocol/server";
 import type { Toolset } from "../../../auth/surface.js";
+import { directoryCopy } from "./directory-copy.js";
+import { rewriteSchemaDescriptions } from "./package-tools.js";
 import {
   ChallengeSpecSchema,
   DISCLAIMER,
@@ -322,7 +324,7 @@ export function registerValidateStrategyTool(server: McpServer, toolset: Toolset
     {
       title: "Screen a strategy across all challenges",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
-      description:
+      description: (toolset === "directory" ? directoryCopy : (text: string) => text)(
         "Answer 'which challenges would MY strategy actually pass?' in one call: simulate the given " +
         "strategy through every simulatable challenge in the live directory (optionally scoped by " +
         "productType, account-size range, priceMax, or firm) and split the results by an explicit, " +
@@ -345,7 +347,8 @@ export function registerValidateStrategyTool(server: McpServer, toolset: Toolset
           ? "prices and firm profiles are directory data (propfirms_search_challenges, propfirms_get)."
           : "prices, firm profiles, and current offers are directory data (propfirms_search_challenges, " +
             "propfirms_get, propfirms_search_offers)."),
-      inputSchema: validateStrategySchema,
+      ),
+      inputSchema: toolset === "directory" ? rewriteSchemaDescriptions(validateStrategySchema, directoryCopy) : validateStrategySchema,
     },
     (args: unknown) => handleValidateStrategy(args),
   );

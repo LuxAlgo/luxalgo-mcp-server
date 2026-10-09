@@ -6,6 +6,8 @@
 import { z } from "zod";
 import type { CallToolResult, McpServer } from "@modelcontextprotocol/server";
 import type { Toolset } from "../../../auth/surface.js";
+import { directoryCopy } from "./directory-copy.js";
+import { rewriteSchemaDescriptions } from "./package-tools.js";
 import {
   ChallengeSpecSchema,
   DISCLAIMER,
@@ -234,7 +236,7 @@ export function registerPassRatesTool(server: McpServer, toolset: Toolset): void
     {
       title: "Reference pass rates per archetype",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
-      description:
+      description: (toolset === "directory" ? directoryCopy : (text: string) => text)(
         "Reference challenge pass rates computed live from the directory's encoded rules with the same " +
         "engine, seed (42), path count (10,000) and reference archetypes luxalgo.com/prop-firms uses — " +
         "per challenge and per archetype (developing 45% win rate / consistent 48% / proven edge 52%, " +
@@ -250,7 +252,8 @@ export function registerPassRatesTool(server: McpServer, toolset: Toolset): void
           ? "listed challenge prices; full firm profiles are directory data (propfirms_get)."
           : "listed challenge prices; full firm profiles and live offers are directory data " +
             "(propfirms_get, propfirms_search_offers)."),
-      inputSchema: passRatesSchema,
+      ),
+      inputSchema: toolset === "directory" ? rewriteSchemaDescriptions(passRatesSchema, directoryCopy) : passRatesSchema,
     },
     (args: unknown) => handlePassRates(args),
   );

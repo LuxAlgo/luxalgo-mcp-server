@@ -39,13 +39,15 @@ export type ServerOptions = {
 export function registerLuxalgoTools(server: McpServer, options: ServerOptions): void {
   const auth = options.auth ?? hostedAuthRuntime;
   // Analytics wrap registerTool too, so they go first. No-op unless POSTHOG_PROJECT_TOKEN is set.
-  instrumentServer(server, options.log ? (message) => options.log?.(`[posthog] ${message}`) : undefined);
-  instrumentToolRegistration(server, auth);
-  mirrorTitleAnnotation(server);
-
   // Hosted entries build the server inside the gate's surface, so this is
   // the address the request came in on; stdio is always the full toolset.
   const toolset = currentSurface().toolset;
+  instrumentServer(server, options.log ? (message) => options.log?.(`[posthog] ${message}`) : undefined, {
+    intentParameter: toolset === "full",
+  });
+  instrumentToolRegistration(server, auth);
+  mirrorTitleAnnotation(server);
+
   const registered = trackRegistrations(server);
   for (const module of TOOL_MODULES) {
     if (module.localOnly && options.entry !== "local") continue;

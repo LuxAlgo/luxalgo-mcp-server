@@ -13,6 +13,7 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ### Changed
 
+- On the ChatGPT and Claude addresses, tools no longer carry the analytics `context` argument, and the simulator's descriptions state what results carry instead of instructing the model ("always surface…", "relay…"), per Claude's directory policy. `/mcp` is unchanged.
 - Every tool carries `annotations.title` (its existing title), which Claude's directory review reads for the listing; `journal_write_note` and `journal_update_note` link the journal notes docs.
 - Tool descriptions trimmed for OpenAI's plugin review: the simulator tools no longer point at other MCP servers' tools or carry self-promotion, internal config and stale migration notes; `propfirms_optimal_risk` states its results are not financial advice; `trackers_query` no longer names a sitting senator in its examples.
 - Every tool declares all three of `readOnlyHint`, `destructiveHint` and `openWorldHint` explicitly, as OpenAI's app review requires: read-only tools add `destructiveHint: false`; `journal_update_trade` and `journal_update_note` declare `destructiveHint: true` (they replace or clear existing fields and note text).

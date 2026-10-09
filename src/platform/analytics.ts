@@ -31,14 +31,20 @@ export function getPosthog(): PostHog | undefined {
 /**
  * Instrument a server with MCP analytics. No-op when POSTHOG_PROJECT_TOKEN
  * is unset. `logger` must be STDIO-safe (stderr, never stdout).
+ *
+ * `intentParameter: false` keeps the SDK from injecting its required
+ * `context` argument (the agent's stated intent) into every tool: the
+ * ChatGPT and Claude directories bar collecting conversation data a tool
+ * doesn't need, so their addresses run without it.
  */
 export function instrumentServer(
   server: McpServer,
   logger?: (message: string) => void,
+  { intentParameter = true }: { intentParameter?: boolean } = {},
 ): void {
   const posthog = getPosthog();
   if (!posthog) return;
-  instrument(server, posthog, { logger });
+  instrument(server, posthog, { logger, context: intentParameter });
 }
 
 /** Drain queued events without tearing the client down (serverless-friendly). */

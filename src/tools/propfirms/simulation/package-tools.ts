@@ -12,6 +12,7 @@ import { z } from "zod";
 import type { CallToolResult, McpServer } from "@modelcontextprotocol/server";
 import { toolDefinitions } from "@luxalgo/prop-firm-sim-mcp/tools";
 import type { Toolset } from "../../../auth/surface.js";
+import { directoryCopy } from "./directory-copy.js";
 
 
 /** Package-name -> local-name map for the tools this server exposes
@@ -57,46 +58,49 @@ function rewriteToolReferences(description: string): string {
  *  (read via `schema.description`), not a def field. `clone(def)` yields a
  *  fresh instance of the same class with every check preserved; `.describe`
  *  then attaches the rewritten text to that new instance only. */
-function rewriteSchemaDescriptions<T extends z.ZodType>(schema: T): T {
+export function rewriteSchemaDescriptions<T extends z.ZodType>(
+  schema: T,
+  transform: (text: string) => string = rewriteToolReferences,
+): T {
   const def = { ...schema._zod.def } as Record<string, unknown>;
   const isSchema = (value: unknown): value is z.ZodType => value instanceof z.ZodType;
   // optional / nullable / default / prefault / catch / readonly / nonoptional
-  if (isSchema(def.innerType)) def.innerType = rewriteSchemaDescriptions(def.innerType);
-  if (isSchema(def.element)) def.element = rewriteSchemaDescriptions(def.element); // array / set
-  if (isSchema(def.keyType)) def.keyType = rewriteSchemaDescriptions(def.keyType); // record / map
-  if (isSchema(def.valueType)) def.valueType = rewriteSchemaDescriptions(def.valueType);
-  if (isSchema(def.in)) def.in = rewriteSchemaDescriptions(def.in); // pipe / transform
-  if (isSchema(def.out)) def.out = rewriteSchemaDescriptions(def.out);
+  if (isSchema(def.innerType)) def.innerType = rewriteSchemaDescriptions(def.innerType, transform);
+  if (isSchema(def.element)) def.element = rewriteSchemaDescriptions(def.element, transform); // array / set
+  if (isSchema(def.keyType)) def.keyType = rewriteSchemaDescriptions(def.keyType, transform); // record / map
+  if (isSchema(def.valueType)) def.valueType = rewriteSchemaDescriptions(def.valueType, transform);
+  if (isSchema(def.in)) def.in = rewriteSchemaDescriptions(def.in, transform); // pipe / transform
+  if (isSchema(def.out)) def.out = rewriteSchemaDescriptions(def.out, transform);
   if (Array.isArray(def.options)) {
     def.options = def.options.map((option: unknown) =>
-      isSchema(option) ? rewriteSchemaDescriptions(option) : option,
+      isSchema(option) ? rewriteSchemaDescriptions(option, transform) : option,
     ); // union
   }
   if (def.shape !== null && typeof def.shape === "object") {
     def.shape = Object.fromEntries(
       Object.entries(def.shape as Record<string, unknown>).map(([key, field]) => [
         key,
-        isSchema(field) ? rewriteSchemaDescriptions(field) : field,
+        isSchema(field) ? rewriteSchemaDescriptions(field, transform) : field,
       ]),
     ); // object
   }
   const next = schema.clone(def as unknown as T["_zod"]["def"]) as T;
   const description = schema.description;
   return typeof description === "string"
-    ? (next.describe(rewriteToolReferences(description)) as T)
+    ? (next.describe(transform(description)) as T)
     : next;
 }
 
 /** rewriteSchemaDescriptions over every field of a raw shape. ZodRawShape is
  *  typed over zod-core's $ZodType; the upstream shapes are built with the
  *  classic API, so every field is a full ZodType at runtime (asserted). */
-function rewriteShapeDescriptions(shape: z.ZodRawShape): z.ZodRawShape {
+function rewriteShapeDescriptions(shape: z.ZodRawShape, transform: (text: string) => string): z.ZodRawShape {
   return Object.fromEntries(
     Object.entries(shape).map(([key, field]) => {
       if (!(field instanceof z.ZodType)) {
         throw new Error(`upstream inputShape.${key} is not a zod classic schema`);
       }
-      return [key, rewriteSchemaDescriptions(field)];
+      return [key, rewriteSchemaDescriptions(field, transform)];
     }),
   );
 }
@@ -158,6 +162,7 @@ export const PACKAGE_TOOL_NAMES: readonly string[] = toolDefinitions
   .filter((name): name is string => name !== undefined);
 
 export function registerPackageSimTools(server: McpServer, toolset: Toolset): void {
+  const copy = (text: string) => (toolset === "directory" ? directoryCopy(text) : text);
   for (const def of toolDefinitions) {
     const localName = TOOL_RENAMES[def.name];
     if (localName === undefined) continue;
@@ -166,10 +171,10 @@ export function registerPackageSimTools(server: McpServer, toolset: Toolset): vo
       {
         title: def.title,
         description:
-          editDescription(rewriteToolReferences(def.description)) +
+          copy(editDescription(rewriteToolReferences(def.description))) +
           (ROUTING_NOTES[toolset][localName] ?? "") +
           (DESCRIPTION_NOTES[localName] ?? ""),
-        inputSchema: z.object(rewriteShapeDescriptions(def.inputShape)),
+        inputSchema: z.object(rewriteShapeDescriptions(def.inputShape, (text) => copy(rewriteToolReferences(text)))),
         annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
       },
       async (args: unknown): Promise<CallToolResult> => {
