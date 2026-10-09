@@ -246,7 +246,7 @@ export function registerPassRatesTool(server: McpServer, toolset: Toolset): void
         "user's personal odds: for their own statistics use propfirms_simulate (summary stats) " +
         "or propfirms_simulate_trades (their real trade series). Not a ranking; a firm's page is " +
         "authoritative for current rules (check lastVerified). Expected costs use the directory's " +
-        (toolset === "openai"
+        (toolset === "directory"
           ? "listed challenge prices; full firm profiles are directory data (propfirms_get)."
           : "listed challenge prices; full firm profiles and live offers are directory data " +
             "(propfirms_get, propfirms_search_offers)."),

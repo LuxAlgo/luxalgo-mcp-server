@@ -5,14 +5,16 @@
               MCP client: well-known PRM, securitySchemes in tools/list
     openai    OPENAI_MCP_RESOURCE (mcp.luxalgo.com/mcp/openai) — the same
               standard discovery under its own resource identifier, with the
-              toolset trimmed to OpenAI's plugin directory rules (no prop-firm
-              offers, promo codes or affiliate links; no political datasets or
-              name search in Market Trackers)
+              "directory" toolset: no prop-firm offers, promo codes or
+              affiliate links (OpenAI's and Claude's directory rules bar
+              promotions); no political datasets or name search in Market
+              Trackers
     claude    CLAUDE_MCP_RESOURCE (claude.mcp.luxalgo.com) — the #1013
               workaround: no well-known PRM, no securitySchemes, so claude.ai
               only learns about sign-in from a protected tool's 401. A host,
               not a path: claude.ai also probes the root well-known PRM, which
-              the standard host must keep serving.
+              the standard host must keep serving. Same "directory" toolset
+              as the openai address.
 
   Everything that differs between them — the PRM document and where it
   lives, the 401's `resource_metadata`, the token audience, the
@@ -33,8 +35,8 @@ import {
   PRM_URL,
 } from "./config.js";
 
-/** "full" registers every tool as written; "openai" the directory-safe variants (see tools/*). */
-export type Toolset = "full" | "openai";
+/** "full" registers every tool as written; "directory" the variants fit for the ChatGPT and Claude directories (see tools/*). */
+export type Toolset = "full" | "directory";
 
 export type Surface = {
   kind: "standard" | "openai" | "claude";
@@ -60,7 +62,7 @@ export const OPENAI_SURFACE: Surface = {
   resource: OPENAI_MCP_RESOURCE,
   prmUrl: OPENAI_PRM_URL,
   securitySchemes: true,
-  toolset: "openai",
+  toolset: "directory",
 };
 
 export const CLAUDE_SURFACE: Surface = {
@@ -68,7 +70,7 @@ export const CLAUDE_SURFACE: Surface = {
   resource: CLAUDE_MCP_RESOURCE,
   prmUrl: CLAUDE_PRM_URL,
   securitySchemes: false,
-  toolset: "full",
+  toolset: "directory",
 };
 
 const CLAUDE_HOST = new URL(CLAUDE_MCP_RESOURCE).host;

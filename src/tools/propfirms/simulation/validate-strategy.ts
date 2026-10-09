@@ -341,7 +341,7 @@ export function registerValidateStrategyTool(server: McpServer, toolset: Toolset
         "refused rather than silently truncated: narrow the scope instead. Numbers move with risk " +
         "sizing; sweep one challenge with propfirms_optimal_risk afterwards. Fees and expected " +
         "costs use the directory's listed prices (live discounts are NOT applied); " +
-        (toolset === "openai"
+        (toolset === "directory"
           ? "prices and firm profiles are directory data (propfirms_search_challenges, propfirms_get)."
           : "prices, firm profiles, and current offers are directory data (propfirms_search_challenges, " +
             "propfirms_get, propfirms_search_offers)."),

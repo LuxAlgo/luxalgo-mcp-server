@@ -17,7 +17,7 @@ export const propfirmsModule: ToolModule = {
     ...SIMULATION_TOOL_NAMES,
   ],
   // Offers are promo codes and affiliate links (directory-tools.ts).
-  omitFromOpenAi: ["propfirms_search_offers"],
+  omitFromDirectory: ["propfirms_search_offers"],
   register: (server, { toolset }) => {
     registerPropfirmTools(server, toolset);
     registerSimTools(server, toolset);

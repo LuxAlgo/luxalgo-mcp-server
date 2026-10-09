@@ -89,8 +89,10 @@ export async function run({ check, httpUrl }) {
   const text = await listed.text();
   const tools = JSON.parse(text.startsWith("{") ? text : (text.match(/^data: (.*)$/m)?.[1] ?? "{}")).result?.tools ?? [];
   check(
-    "Claude host lists every tool without per-tool sign-in hints",
-    tools.length > 0 && tools.every((t) => !("securitySchemes" in t)),
+    "Claude host lists the trimmed toolset without per-tool sign-in hints",
+    tools.length > 0 &&
+      tools.every((t) => !("securitySchemes" in t)) &&
+      !tools.some((t) => t.name === "propfirms_search_offers"),
     `${tools.length} tools; with field: ${tools.filter((t) => "securitySchemes" in t).length}`,
   );
 

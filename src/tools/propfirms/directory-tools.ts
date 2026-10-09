@@ -94,8 +94,8 @@ function liftFirmOffers(firm: PropfirmFirm): Record<string, unknown> {
 }
 
 /*
-  The "openai" toolset (auth/surface.ts) is the directory without offers:
-  OpenAI's plugin rules bar promoting discounts and promotions, and offers are
+  The "directory" toolset (auth/surface.ts) is the directory without offers:
+  OpenAI's plugin rules and Claude's directory bar promoting discounts and promotions, and offers are
   promo codes and affiliate links. Offer filters, include values and the
   offers tool are left out, and offer payloads are stripped from results.
 */
@@ -249,7 +249,7 @@ const offerPropertyShape = {
 };
 
 export function registerPropfirmTools(server: McpServer, toolset: Toolset) {
-  const withOffers = toolset !== "openai";
+  const withOffers = toolset !== "directory";
   server.registerTool(
     "propfirms_search",
     {
@@ -379,7 +379,7 @@ export function registerPropfirmTools(server: McpServer, toolset: Toolset) {
     },
   );
 
-  // Offers are promo codes and affiliate links: not on the "openai" toolset.
+  // Offers are promo codes and affiliate links: not on the "directory" toolset.
   if (!withOffers) return;
 
   server.registerTool(

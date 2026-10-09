@@ -116,8 +116,8 @@ const ROUTING_NOTES: Record<Toolset, Record<string, string>> = {
       " NOTE: this returns the simulatable encoding of one challenge's rules; the directory listing " +
       "with every captured field, plus live offers, is propfirms_get and propfirms_search_challenges.",
   },
-  // No offers on the "openai" toolset (directory-tools.ts).
-  openai: {
+  // No offers on the "directory" toolset (directory-tools.ts).
+  directory: {
     propfirms_list_simulatable:
       " NOTE: this lists only the firms and challenges whose rules the engine can encode honestly. " +
       "The full directory — every visible firm with platforms, prices, and payout terms — is served " +

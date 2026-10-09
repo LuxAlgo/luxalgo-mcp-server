@@ -58,7 +58,8 @@ const guarded = (run: () => Promise<CallToolResult>) =>
 const datasetIdSchema = z.enum(TRACKER_DATASET_IDS);
 
 /*
-  The "openai" toolset (auth/surface.ts): OpenAI's automated review held the
+  The "directory" toolset (auth/surface.ts), on the ChatGPT and Claude
+  addresses: OpenAI's automated review held the
   dataset-level tools, so on that address they leave out the political
   datasets (campaign finance, bills, hearings, committee assignments) and the
   free-text `text` filter (it searches people's names), and their copy
@@ -73,7 +74,7 @@ const POLITICAL_DATASETS: ReadonlySet<TrackerDatasetId> = new Set([
   "committee-assignments",
 ]);
 
-const OPENAI_DATASET_IDS = TRACKER_DATASET_IDS.filter((id) => !POLITICAL_DATASETS.has(id)) as [
+const DIRECTORY_DATASET_IDS = TRACKER_DATASET_IDS.filter((id) => !POLITICAL_DATASETS.has(id)) as [
   TrackerDatasetId,
   ...TrackerDatasetId[],
 ];
@@ -240,10 +241,10 @@ function queryNotes(def: TrackerDataset, scanned: ShardRef[], archives: Archives
 }
 
 export function registerTrackersTools(server: McpServer, toolset: Toolset) {
-  const openai = toolset === "openai";
-  const ids: readonly TrackerDatasetId[] = openai ? OPENAI_DATASET_IDS : TRACKER_DATASET_IDS;
-  const datasetId = openai ? z.enum(OPENAI_DATASET_IDS) : datasetIdSchema;
-  const where = openai
+  const directory = toolset === "directory";
+  const ids: readonly TrackerDatasetId[] = directory ? DIRECTORY_DATASET_IDS : TRACKER_DATASET_IDS;
+  const datasetId = directory ? z.enum(DIRECTORY_DATASET_IDS) : datasetIdSchema;
+  const where = directory
     ? filterShape.where.describe(
         'Exact field matches by dot path, e.g. {"side":"buy"}, {"code":"P"}, {"formType":"4"}; string comparisons are case-insensitive, arrays match when any element does',
       )
@@ -253,7 +254,7 @@ export function registerTrackersTools(server: McpServer, toolset: Toolset) {
     {
       title: "List Market Trackers datasets",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
-      description: openai
+      description: directory
         ? "The Market Trackers catalog of US stock-market data from public filings: insider buying and selling (SEC Forms 3/4/5), institutional holdings (13F), congressional stock trades, short-sale volume, federal contracts and grants, lobbying filings, patents, clinical trials, FDA drug events, futures positioning (CFTC), Federal Reserve communications and Wikipedia pageviews. Returns each dataset's size, freshness, the years covered, and whether it can be searched by ticker. Pass a dataset for its fields, filters and caveats; trackers_query searches it."
         : "The Market Trackers catalog: every dataset of US public-record market data the LuxAlgo pipeline publishes as CC0 dumps — congressional trades, insider (Forms 3/4/5) transactions, 13F holdings, federal contracts and grants, lobbying filings, FINRA short-sale volume, granted patents, clinical trials, FDA drug events, CFTC positioning, federal bills, FEC campaign finance, hearing transcripts, Federal Reserve communications, committee assignments, Wikipedia pageviews. Returns each dataset's row count, freshness, the years with data (live tree vs deep-history archives), and whether it is ticker-searchable. Pass dataset for the full field roster, filterable paths, caveats, per-year coverage, source health, and dump URLs — read it before composing trackers_query filters.",
       inputSchema: z.object({
@@ -282,7 +283,7 @@ export function registerTrackersTools(server: McpServer, toolset: Toolset) {
     {
       title: "Query a Market Trackers dataset",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
-      description: openai
+      description: directory
         ? "Search one Market Trackers dataset by ticker, exact field values and date range, newest or oldest first, with paging. Reads one year by default (the newest with data); pass years or since/until for others, one or two older years at a time. Every row links to the public filing or record it came from (provenance.sourceUrl). Examples: insider purchases at NVDA in 2024 → dataset insider-transactions, ticker NVDA, years [2024], where {code: 'P'}; congressional purchases of NVDA → congress-trades, ticker NVDA, where {side: 'buy'}; short volume for TSLA → short-volume, ticker TSLA."
         : "Search one Market Trackers dataset by ticker, free text, exact field values, and event-date range, with paging and newest/oldest ordering. Data is read from year-sharded CC0 dumps: pass years (or since/until) to choose which years to read — default is the newest year with data. Deep-history years (see archiveYears in trackers_datasets) can be tens of MB compressed each, so read them one or two at a time; the tool refuses selections over its byte budget and says how to narrow. Every row carries provenance.sourceUrl (the SEC filing, disclosure, award, or record it came from). Examples: insider purchases at NVDA in 2024 → dataset insider-transactions, ticker NVDA, years [2024], where {code: 'P'}; a member of Congress's trades → congress-trades, text set to their name; who lobbied on a bill → lobbying-filings, text 'H.R.1234'.",
       inputSchema: z.object({
@@ -295,7 +296,7 @@ export function registerTrackersTools(server: McpServer, toolset: Toolset) {
             `Event years to read (max ${MAX_YEARS_PER_CALL}); default is the newest year with data. Prefer one year at a time for deep-history datasets.`,
           ),
         ticker: filterShape.ticker,
-        ...(openai ? {} : { text: filterShape.text }),
+        ...(directory ? {} : { text: filterShape.text }),
         where,
         since: filterShape.since,
         until: filterShape.until,
@@ -366,13 +367,13 @@ export function registerTrackersTools(server: McpServer, toolset: Toolset) {
     {
       title: "Newest Market Trackers rows",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
-      description: openai
+      description: directory
         ? "The newest rows added to one Market Trackers dataset in the last daily update, optionally narrowed by ticker or field values: the latest insider filings, congressional trade disclosures or lobbying registrations. Patents are updated in bulk, not daily; use trackers_query for them."
         : "What the last daily publish added to one dataset — the newest ingestion day's rows (the dumps' latest.json), optionally narrowed by ticker or text. The cheapest way to see what is new: today's insider filings, this week's congressional disclosures, the latest lobbying registrations. Not available for snapshot-only bulk datasets (patents); use trackers_query there.",
       inputSchema: z.object({
         dataset: datasetId.describe("Dataset id, from trackers_datasets"),
         ticker: filterShape.ticker,
-        ...(openai ? {} : { text: filterShape.text }),
+        ...(directory ? {} : { text: filterShape.text }),
         where,
         ...pageShape,
       }),

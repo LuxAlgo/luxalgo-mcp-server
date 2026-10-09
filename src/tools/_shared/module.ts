@@ -14,7 +14,7 @@ import type { Toolset } from "../../auth/surface.js";
 export type ToolModuleContext = {
   /** Where the caller's token comes from on this entry (hosted bearer or local store). */
   auth: AuthRuntime;
-  /** Which variant of the tools to register — "openai" on the ChatGPT address (auth/surface.ts). */
+  /** Which variant of the tools to register — "directory" on the ChatGPT and Claude addresses (auth/surface.ts). */
   toolset: Toolset;
 };
 
@@ -33,7 +33,7 @@ export type ToolModule = {
    * the user's own environment). createLuxalgoServer skips them when hosted.
    */
   localOnly?: boolean;
-  /** Tools among `tools` this module leaves out of the "openai" toolset. */
-  omitFromOpenAi?: readonly string[];
+  /** Tools among `tools` this module leaves out of the "directory" toolset. */
+  omitFromDirectory?: readonly string[];
   register: (server: McpServer, ctx: ToolModuleContext) => void;
 };

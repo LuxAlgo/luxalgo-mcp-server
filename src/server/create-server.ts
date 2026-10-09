@@ -50,7 +50,7 @@ export function registerLuxalgoTools(server: McpServer, options: ServerOptions):
     if (module.localOnly && options.entry !== "local") continue;
     const before = registered.size;
     module.register(server, { auth, toolset });
-    const omitted = toolset === "openai" ? (module.omitFromOpenAi ?? []) : [];
+    const omitted = toolset === "directory" ? (module.omitFromDirectory ?? []) : [];
     assertModuleManifest(module, [...registered].slice(before), omitted);
   }
   advertiseSecuritySchemes(server, PROTECTED_TOOL_NAMES);
