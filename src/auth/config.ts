@@ -70,6 +70,23 @@ export const CLAUDE_MCP_RESOURCE = (() => {
   return url.toString();
 })();
 
+/**
+ * The ChatGPT address: the standard host at MCP_RESOURCE + "/openai"
+ * (https://mcp.luxalgo.com/mcp/openai). Standard RFC 9728 like MCP_RESOURCE,
+ * but its own resource identifier — matching the app's
+ * getLuxalgoOpenAiMcpServerResource() — and a trimmed toolset that fits
+ * OpenAI's plugin directory rules (surface.ts). A path rather than a host
+ * because OpenAI pins a plugin's MCP host; only the path may change.
+ */
+export const OPENAI_MCP_RESOURCE = `${MCP_RESOURCE.replace(/\/+$/, "")}/openai`;
+
+export const OPENAI_MCP_PATH = new URL(OPENAI_MCP_RESOURCE).pathname;
+
+/** Its RFC 9728 path-inserted well-known form. */
+export const OPENAI_PRM_PATH = `${PRM_ROOT_PATH}${OPENAI_MCP_PATH}`;
+
+export const OPENAI_PRM_URL = `${MCP_ORIGIN}${OPENAI_PRM_PATH}`;
+
 /** Where the Claude host serves its PRM — outside /.well-known so connect-time probes find nothing. */
 export const CLAUDE_PRM_PATH = "/auth/prm";
 

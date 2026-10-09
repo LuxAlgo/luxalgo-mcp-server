@@ -5,6 +5,7 @@
 */
 import { z } from "zod";
 import type { CallToolResult, McpServer } from "@modelcontextprotocol/server";
+import type { Toolset } from "../../../auth/surface.js";
 import {
   ChallengeSpecSchema,
   DISCLAIMER,
@@ -227,7 +228,7 @@ function handlePassRates(input: unknown): Promise<CallToolResult> {
   });
 }
 
-export function registerPassRatesTool(server: McpServer): void {
+export function registerPassRatesTool(server: McpServer, toolset: Toolset): void {
   server.registerTool(
     "propfirms_pass_rates",
     {
@@ -245,8 +246,10 @@ export function registerPassRatesTool(server: McpServer): void {
         "user's personal odds: for their own statistics use propfirms_simulate (summary stats) " +
         "or propfirms_simulate_trades (their real trade series). Not a ranking; a firm's page is " +
         "authoritative for current rules (check lastVerified). Expected costs use the directory's " +
-        "listed challenge prices; full firm profiles and live offers are directory data " +
-        "(propfirms_get, propfirms_search_offers).",
+        (toolset === "openai"
+          ? "listed challenge prices; full firm profiles are directory data (propfirms_get)."
+          : "listed challenge prices; full firm profiles and live offers are directory data " +
+            "(propfirms_get, propfirms_search_offers)."),
       inputSchema: passRatesSchema,
     },
     (args: unknown) => handlePassRates(args),

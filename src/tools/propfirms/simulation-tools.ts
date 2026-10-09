@@ -12,6 +12,7 @@
     simulation/validate-strategy.ts  propfirms_validate_strategy
 */
 import type { McpServer } from "@modelcontextprotocol/server";
+import type { Toolset } from "../../auth/surface.js";
 import { PACKAGE_TOOL_NAMES, registerPackageSimTools } from "./simulation/package-tools.js";
 import { registerPassRatesTool } from "./simulation/pass-rates.js";
 import { registerValidateStrategyTool } from "./simulation/validate-strategy.js";
@@ -22,8 +23,8 @@ export const SIMULATION_TOOL_NAMES: readonly string[] = [
   "propfirms_validate_strategy",
 ];
 
-export function registerSimTools(server: McpServer): void {
-  registerPackageSimTools(server);
-  registerPassRatesTool(server);
-  registerValidateStrategyTool(server);
+export function registerSimTools(server: McpServer, toolset: Toolset): void {
+  registerPackageSimTools(server, toolset);
+  registerPassRatesTool(server, toolset);
+  registerValidateStrategyTool(server, toolset);
 }

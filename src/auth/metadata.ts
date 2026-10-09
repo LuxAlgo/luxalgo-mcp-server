@@ -9,6 +9,10 @@
   inspector) fetch this document cross-origin, and it contains nothing
   secret.
 
+  The OpenAI address (surface.ts) is a path on the standard host, so its
+  document lives at that path's well-known form, OPENAI_PRM_PATH, naming the
+  OpenAI resource; the root form keeps describing the standard resource.
+
   The Claude host (surface.ts) inverts the discovery surface: the well-known
   forms answer 404 so claude.ai's connect-time probe finds nothing, and the
   document — naming the Claude resource — is served at CLAUDE_PRM_PATH
@@ -20,8 +24,8 @@
   "no auth here" — a 404 is the shape of the authless servers it does
   connect to.
 */
-import { AUTH_ISSUER, CLAUDE_PRM_PATH, OAUTH_SCOPES, PRM_PATH, PRM_ROOT_PATH } from "./config.js";
-import type { Surface } from "./surface.js";
+import { AUTH_ISSUER, CLAUDE_PRM_PATH, OAUTH_SCOPES, OPENAI_PRM_PATH, PRM_PATH, PRM_ROOT_PATH } from "./config.js";
+import { OPENAI_SURFACE, STANDARD_SURFACE, type Surface } from "./surface.js";
 
 const protectedResourceMetadata = (surface: Surface) => ({
   resource: surface.resource,
@@ -51,12 +55,19 @@ const isWellKnown = (clean: string): boolean => clean === PRM_ROOT_PATH || clean
  */
 export function isProtectedResourceMetadataPath(pathname: string): boolean {
   const clean = cleanPath(pathname);
-  return isWellKnown(clean) || clean === CLAUDE_PRM_PATH;
+  return isWellKnown(clean) || clean === OPENAI_PRM_PATH || clean === CLAUDE_PRM_PATH;
+}
+
+/** Which surface's document a path serves on this host, or undefined when it serves none here. */
+function documentAt(clean: string, surface: Surface): Surface | undefined {
+  if (surface.kind === "claude") return clean === CLAUDE_PRM_PATH ? surface : undefined;
+  if (clean === OPENAI_PRM_PATH) return OPENAI_SURFACE;
+  return isWellKnown(clean) ? STANDARD_SURFACE : undefined;
 }
 
 export function protectedResourceMetadataResponse(request: Request, surface: Surface): Response {
   const clean = cleanPath(new URL(request.url).pathname);
-  const served = surface.kind === "claude" ? clean === CLAUDE_PRM_PATH : isWellKnown(clean);
+  const served = documentAt(clean, surface);
   // Not this host's location — indistinguishable from an unserved path.
   if (!served) return new Response(null, { status: 404 });
   if (request.method === "OPTIONS") {
@@ -65,7 +76,7 @@ export function protectedResourceMetadataResponse(request: Request, surface: Sur
   if (request.method !== "GET" && request.method !== "HEAD") {
     return new Response(null, { status: 405, headers: { ...CORS, allow: "GET, HEAD, OPTIONS" } });
   }
-  return new Response(request.method === "HEAD" ? null : JSON.stringify(protectedResourceMetadata(surface)), {
+  return new Response(request.method === "HEAD" ? null : JSON.stringify(protectedResourceMetadata(served)), {
     status: 200,
     headers: {
       ...CORS,

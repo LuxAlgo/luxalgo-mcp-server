@@ -12,6 +12,7 @@
 */
 import { z } from "zod";
 import type { CallToolResult, McpServer } from "@modelcontextprotocol/server";
+import type { Toolset } from "../../auth/surface.js";
 import { guarded as guardedResult, json, toolError } from "../_shared/result.js";
 import { compact, mb } from "../_shared/format.js";
 import {
@@ -54,7 +55,24 @@ const LICENSE = {
 const guarded = (run: () => Promise<CallToolResult>) =>
   guardedResult(run, (message) => toolError(`Market Trackers dumps unavailable: ${message}`));
 
-const datasetIdSchema = z.enum(TRACKER_DATASET_IDS);
+/*
+  The "openai" toolset (auth/surface.ts) leaves out the political datasets —
+  campaign finance, bills, hearings, committee assignments — and the free-text
+  `text` filter, which searches people's names (members, insiders, filers):
+  what remains is market data looked up by ticker, field and date.
+*/
+const POLITICAL_DATASETS: ReadonlySet<TrackerDatasetId> = new Set([
+  "bills",
+  "fec-candidates",
+  "fec-contributions",
+  "congress-hearings",
+  "committee-assignments",
+]);
+
+const OPENAI_DATASET_IDS = TRACKER_DATASET_IDS.filter((id) => !POLITICAL_DATASETS.has(id)) as [
+  TrackerDatasetId,
+  ...TrackerDatasetId[],
+];
 const dateSchema = z.string().regex(/^\d{4}(-\d{2}(-\d{2})?)?$/, "YYYY, YYYY-MM or YYYY-MM-DD");
 
 const filterShape = {
@@ -217,14 +235,23 @@ function queryNotes(def: TrackerDataset, scanned: ShardRef[], archives: Archives
   return notes;
 }
 
-export function registerTrackersTools(server: McpServer) {
+export function registerTrackersTools(server: McpServer, toolset: Toolset) {
+  const openai = toolset === "openai";
+  const datasetIds: readonly TrackerDatasetId[] = openai ? OPENAI_DATASET_IDS : TRACKER_DATASET_IDS;
+  const datasetIdSchema = z.enum(openai ? OPENAI_DATASET_IDS : TRACKER_DATASET_IDS);
+  const { text: textFilter, ...fieldFilters } = filterShape;
+  const queryFilters = openai ? fieldFilters : filterShape;
+
   server.registerTool(
     "trackers_datasets",
     {
       title: "List Market Trackers datasets",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
       description:
-        "The Market Trackers catalog: every dataset of US public-record market data the LuxAlgo pipeline publishes as CC0 dumps — congressional trades, insider (Forms 3/4/5) transactions, 13F holdings, federal contracts and grants, lobbying filings, FINRA short-sale volume, granted patents, clinical trials, FDA drug events, CFTC positioning, federal bills, FEC campaign finance, hearing transcripts, Federal Reserve communications, committee assignments, Wikipedia pageviews. Returns each dataset's row count, freshness, the years with data (live tree vs deep-history archives), and whether it is ticker-searchable. Pass dataset for the full field roster, filterable paths, caveats, per-year coverage, source health, and dump URLs — read it before composing trackers_query filters.",
+        (openai
+          ? "The Market Trackers catalog: every dataset of US public-record market data the LuxAlgo pipeline publishes as CC0 dumps — congressional trades, insider (Forms 3/4/5) transactions, 13F holdings, federal contracts and grants, lobbying filings, FINRA short-sale volume, granted patents, clinical trials, FDA drug events, CFTC positioning, Federal Reserve communications, Wikipedia pageviews."
+          : "The Market Trackers catalog: every dataset of US public-record market data the LuxAlgo pipeline publishes as CC0 dumps — congressional trades, insider (Forms 3/4/5) transactions, 13F holdings, federal contracts and grants, lobbying filings, FINRA short-sale volume, granted patents, clinical trials, FDA drug events, CFTC positioning, federal bills, FEC campaign finance, hearing transcripts, Federal Reserve communications, committee assignments, Wikipedia pageviews.") +
+        " Returns each dataset's row count, freshness, the years with data (live tree vs deep-history archives), and whether it is ticker-searchable. Pass dataset for the full field roster, filterable paths, caveats, per-year coverage, source health, and dump URLs — read it before composing trackers_query filters.",
       inputSchema: z.object({
         dataset: datasetIdSchema.optional().describe("One dataset for the detailed view; omit to list all"),
       }),
@@ -232,7 +259,7 @@ export function registerTrackersTools(server: McpServer) {
     async ({ dataset }) =>
       guarded(async () => {
         const indexes = await loadIndexes();
-        const ids: TrackerDatasetId[] = dataset ? [dataset] : [...TRACKER_DATASET_IDS];
+        const ids: TrackerDatasetId[] = dataset ? [dataset] : [...datasetIds];
         return json(
           compact({
             generatedAt: indexes.manifest.generatedAt,
@@ -252,7 +279,13 @@ export function registerTrackersTools(server: McpServer) {
       title: "Query a Market Trackers dataset",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
       description:
-        "Search one Market Trackers dataset by ticker, free text, exact field values, and event-date range, with paging and newest/oldest ordering. Data is read from year-sharded CC0 dumps: pass years (or since/until) to choose which years to read — default is the newest year with data. Deep-history years (see archiveYears in trackers_datasets) can be tens of MB compressed each, so read them one or two at a time; the tool refuses selections over its byte budget and says how to narrow. Every row carries provenance.sourceUrl (the SEC filing, disclosure, award, or record it came from). Examples: insider purchases at NVDA in 2024 → dataset insider-transactions, ticker NVDA, years [2024], where {code: 'P'}; a member of Congress's trades → congress-trades, text set to their name; who lobbied on a bill → lobbying-filings, text 'H.R.1234'.",
+        (openai
+          ? "Search one Market Trackers dataset by ticker, exact field values, and event-date range, with paging"
+          : "Search one Market Trackers dataset by ticker, free text, exact field values, and event-date range, with paging") +
+        " and newest/oldest ordering. Data is read from year-sharded CC0 dumps: pass years (or since/until) to choose which years to read — default is the newest year with data. Deep-history years (see archiveYears in trackers_datasets) can be tens of MB compressed each, so read them one or two at a time; the tool refuses selections over its byte budget and says how to narrow. Every row carries provenance.sourceUrl (the SEC filing, disclosure, award, or record it came from). Examples: insider purchases at NVDA in 2024 → dataset insider-transactions, ticker NVDA, years [2024], where {code: 'P'}; " +
+        (openai
+          ? "congressional purchases of NVDA → congress-trades, ticker NVDA, where {side: 'buy'}."
+          : "a member of Congress's trades → congress-trades, text set to their name; who lobbied on a bill → lobbying-filings, text 'H.R.1234'."),
       inputSchema: z.object({
         dataset: datasetIdSchema.describe("Dataset id, from trackers_datasets"),
         years: z
@@ -262,7 +295,7 @@ export function registerTrackersTools(server: McpServer) {
           .describe(
             `Event years to read (max ${MAX_YEARS_PER_CALL}); default is the newest year with data. Prefer one year at a time for deep-history datasets.`,
           ),
-        ...filterShape,
+        ...queryFilters,
         ...pageShape,
       }),
     },
@@ -288,7 +321,7 @@ export function registerTrackersTools(server: McpServer) {
 
         const filters: RowFilters = {
           ticker: args.ticker,
-          text: args.text,
+          text: "text" in args ? (args.text as string | undefined) : undefined,
           where: args.where,
           since: args.since,
           until: args.until,
@@ -331,11 +364,11 @@ export function registerTrackersTools(server: McpServer) {
       title: "Newest Market Trackers rows",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
       description:
-        "What the last daily publish added to one dataset — the newest ingestion day's rows (the dumps' latest.json), optionally narrowed by ticker or text. The cheapest way to see what is new: today's insider filings, this week's congressional disclosures, the latest lobbying registrations. Not available for snapshot-only bulk datasets (patents); use trackers_query there.",
+        `What the last daily publish added to one dataset — the newest ingestion day's rows (the dumps' latest.json), optionally narrowed by ${openai ? "ticker or field values" : "ticker or text"}. The cheapest way to see what is new: today's insider filings, this week's congressional disclosures, the latest lobbying registrations. Not available for snapshot-only bulk datasets (patents); use trackers_query there.`,
       inputSchema: z.object({
         dataset: datasetIdSchema.describe("Dataset id, from trackers_datasets"),
         ticker: filterShape.ticker,
-        text: filterShape.text,
+        ...(openai ? {} : { text: textFilter }),
         where: filterShape.where,
         ...pageShape,
       }),
@@ -353,7 +386,11 @@ export function registerTrackersTools(server: McpServer) {
         const order: SortOrder = args.sort ?? "newest";
         const limit = args.limit ?? 25;
         const offset = args.offset ?? 0;
-        const filters: RowFilters = { ticker: args.ticker, text: args.text, where: args.where };
+        const filters: RowFilters = {
+          ticker: args.ticker,
+          text: "text" in args ? (args.text as string | undefined) : undefined,
+          where: args.where,
+        };
         const selected = selectRows(def, rows, { filters, order, limit, offset });
         return json(
           compact({

@@ -1,8 +1,11 @@
 /*
-  OAuth discovery on both hosts (HTTP only). The standard host must look
+  OAuth discovery on all three addresses (HTTP only). The standard host must look
   like any RFC 9728 server — ChatGPT's app submission rejects it otherwise.
   The Claude host must look authless until a protected tool is called — the
   claude-ai-mcp#1013 workaround — and still lead a refused client to sign-in.
+
+  The OpenAI address (standard path + "/openai") is standard RFC 9728 under
+  its own resource identifier, with the trimmed toolset.
 
   The Claude host is the standard one with `claude.` in front. Against a
   deployment it is requested directly; against localhost (no DNS for
@@ -101,5 +104,43 @@ export async function run({ check, httpUrl }) {
     "an invalid token on the Claude host is refused with the Claude host's challenge",
     forged.status === 401 && resourceMetadataOf(forged) === new URL("/auth/prm", claude).href,
     `${forged.status} ${resourceMetadataOf(forged)}`,
+  );
+
+  // OpenAI address: standard discovery under its own resource, trimmed toolset.
+  const openai = new URL(`${standard.pathname.replace(/\/+$/, "")}/openai`, standard);
+  const openaiWellKnown = `/.well-known/oauth-protected-resource${openai.pathname}`;
+  const openaiPrm = await fetchOn("standard", openaiWellKnown);
+  const openaiPrmBody = openaiPrm.ok ? await openaiPrm.json() : {};
+  check(
+    "OpenAI address publishes its own OAuth metadata at its well-known address",
+    openaiPrm.status === 200 && openaiPrmBody.resource === openai.href,
+    `${openaiPrm.status} resource=${openaiPrmBody.resource}`,
+  );
+  const openaiChallenge = await fetchOn("standard", openai.pathname, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "luxalgo_account", arguments: {} } }),
+  });
+  check(
+    "OpenAI address's sign-in challenge points at its own metadata",
+    openaiChallenge.status === 401 && resourceMetadataOf(openaiChallenge) === new URL(openaiWellKnown, standard).href,
+    `${openaiChallenge.status} ${resourceMetadataOf(openaiChallenge)}`,
+  );
+  const openaiListed = await fetchOn("standard", openai.pathname, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json, text/event-stream", "mcp-protocol-version": "2025-06-18" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+  });
+  const openaiText = await openaiListed.text();
+  const openaiTools =
+    JSON.parse(openaiText.startsWith("{") ? openaiText : (openaiText.match(/^data: (.*)$/m)?.[1] ?? "{}")).result?.tools ?? [];
+  const openaiJson = JSON.stringify(openaiTools);
+  check(
+    "OpenAI address lists the trimmed toolset: no offers, promo codes, affiliate links or political datasets",
+    openaiTools.length > 0 &&
+      !openaiTools.some((t) => t.name === "propfirms_search_offers") &&
+      !/promo|affiliate|fec-|congress-hearings/i.test(openaiJson) &&
+      !("text" in (openaiTools.find((t) => t.name === "trackers_query")?.inputSchema?.properties ?? { text: 1 })),
+    `${openaiTools.length} tools`,
   );
 }

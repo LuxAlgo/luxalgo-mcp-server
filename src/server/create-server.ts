@@ -18,6 +18,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { advertiseSecuritySchemes, instrumentToolRegistration } from "../auth/instrument.js";
 import { hostedAuthRuntime, type AuthRuntime } from "../auth/runtime.js";
+import { currentSurface } from "../auth/surface.js";
 import { instrumentServer } from "../platform/analytics.js";
 import { PROTECTED_TOOL_NAMES, TOOL_MODULES } from "./manifest.js";
 import { SERVER_INSTRUCTIONS, SERVER_NAME, SERVER_VERSION } from "./version.js";
@@ -41,12 +42,16 @@ export function registerLuxalgoTools(server: McpServer, options: ServerOptions):
   instrumentServer(server, options.log ? (message) => options.log?.(`[posthog] ${message}`) : undefined);
   instrumentToolRegistration(server, auth);
 
+  // Hosted entries build the server inside the gate's surface, so this is
+  // the address the request came in on; stdio is always the full toolset.
+  const toolset = currentSurface().toolset;
   const registered = trackRegistrations(server);
   for (const module of TOOL_MODULES) {
     if (module.localOnly && options.entry !== "local") continue;
     const before = registered.size;
-    module.register(server, { auth });
-    assertModuleManifest(module, [...registered].slice(before));
+    module.register(server, { auth, toolset });
+    const omitted = toolset === "openai" ? (module.omitFromOpenAi ?? []) : [];
+    assertModuleManifest(module, [...registered].slice(before), omitted);
   }
   advertiseSecuritySchemes(server, PROTECTED_TOOL_NAMES);
 }
@@ -75,8 +80,12 @@ function trackRegistrations(server: McpServer): Set<string> {
  * has to be true: a module must register exactly the tools it declares, and
  * every protected tool must be declared among them.
  */
-function assertModuleManifest(module: { id: string; tools: readonly string[]; protectedTools?: readonly string[] }, actual: string[]): void {
-  const declared = [...module.tools].sort();
+function assertModuleManifest(
+  module: { id: string; tools: readonly string[]; protectedTools?: readonly string[] },
+  actual: string[],
+  omitted: readonly string[],
+): void {
+  const declared = module.tools.filter((name) => !omitted.includes(name)).sort();
   const seen = [...actual].sort();
   if (declared.join(",") !== seen.join(",")) {
     throw new Error(

@@ -15,7 +15,7 @@ import { createServer } from "node:http";
 import { toNodeHandler } from "@modelcontextprotocol/node";
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { shutdownAnalytics } from "../platform/analytics.js";
-import { createHostedServer, isProtectedResourceMetadataPath, withLuxalgoAuth } from "./hosted.js";
+import { OPENAI_MCP_PATH, createHostedServer, isProtectedResourceMetadataPath, withLuxalgoAuth } from "./hosted.js";
 
 const PORT = Number(process.env.PORT ?? 3333);
 
@@ -38,7 +38,7 @@ const httpServer = createServer((req, res) => {
     res.end(JSON.stringify({ ok: true }));
     return;
   }
-  if (pathname !== "/mcp" && !isProtectedResourceMetadataPath(pathname)) {
+  if (pathname !== "/mcp" && pathname !== OPENAI_MCP_PATH && !isProtectedResourceMetadataPath(pathname)) {
     res.writeHead(404).end();
     return;
   }

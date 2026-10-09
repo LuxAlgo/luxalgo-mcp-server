@@ -9,10 +9,13 @@
 */
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { AuthRuntime } from "../../auth/runtime.js";
+import type { Toolset } from "../../auth/surface.js";
 
 export type ToolModuleContext = {
   /** Where the caller's token comes from on this entry (hosted bearer or local store). */
   auth: AuthRuntime;
+  /** Which variant of the tools to register — "openai" on the ChatGPT address (auth/surface.ts). */
+  toolset: Toolset;
 };
 
 export type ToolModule = {
@@ -30,5 +33,7 @@ export type ToolModule = {
    * the user's own environment). createLuxalgoServer skips them when hosted.
    */
   localOnly?: boolean;
+  /** Tools among `tools` this module leaves out of the "openai" toolset. */
+  omitFromOpenAi?: readonly string[];
   register: (server: McpServer, ctx: ToolModuleContext) => void;
 };

@@ -6,6 +6,7 @@
 */
 import { z } from "zod";
 import type { CallToolResult, McpServer } from "@modelcontextprotocol/server";
+import type { Toolset } from "../../../auth/surface.js";
 import {
   ChallengeSpecSchema,
   DISCLAIMER,
@@ -315,7 +316,7 @@ function handleValidateStrategy(input: unknown): Promise<CallToolResult> {
   });
 }
 
-export function registerValidateStrategyTool(server: McpServer): void {
+export function registerValidateStrategyTool(server: McpServer, toolset: Toolset): void {
   server.registerTool(
     "propfirms_validate_strategy",
     {
@@ -339,9 +340,11 @@ export function registerValidateStrategyTool(server: McpServer): void {
         "5,000 paths each; results are deterministic per seed), and scopes above 40 challenges are " +
         "refused rather than silently truncated: narrow the scope instead. Numbers move with risk " +
         "sizing; sweep one challenge with propfirms_optimal_risk afterwards. Fees and expected " +
-        "costs use the directory's listed prices (live discounts are NOT applied); prices, firm " +
-        "profiles, and current offers are directory data (propfirms_search_challenges, " +
-        "propfirms_get, propfirms_search_offers).",
+        "costs use the directory's listed prices (live discounts are NOT applied); " +
+        (toolset === "openai"
+          ? "prices and firm profiles are directory data (propfirms_search_challenges, propfirms_get)."
+          : "prices, firm profiles, and current offers are directory data (propfirms_search_challenges, " +
+            "propfirms_get, propfirms_search_offers)."),
       inputSchema: validateStrategySchema,
     },
     (args: unknown) => handleValidateStrategy(args),

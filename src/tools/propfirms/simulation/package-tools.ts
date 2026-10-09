@@ -11,6 +11,7 @@
 import { z } from "zod";
 import type { CallToolResult, McpServer } from "@modelcontextprotocol/server";
 import { toolDefinitions } from "@luxalgo/prop-firm-sim-mcp/tools";
+import type { Toolset } from "../../../auth/surface.js";
 
 
 /** Package-name -> local-name map for the tools this server exposes
@@ -104,15 +105,27 @@ function rewriteShapeDescriptions(shape: z.ZodRawShape): z.ZodRawShape {
  *  the two propfirms_ groups: the simulator sees only what its engine can
  *  encode honestly, while the propfirms_search* tools serve the full
  *  directory (every visible firm, listed prices and terms, live offers). */
-const ROUTING_NOTES: Record<string, string> = {
-  propfirms_list_simulatable:
-    " NOTE: this lists only the firms and challenges whose rules the engine can encode honestly. " +
-    "The full directory — every visible firm with platforms, prices, payout terms, and live " +
-    "offers/promo codes — is served by propfirms_search, propfirms_search_challenges, and " +
-    "propfirms_search_offers.",
-  propfirms_challenge_rules:
-    " NOTE: this returns the simulatable encoding of one challenge's rules; the directory listing " +
-    "with every captured field, plus live offers, is propfirms_get and propfirms_search_challenges.",
+const ROUTING_NOTES: Record<Toolset, Record<string, string>> = {
+  full: {
+    propfirms_list_simulatable:
+      " NOTE: this lists only the firms and challenges whose rules the engine can encode honestly. " +
+      "The full directory — every visible firm with platforms, prices, payout terms, and live " +
+      "offers/promo codes — is served by propfirms_search, propfirms_search_challenges, and " +
+      "propfirms_search_offers.",
+    propfirms_challenge_rules:
+      " NOTE: this returns the simulatable encoding of one challenge's rules; the directory listing " +
+      "with every captured field, plus live offers, is propfirms_get and propfirms_search_challenges.",
+  },
+  // No offers on the "openai" toolset (directory-tools.ts).
+  openai: {
+    propfirms_list_simulatable:
+      " NOTE: this lists only the firms and challenges whose rules the engine can encode honestly. " +
+      "The full directory — every visible firm with platforms, prices, and payout terms — is served " +
+      "by propfirms_search and propfirms_search_challenges.",
+    propfirms_challenge_rules:
+      " NOTE: this returns the simulatable encoding of one challenge's rules; the directory listing " +
+      "with every captured field is propfirms_get and propfirms_search_challenges.",
+  },
 };
 
 
@@ -144,7 +157,7 @@ export const PACKAGE_TOOL_NAMES: readonly string[] = toolDefinitions
   .map((def) => TOOL_RENAMES[def.name])
   .filter((name): name is string => name !== undefined);
 
-export function registerPackageSimTools(server: McpServer): void {
+export function registerPackageSimTools(server: McpServer, toolset: Toolset): void {
   for (const def of toolDefinitions) {
     const localName = TOOL_RENAMES[def.name];
     if (localName === undefined) continue;
@@ -154,7 +167,7 @@ export function registerPackageSimTools(server: McpServer): void {
         title: def.title,
         description:
           editDescription(rewriteToolReferences(def.description)) +
-          (ROUTING_NOTES[localName] ?? "") +
+          (ROUTING_NOTES[toolset][localName] ?? "") +
           (DESCRIPTION_NOTES[localName] ?? ""),
         inputSchema: z.object(rewriteShapeDescriptions(def.inputShape)),
         annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },

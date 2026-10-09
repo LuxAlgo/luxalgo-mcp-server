@@ -5,5 +5,5 @@ import { registerTrackersTools } from "./tools.js";
 export const trackersModule: ToolModule = {
   id: "trackers",
   tools: ["trackers_datasets", "trackers_query", "trackers_latest", "trackers_ticker"],
-  register: (server) => registerTrackersTools(server),
+  register: (server, { toolset }) => registerTrackersTools(server, toolset),
 };
