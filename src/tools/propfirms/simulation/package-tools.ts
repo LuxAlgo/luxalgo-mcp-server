@@ -116,6 +116,29 @@ const ROUTING_NOTES: Record<string, string> = {
 };
 
 
+/** Upstream description text this surface drops or rewords: a pointer at
+ *  other MCP servers' tools (directory review forbids metadata that steers
+ *  the model's use of other plugins), self-promotion, internal config and
+ *  stale migration notes. Applied in order to every package description. */
+const DESCRIPTION_EDITS: ReadonlyArray<[RegExp, string]> = [
+  [/\s*Composes with any broker-statistics tool:[\s\S]*$/, ""],
+  [/ - a distinguishing feature of this engine/g, ""],
+  [/ \(origin overridable via the LUXALGO_APP_ORIGIN env var\)/g, ""],
+  [/ The pre-1\.0 flag id '[^']*' no longer exists\./g, ""],
+  [/WHY THIS BEATS WIN-RATE MATH: /g, "Why resampling matters: "],
+];
+
+/** Appended after the edits, like ROUTING_NOTES. */
+const DESCRIPTION_NOTES: Record<string, string> = {
+  propfirms_optimal_risk:
+    " Results describe simulated outcomes of the user's own inputs under stated assumptions; " +
+    "they are not financial advice or a recommendation of any risk level.",
+};
+
+function editDescription(description: string): string {
+  return DESCRIPTION_EDITS.reduce((out, [pattern, replacement]) => out.replace(pattern, replacement), description);
+}
+
 /** Local names of the package tools, in registration order (for the module manifest). */
 export const PACKAGE_TOOL_NAMES: readonly string[] = toolDefinitions
   .map((def) => TOOL_RENAMES[def.name])
@@ -129,7 +152,10 @@ export function registerPackageSimTools(server: McpServer): void {
       localName,
       {
         title: def.title,
-        description: rewriteToolReferences(def.description) + (ROUTING_NOTES[localName] ?? ""),
+        description:
+          editDescription(rewriteToolReferences(def.description)) +
+          (ROUTING_NOTES[localName] ?? "") +
+          (DESCRIPTION_NOTES[localName] ?? ""),
         inputSchema: z.object(rewriteShapeDescriptions(def.inputShape)),
         annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
       },
