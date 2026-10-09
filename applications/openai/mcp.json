@@ -3,7 +3,7 @@
   "mcpServers": {
     "luxalgo": {
       "type": "streamable-http",
-      "url": "https://mcp.luxalgo.com/mcp"
+      "url": "https://mcp.luxalgo.com/mcp/openai"
     }
   }
 }
