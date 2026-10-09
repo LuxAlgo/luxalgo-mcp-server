@@ -41,6 +41,7 @@ export function registerLuxalgoTools(server: McpServer, options: ServerOptions):
   // Analytics wrap registerTool too, so they go first. No-op unless POSTHOG_PROJECT_TOKEN is set.
   instrumentServer(server, options.log ? (message) => options.log?.(`[posthog] ${message}`) : undefined);
   instrumentToolRegistration(server, auth);
+  mirrorTitleAnnotation(server);
 
   // Hosted entries build the server inside the gate's surface, so this is
   // the address the request came in on; stdio is always the full toolset.
@@ -61,6 +62,25 @@ export function createLuxalgoServer(options: ServerOptions): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { instructions: SERVER_INSTRUCTIONS });
   registerLuxalgoTools(server, options);
   return server;
+}
+
+/**
+ * Directory reviews (Claude's, OpenAI's) read the human-readable name from
+ * annotations.title; every tool already has a top-level `title`, so copy it
+ * there unless a tool sets its own.
+ */
+function mirrorTitleAnnotation(server: McpServer): void {
+  type Config = { title?: string; annotations?: Record<string, unknown> };
+  type AnyRegister = (name: string, config: Config, ...rest: unknown[]) => unknown;
+  const register = server.registerTool.bind(server) as unknown as AnyRegister;
+  (server as unknown as { registerTool: AnyRegister }).registerTool = (name, config, ...rest) =>
+    register(
+      name,
+      config.title === undefined || config.annotations?.title !== undefined
+        ? config
+        : { ...config, annotations: { ...config.annotations, title: config.title } },
+      ...rest,
+    );
 }
 
 /** Records tool names as they are registered (after the wrappers above, so every path is seen). */

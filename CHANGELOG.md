@@ -13,6 +13,7 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ### Changed
 
+- Every tool carries `annotations.title` (its existing title), which Claude's directory review reads for the listing; `journal_write_note` and `journal_update_note` link the journal notes docs.
 - Tool descriptions trimmed for OpenAI's plugin review: the simulator tools no longer point at other MCP servers' tools or carry self-promotion, internal config and stale migration notes; `propfirms_optimal_risk` states its results are not financial advice; `trackers_query` no longer names a sitting senator in its examples.
 - Every tool declares all three of `readOnlyHint`, `destructiveHint` and `openWorldHint` explicitly, as OpenAI's app review requires: read-only tools add `destructiveHint: false`; `journal_update_trade` and `journal_update_note` declare `destructiveHint: true` (they replace or clear existing fields and note text).
 - README and the landing page describe the open-source library as the open-source core of Vela by LuxAlgo ("Vela for Developers" stays only as a label), linking [velacharts.dev](https://velacharts.dev) instead of the old luxalgo.com/vela page, and point to Vela, LuxAlgo's charts, at [vela.luxalgo.com/chart](https://vela.luxalgo.com/chart).

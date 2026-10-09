@@ -439,7 +439,7 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
     {
       title: "Write a journal note",
       description:
-        "Add a new note to a trading day — any day, traded or not; `date` is YYYY-MM-DD in the journal timezone. Days hold any number of notes, so this never overwrites: to change an existing note use journal_update_note, and for a note about one specific trade use journal_update_trade's `notes`. Returns the note with its id.",
+        "Add a new note to a trading day — any day, traded or not; `date` is YYYY-MM-DD in the journal timezone. Days hold any number of notes, so this never overwrites: to change an existing note use journal_update_note, and for a note about one specific trade use journal_update_trade's `notes`. Returns the note with its id. Day notes in the LuxAlgo journal: https://docs.luxalgo.com/platform/workspaces/journal/notes",
       inputSchema: z.object({
         date: dayKey("The day the note belongs to, YYYY-MM-DD in the journal timezone."),
         body: z.string().trim().min(1).max(50_000).describe("The note text (plain text or markdown)."),
@@ -456,7 +456,7 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
     {
       title: "Update a journal note",
       description:
-        "Replace a day note's text and/or move it to another day, by note id (from journal_get_day or journal_search_notes). The body is replaced whole — to append, read the current text first and send the full new version. Trade notes are edited with journal_update_trade, not here. Returns the updated note.",
+        "Replace a day note's text and/or move it to another day, by note id (from journal_get_day or journal_search_notes). The body is replaced whole — to append, read the current text first and send the full new version. Trade notes are edited with journal_update_trade, not here. Returns the updated note. Day notes in the LuxAlgo journal: https://docs.luxalgo.com/platform/workspaces/journal/notes",
       inputSchema: z.object({
         noteId: z.string().min(1).describe("The note's `id`."),
         body: z.string().trim().min(1).max(50_000).optional().describe("The full new text."),
