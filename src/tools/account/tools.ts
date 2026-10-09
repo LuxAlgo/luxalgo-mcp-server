@@ -31,7 +31,7 @@ export function registerAccountTools(server: McpServer, runtime: AuthRuntime) {
       description:
         "The signed-in user's LuxAlgo account: plan tier, entitlements (limits such as alerts, historical bars, AI credits) and profile basics. Use it to tailor answers to what the user's plan actually allows, or when the user asks what plan they are on.",
       inputSchema: z.object({}),
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     },
     async () => {
       // A 401 here (token revoked, user deleted) surfaces as the sign-in

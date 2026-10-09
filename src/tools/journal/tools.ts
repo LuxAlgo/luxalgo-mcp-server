@@ -147,7 +147,7 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
       description:
         "The signed-in user's trade-journal accounts — id, name, broker, kind (`sync` mirrors a live broker connection, `import` came from statements, `manual` is hand-entered), currency, initial balance, P&L lot method, last broker sync, archived state — plus `timeZone`, the journal timezone every date in the journal tools is expressed in. Call this first: every other journal tool's `accounts` filter takes these ids and rejects unknown ones, and journal_add_trade needs a `manual` or `import` account. An empty list means no journal yet.",
       inputSchema: z.object({}),
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     },
     async () =>
       guarded(async () => {
@@ -177,7 +177,7 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
         accounts: accountsInput,
         compare: z.boolean().optional().describe("Also compute the equal-length window immediately before this one."),
       }),
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     },
     async ({ range, from, to, accounts, compare }) =>
       guarded(async () => {
@@ -212,7 +212,7 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
           .describe("Month as YYYY-MM. Default: the current month in the journal timezone."),
         accounts: accountsInput,
       }),
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     },
     async ({ month, accounts }) =>
       guarded(async () => {
@@ -230,7 +230,7 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
       description:
         "Where the P&L actually comes from: closed trades in the window grouped nine ways — weekday, time of day, hold time, symbol, side, position size, tag, rating and asset class — each group with trade count, wins, losses, net P&L, average net P&L and win rate (breakevens excluded). Defaults to all time, since groups need sample size; narrow with `range` or `from`/`to`. The tool for 'what am I good or bad at' questions; journal_overview has the headline numbers.",
       inputSchema: z.object({ range: rangeInput, from: fromInput, to: toInput, accounts: accountsInput }),
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     },
     async ({ range, from, to, accounts }) => guarded(async () => json(await getBreakdown({ range, from, to, accounts }))),
   );
@@ -262,7 +262,7 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
         limit: z.number().int().min(1).max(100).optional().describe("Page size, default 25."),
         cursor: cursorInput,
       }),
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     },
     async (args) => guarded(async () => json(await listTrades({ ...args, limit: args.limit ?? 25 }))),
   );
@@ -276,7 +276,7 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
       description:
         "One trade in full: the summary fields plus its fills (each with the effective values, what the source reported, the user's corrections and whether it is hidden), per-exit gross P&L, hidden fills inside the trade's span, and every annotation — notes, tags, mistakes, playbook id, stop loss, profit target, review time. Use after journal_list_trades or journal_get_day when the user asks about a specific trade or before annotating it.",
       inputSchema: z.object({ key: tradeKeyInput }),
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     },
     async ({ key }) => guarded(async () => json({ trade: await getTrade(key) })),
   );
@@ -290,7 +290,7 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
       description:
         "A single trading day: its stats (null when nothing traded), its trades (closed that day, or opened that day and still open) as summaries, and the day's notes with their ids. `date` is a YYYY-MM-DD day key in the journal timezone. Use it for 'how did Tuesday go', and to find note ids for journal_update_note.",
       inputSchema: z.object({ date: dayKey("The day, YYYY-MM-DD in the journal timezone."), accounts: accountsInput }),
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     },
     async ({ date, accounts }) => guarded(async () => json(await getDay(date, accounts))),
   );
@@ -304,7 +304,7 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
       description:
         "The user's annotation vocabulary: every tag, mistake and playbook id they have put on any trade (open or closed), most-used first with the number of trades carrying each. Check it before journal_update_trade so new annotations reuse the user's own words instead of minting near-duplicates. Per-trade tags are on each trade summary, not here.",
       inputSchema: z.object({ accounts: accountsInput }),
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     },
     async ({ accounts }) => guarded(async () => json(await getVocabulary(accounts))),
   );
@@ -326,7 +326,7 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
         limit: z.number().int().min(1).max(100).optional().describe("Page size, default 25."),
         cursor: cursorInput,
       }),
-      annotations: { readOnlyHint: true, openWorldHint: true },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     },
     async (args) => guarded(async () => json(await searchNotes({ ...args, limit: args.limit ?? 25 }))),
   );
@@ -394,7 +394,7 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
         profitTarget: z.number().finite().nullable().optional().describe("Planned target price; null clears it."),
         reviewed: z.boolean().optional().describe("Mark the trade reviewed (true) or not (false)."),
       }),
-      annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     },
     async (args) =>
       guarded(async () => {
@@ -462,7 +462,7 @@ export function registerJournalTools(server: McpServer, runtime: AuthRuntime) {
         body: z.string().trim().min(1).max(50_000).optional().describe("The full new text."),
         date: dayKey("Move the note to this day, YYYY-MM-DD in the journal timezone.").optional(),
       }),
-      annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     },
     async ({ noteId, body, date }) =>
       guarded(async () => {
