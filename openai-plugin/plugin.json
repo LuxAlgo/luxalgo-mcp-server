@@ -1,0 +1,105 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "luxalgo",
+  "version": "1.5.1",
+  "description": "LuxAlgo Library indicators and source code, market trackers from public records, prop firm challenge simulations, session statistics, and your LuxAlgo trade journal.",
+  "author": {
+    "name": "LuxAlgo",
+    "url": "https://www.luxalgo.com/"
+  },
+  "homepage": "https://www.luxalgo.com/",
+  "repository": "https://github.com/LuxAlgo/luxalgo-mcp-server",
+  "keywords": [
+    "trading",
+    "indicators",
+    "prop firms",
+    "trade journal",
+    "market data"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "LuxAlgo",
+        "shortDescription": "Trading research and journal",
+        "longDescription": "Ask about any indicator in the LuxAlgo Library and get the full write-up, concept pages, and — where publicly served — the actual source code. Query market trackers built from public records: insider filings, congressional trades, lobbying, FDA events, and more, updated daily with links back to the primary source.\n\nThinking about a prop firm challenge? Run a Monte Carlo simulation of your own stats through a firm's exact ruleset — pass probability, expected cost, which rule kills most attempts — and compare across firms. Check session statistics where every number comes with its sample size and confidence interval; results are historical frequencies, never predictions.\n\nSign in with your LuxAlgo account to work with your trade journal: review performance, break down P&L by symbol or time of day, log trades, tag mistakes, and write notes — the same data you see in the app.",
+        "developerName": "LuxAlgo",
+        "category": "Finance",
+        "capabilities": [
+          "Search the LuxAlgo indicator library",
+          "Read indicator source code",
+          "Query insider, congress and other trackers",
+          "Simulate prop firm challenges",
+          "Session statistics with confidence intervals",
+          "Review and update your trade journal"
+        ],
+        "websiteURL": "https://www.luxalgo.com/",
+        "supportURL": "https://github.com/LuxAlgo/luxalgo-mcp-server",
+        "privacyPolicyURL": "https://www.luxalgo.com/legal/privacy-policy/",
+        "termsOfServiceURL": "https://www.luxalgo.com/legal/terms-of-service/",
+        "defaultPrompt": [
+          "Find LuxAlgo indicators for order blocks.",
+          "What are my odds of passing an FTMO 100k challenge?",
+          "Any recent insider or congressional trades in NVDA?"
+        ],
+        "composerIcon": "./assets/logo.png",
+        "logo": "./assets/logo.png"
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Search the indicator library",
+              "prompt": "Find LuxAlgo indicators for trading order blocks.",
+              "tools_triggered": "library_search",
+              "expected_behavior": "Lists matching Library indicators such as Dynamic Order Blocks and Order Blocks & Breaker Blocks, with short descriptions and luxalgo.com links."
+            },
+            {
+              "description": "Explain an indicator",
+              "prompt": "How does the LuxAlgo Dynamic Order Blocks indicator work?",
+              "tools_triggered": "library_search, library_get_indicator",
+              "expected_behavior": "Returns the indicator's write-up (what it plots, how to read it, settings) with a link to its Library page."
+            },
+            {
+              "description": "Simulate a prop firm challenge",
+              "prompt": "With a 50% win rate, 1:2 risk-reward and 1% risk per trade, what are my odds of passing the FTMO 2-step 100k challenge?",
+              "tools_triggered": "propfirms_search_challenges, propfirms_simulate",
+              "expected_behavior": "Finds the FTMO 2-Steps 100K challenge and returns a simulated pass probability, expected cost and the rule that ends most failed attempts, framed as a simulation rather than a prediction."
+            },
+            {
+              "description": "Look up public-record trackers for a ticker",
+              "prompt": "Have there been any recent insider or congressional trades in NVDA?",
+              "tools_triggered": "trackers_ticker",
+              "expected_behavior": "Returns recent insider-transaction and congress-trade records for NVDA from public filings, with links to the primary sources."
+            },
+            {
+              "description": "Review the signed-in user's trade journal",
+              "prompt": "Give me an overview of my trading performance from my LuxAlgo journal.",
+              "tools_triggered": "journal_overview",
+              "expected_behavior": "After the reviewer signs in with the test account, summarizes that account's journal performance (P&L, win rate, trade count)."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Order execution is not supported",
+              "prompt": "Buy 1 BTC for me right now using LuxAlgo."
+            },
+            {
+              "description": "Personalized investment advice",
+              "prompt": "Should I put my savings into Tesla stock today?"
+            },
+            {
+              "description": "Bulk deletion is not supported",
+              "prompt": "Delete every trade in my LuxAlgo journal."
+            }
+          ]
+        },
+        "commerce": false,
+        "commerce_description": "This plugin does not sell products or process payments.",
+        "demo_recording_url": "https://mcp.luxalgo.com/review/demo.mp4"
+      },
+      "publication": {
+        "release_notes": "Every tool now declares readOnlyHint, destructiveHint and openWorldHint explicitly."
+      }
+    }
+  }
+}
