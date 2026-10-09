@@ -6,8 +6,8 @@
     openai    OPENAI_MCP_RESOURCE (mcp.luxalgo.com/mcp/openai) — the same
               standard discovery under its own resource identifier, with the
               toolset trimmed to OpenAI's plugin directory rules (no prop-firm
-              offers, promo codes or affiliate links; no political datasets or
-              name search in Market Trackers)
+              offers, promo codes or affiliate links; trackers_ticker only from
+              Market Trackers)
     claude    CLAUDE_MCP_RESOURCE (claude.mcp.luxalgo.com) — the #1013
               workaround: no well-known PRM, no securitySchemes, so claude.ai
               only learns about sign-in from a protected tool's 401. A host,
