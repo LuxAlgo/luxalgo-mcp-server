@@ -16,7 +16,7 @@
 
 **LuxAlgo MCP** is a LuxAlgo open-source project. Overview and setup: [luxalgo.com/mcp](https://www.luxalgo.com/mcp).
 
-It puts the LuxAlgo ecosystem behind a single MCP server: an encyclopedia of trading and technical analysis, your LuxAlgo trade journal, read-only access to your own brokerage accounts, hosted session statistics with a sample size on every number, the public record of US markets (congressional trades, insider filings, lobbying, contracts, patents and more, with a primary-source link on every row), a Monte Carlo challenge simulator, and a live prop-firm directory. No API key for anything hosted: the public tools are free and read-only, the Trade Journal and account tools use your LuxAlgo sign-in, and the local broker tools use your own keys and never send them anywhere.
+It puts the LuxAlgo ecosystem behind a single MCP server: an encyclopedia of trading and technical analysis, your LuxAlgo trade journal, read-only access to your own brokerage accounts, hosted session statistics with a sample size on every number, the public record of US markets (congressional trades, insider filings, lobbying, contracts, patents and more, with a primary-source link on every row), a Monte Carlo challenge simulator, and a live prop-firm directory. No API key for anything hosted: the public tools are free and read-only, the Trade Journal, Quant and account tools use your LuxAlgo sign-in, and the local broker tools use your own keys and never send them anywhere.
 
 ```bash
 claude mcp add --transport http luxalgo https://mcp.luxalgo.com/mcp
@@ -27,6 +27,7 @@ claude mcp add --transport http luxalgo https://mcp.luxalgo.com/mcp
 | Area | What you get |
 | --- | --- |
 | **[Library](https://www.luxalgo.com/library/)** | The encyclopedia of trading and technical analysis: hundreds of concept pages with formulas, the full indicator catalog with families and tags, and Pine Script® sources where publicly served. |
+| **Quant** (sign-in) | Quant, our coding agent, built into Vela, from your own AI assistant: it writes or changes Pine Script® indicators and strategies on your LuxAlgo plan's usage, as it does in Vela, and checks every attempt with our linter, which reports the same errors as TradingView's compiler. Checking code you already have is free. |
 | **Trade Journal** (sign-in) | Your own journal in the LuxAlgo app: the dashboard (metrics, Edge Score, equity curve), the P&L calendar, breakdowns by weekday / hold time / symbol / tag and more, every trade with its fills and annotations, day notes — and the writes that keep it alive: log fills by hand, annotate trades (tags, mistakes, rating, stop and target, review), write notes. Always as you, on your data; the app owns the rules. |
 | **Brokers** (local only) | Read-only access to your own accounts across 22 brokers and exchanges via [broker-sdk](https://github.com/LuxAlgo/broker-sdk): balances, positions, trade history, FIFO performance stats. Keys live in your MCP client config as env vars and never leave your machine. The hosted endpoint does not carry these tools, on purpose. |
 | **Edge Stats** | Hosted session statistics from the open-source [edge-stats](https://github.com/LuxAlgo/edge-stats) engine: how often a setup actually worked (gap fills, opening-range breakouts, day-of-week effects, event days) with the sample size and a Wilson 95% confidence interval on every number. A nightly build runs the real engine over free market data and publishes only derived statistics; these tools serve them verbatim. |
@@ -125,7 +126,7 @@ Env var names derive from each broker's credential fields: `BROKERS_<BROKER>_<FI
 
 ### Signing in with LuxAlgo (optional)
 
-Almost everything here is keyless and works without an account. The tools in the **Account** and **Trade Journal** sections below need to know who you are; they use your LuxAlgo account through standard OAuth 2.1, with [app.luxalgo.com](https://app.luxalgo.com) as the authorization server. Nothing is required up front: every client can connect, list tools and use the public ones anonymously, and sign-in is only requested when you first call an account tool.
+Almost everything here is keyless and works without an account. The tools in the **Account**, **Quant** and **Trade Journal** sections below need to know who you are; they use your LuxAlgo account through standard OAuth 2.1, with [app.luxalgo.com](https://app.luxalgo.com) as the authorization server. Nothing is required up front: every client can connect, list tools and use the public ones anonymously, and sign-in is only requested when you first call an account tool.
 
 **Hosted (ChatGPT, Claude, Cursor, any remote connector).** The server advertises its [protected-resource metadata](https://mcp.luxalgo.com/.well-known/oauth-protected-resource/mcp) and answers an unauthenticated account-tool call with a `401` + `WWW-Authenticate` challenge; MCP clients handle the rest (discovery, PKCE, consent screen in your browser) and keep the token for you. Each tool also declares its policy in `tools/list` (`securitySchemes`: `noauth` for public tools, `oauth2` for account tools), so ChatGPT's per-tool linking works as well. Clients may identify themselves via Client ID Metadata Documents or Dynamic Client Registration — the app accepts both. One client-side exception: Claude.ai/Desktop connectors sign in at connect time whenever OAuth metadata is discoverable, regardless of their *Authentication* setting, so they get their own address, `https://claude.mcp.luxalgo.com/mcp`, whose metadata is only reachable from the 401 (see [Install](#claude-web-desktop-mobile)).
 
@@ -165,6 +166,17 @@ Library outputs are compact JSON with canonical `url`s for citation. Concept and
 | --- | --- |
 | `luxalgo_account` | The signed-in user's plan tier, entitlements (alerts, historical bars, AI credits, …) and profile basics — so an agent can tailor answers to what the plan actually allows |
 
+### Quant (sign-in required)
+
+Quant, our coding agent, built into Vela, writing Pine Script® from your own AI assistant. Writing a script spends your LuxAlgo plan's usage, the same usage Quant draws on in Vela; checking code is free. Every script is checked by our linter, which reports the same errors as TradingView's compiler. The linter checks code; it does not run or backtest it.
+
+| Tool | Description |
+| --- | --- |
+| `quant_generate_pine` | Write a Pine Script® indicator or strategy from a request, or change an existing script passed as `code`. Returns `status` (`working` passes the linter with no errors, warnings allowed; `failed` lists what is still wrong), title, script type, the code, the linter's errors and warnings, attempts, and `vela_url`, the link to Vela |
+| `quant_validate_pine` | Check Pine Script® code with the linter: `valid`, plus `errors` and `warnings` with line, column and message. Free |
+
+When the plan has no Quant usage left, `quant_generate_pine` answers with the app's message saying so. To use an existing LuxAlgo indicator instead of writing one, start from `library_search`.
+
 ### Trade Journal (sign-in required)
 
 Your own trade journal in the LuxAlgo app — the same accounts, trades, annotations and notes the app shows — read and written as you. Dates are `YYYY-MM-DD` day keys in your journal timezone (`journal_list_accounts` reports it); account filters take ids from the same call.
@@ -185,7 +197,7 @@ Your own trade journal in the LuxAlgo app — the same accounts, trades, annotat
 | `journal_write_note` | Add a note to a day |
 | `journal_update_note` | Replace a day note's text or move it to another day |
 
-The journal tools and `luxalgo_account` are the only tools that need a LuxAlgo account; see [Signing in with LuxAlgo](#signing-in-with-luxalgo-optional). Without a sign-in they return an OAuth challenge instead of data — never a silent fallback. The write tools act only as the signed-in user and only on that user's journal; the app validates and owns every change.
+The journal tools, the Quant tools and `luxalgo_account` are the only tools that need a LuxAlgo account; see [Signing in with LuxAlgo](#signing-in-with-luxalgo-optional). Without a sign-in they return an OAuth challenge instead of data — never a silent fallback. The journal's write tools act only as the signed-in user and only on that user's journal; the app validates and owns every change.
 
 ### Brokers (local stdio only)
 
@@ -323,7 +335,7 @@ test/                 smoke.mjs runner + smoke/<domain>.mjs suites, parity.mjs, 
 
 Adding a tool domain: create `src/tools/<domain>/index.ts` exporting a `ToolModule` and list it in `src/server/manifest.ts`; registration asserts the module registers exactly the tools it declares. Mark tools that need a signed-in user in `protectedTools` (and register them with `registerProtectedTool`), and modules that read local credentials with `localOnly`.
 
-Optional env: `LUXALGO_APP_ORIGIN` and `LUXALGO_SITE_ORIGIN` point the server at non-production environments; `LUXALGO_CHART_ORIGIN` (default `https://vela.luxalgo.com`) is where `chart_url` opens the chart; `MARKET_TRACKERS_DUMPS_ORIGIN` (default `https://raw.githubusercontent.com/LuxAlgo/market-trackers-data/main`) and `MARKET_TRACKERS_DATA_REPO` point the Market Trackers tools at another dumps tree.
+Optional env: `LUXALGO_APP_ORIGIN` and `LUXALGO_SITE_ORIGIN` point the server at non-production environments; `LUXALGO_CHART_ORIGIN` (default `https://vela.luxalgo.com`) is where `chart_url` opens the chart and where `vela_url` points; `MARKET_TRACKERS_DUMPS_ORIGIN` (default `https://raw.githubusercontent.com/LuxAlgo/market-trackers-data/main`) and `MARKET_TRACKERS_DATA_REPO` point the Market Trackers tools at another dumps tree.
 
 OAuth env (see `src/auth/config.ts`): the authorization server is always `LUXALGO_APP_ORIGIN` + `/api/auth`; `MCP_RESOURCE` (default `https://mcp.luxalgo.com/mcp`) is this server's resource identifier and token audience — it must equal the app's `LUXALGO_MCP_SERVER_RESOURCE`. For local end-to-end work: `LUXALGO_APP_ORIGIN=http://localhost:3001 MCP_RESOURCE=http://localhost:3333/mcp npm run start:http`, with the app running on 3001 and the same `MCP_RESOURCE` exported for `npx -y @luxalgo/mcp login` / the stdio server. `LUXALGO_AUTH_CHALLENGE=result` makes the hosted entries let an anonymous protected call reach the tool (which answers the in-band `_meta["mcp/www_authenticate"]` challenge) instead of short-circuiting with HTTP 401 — the default; invalid tokens are always a 401. The Claude-only host is `MCP_RESOURCE`'s host with `claude.` in front (`http://claude.localhost:3333/mcp` locally, where the smoke suite reaches it through `X-Forwarded-Host`); it must match the app's `getLuxalgoClaudeMcpServerResource()`. `npm test` covers the anonymous paths and the advertised `securitySchemes` on both transports; `npm run test:http` adds OAuth discovery on both hosts.
 
