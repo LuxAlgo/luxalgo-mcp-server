@@ -18,6 +18,8 @@ export const PROTECTED = [
   "journal_update_trade",
   "journal_write_note",
   "journal_update_note",
+  "quant_generate_pine",
+  "quant_validate_pine",
 ];
 
 export async function run({ client, check, callJson, callStructured, httpUrl, rawToolsList }) {

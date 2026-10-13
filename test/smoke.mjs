@@ -125,6 +125,7 @@ const suites = [
   ["account", () => import("./smoke/account.mjs")],
   ["discovery", () => import("./smoke/discovery.mjs"), { httpOnly: true }],
   ["journal", () => import("./smoke/journal.mjs")],
+  ["quant", () => import("./smoke/quant.mjs")],
   ["broker", () => import("./smoke/broker.mjs"), { stdioOnly: true }],
   ["library", () => import("./smoke/library.mjs")],
   ["propfirms", () => import("./smoke/propfirms.mjs")],

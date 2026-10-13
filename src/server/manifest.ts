@@ -21,6 +21,7 @@ import { trackersModule } from "../tools/trackers/index.js";
 import { edgeModule } from "../tools/edge/index.js";
 import { accountModule } from "../tools/account/index.js";
 import { journalModule } from "../tools/journal/index.js";
+import { quantModule } from "../tools/quant/index.js";
 import { brokerModule } from "../tools/broker/index.js";
 
 /** Registration order is tools/list order. */
@@ -31,6 +32,7 @@ export const TOOL_MODULES: readonly ToolModule[] = [
   edgeModule,
   accountModule,
   journalModule,
+  quantModule,
   brokerModule,
 ];
 
