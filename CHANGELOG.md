@@ -21,6 +21,7 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ### Removed
 
+- `library_list_tags`, and the `tags` filter and per-indicator `tags` field of `library_list_indicators`. The Library's tags are retired: it is organized by family and concept only, so browse with `library_list_families` and `library_list_concepts`, or filter `library_list_indicators` by `family` or `concept`.
 - `LUXALGO_REACTIVE_AUTH_ONLY` and `LUXALGO_SECURITY_SCHEMES`, both added in 1.5.0 while chasing #1013. Hiding the well-known PRM for the whole origin fixed Claude but broke every standard client (ChatGPT's app submission: "couldn't detect OAuth metadata"); the Claude-only host above does the same thing without touching the standard one. `securitySchemes` was ruled out as the trigger and is now always on for the standard host.
 
 ## [1.5.0] - 2026-09-24

@@ -14,7 +14,6 @@ import {
   type ConceptFamily,
   getConcepts,
   getIndicatorBySlug,
-  getLibraryTags,
   getPineScriptCode,
   queryIndicators,
 } from "./api.js";
@@ -236,7 +235,7 @@ export function registerLibraryTools(server: McpServer) {
       title: "List Library concepts",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
       description:
-        "Browse every trading and technical-analysis concept in the Library — paginated, optionally one family. Use to enumerate a topic area or find slugs for library_get_concept; for keyword lookup prefer library_search.",
+        "Browse every trading and technical-analysis concept in the Library — paginated, optionally one family. Use to enumerate a topic area or find slugs for library_get_concept and the concept filter of library_list_indicators; for keyword lookup prefer library_search.",
       inputSchema: z.object({
         family: familyEnum.optional(),
         page: z.number().int().min(0).optional().describe("Default 0"),
@@ -270,18 +269,16 @@ export function registerLibraryTools(server: McpServer) {
       title: "List Library indicators",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
       description:
-        "Browse the indicator catalog with filters and server-side sorting (newest first by default). Filter by family, concept slug (implementations of one concept), tags (ids from library_list_tags, AND-combined), trading platform, or plan tier. Use for structured browsing — 'latest indicators', 'everything in the volatility family', 'indicators implementing liquidity sweeps'; for keyword discovery prefer library_search.",
+        "Browse the indicator catalog with filters and server-side sorting (newest first by default). The Library is organized by family and concept: filter by family (keys from library_list_families) or by concept slug (that concept's implementations; slugs from library_list_concepts or library_search), and optionally by trading platform or plan tier. Use for structured browsing — 'latest indicators', 'everything in the volatility family', 'indicators implementing liquidity sweeps'; for keyword discovery prefer library_search.",
       inputSchema: z.object({
-        family: familyEnum.optional(),
+        family: familyEnum.optional().describe("Family key from library_list_families, e.g. 'volatility'"),
         text: z.string().optional().describe("Server-side text filter"),
         concept: z
           .string()
           .optional()
-          .describe("Concept slug — only indicators linked to this concept, e.g. 'rsi'"),
-        tags: z
-          .array(z.string())
-          .optional()
-          .describe("Tag ids (from library_list_tags); an indicator must carry every tag"),
+          .describe(
+            "Concept slug (from library_list_concepts or library_search) — only indicators linked to this concept, e.g. 'rsi'",
+          ),
         platform: z
           .string()
           .optional()
@@ -296,14 +293,13 @@ export function registerLibraryTools(server: McpServer) {
         page_size: z.number().int().min(1).max(100).optional().describe("Default 24"),
       }),
     },
-    async ({ family, text, concept, tags, platform, tier, sort, direction, page, page_size }) => {
+    async ({ family, text, concept, platform, tier, sort, direction, page, page_size }) => {
       const sortKey =
         sort === "date" || sort === undefined ? "creationDateDisplayed" : sort;
       const { indicators, count } = await queryIndicators({
         family,
         text,
         concept,
-        tags,
         platform,
         tier,
         sort: sortKey,
@@ -320,28 +316,10 @@ export function registerLibraryTools(server: McpServer) {
           name: row.name,
           family: row.family,
           description: row.description,
-          tags: (row.tags ?? []).map((tag) => tag.name),
           image_url: row.imageUrl,
           date_displayed: row.creationDateDisplayed,
           url: indicatorUrl(row.slug),
         })),
-      });
-    },
-  );
-
-  server.registerTool(
-    "library_list_tags",
-    {
-      title: "List indicator tags",
-      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
-      description:
-        "The Library's indicator tag vocabulary (behavioral traits like 'Volatility', 'Trailing-Stop', 'Repainting Functionality'). Returns ids to pass as the tags filter of library_list_indicators — tags are orthogonal to the concept-family taxonomy.",
-      inputSchema: z.object({}),
-    },
-    async () => {
-      const tags = await getLibraryTags();
-      return json({
-        tags: tags.map((tag) => ({ id: tag.id, name: tag.name })),
       });
     },
   );

@@ -1,7 +1,7 @@
 import type { ToolModule } from "../_shared/module.js";
 import { registerLibraryTools } from "./tools.js";
 
-/** The Library encyclopedia: concepts, families, indicators, tags, Pine source. Keyless. */
+/** The Library encyclopedia: concepts, families, indicators, Pine source. Keyless. */
 export const libraryModule: ToolModule = {
   id: "library",
   tools: [
@@ -13,7 +13,6 @@ export const libraryModule: ToolModule = {
     "library_list_indicators",
     "library_get_indicator",
     "library_get_source_code",
-    "library_list_tags",
   ],
   register: (server) => registerLibraryTools(server),
 };

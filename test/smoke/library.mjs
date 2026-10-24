@@ -131,14 +131,19 @@ export async function run({ client, check, callJson, httpUrl }) {
     `${family.payload.content_markdown?.length} chars, ${family.payload.concepts?.length} concepts`,
   );
 
-  // library_list_tags + tag/concept filters on library_list_indicators
-  const tags = await callJson(client, "library_list_tags", {});
+  // Families and concepts organize the Library; the retired tags never reach agents.
+  const { tools } = await client.listTools();
+  const listIndicatorsInputs = Object.keys(tools.find((t) => t.name === "library_list_indicators")?.inputSchema?.properties ?? {});
   check(
-    "library_list_tags returns the tag vocabulary",
-    !tags.isError && tags.payload.tags?.length > 0 && tags.payload.tags.every((t) => t.id && t.name),
-    `${tags.payload.tags?.length} tags, first=${tags.payload.tags?.[0]?.name}`,
+    "the Library is browsed by family and concept, and indicator listings carry no tags",
+    listIndicatorsInputs.includes("family") &&
+      listIndicatorsInputs.includes("concept") &&
+      !listIndicatorsInputs.includes("tags") &&
+      indicators.payload.indicators?.every((row) => !("tags" in row)),
+    `inputs: ${listIndicatorsInputs.join(", ")}`,
   );
 
+  // concept filter on library_list_indicators
   const byConcept = await callJson(client, "library_list_indicators", {
     concept: "rsi",
     page_size: 3,
