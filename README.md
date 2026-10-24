@@ -26,7 +26,7 @@ claude mcp add --transport http luxalgo https://mcp.luxalgo.com/mcp
 
 | Area | What you get |
 | --- | --- |
-| **[Library](https://www.luxalgo.com/library/)** | The encyclopedia of trading and technical analysis: hundreds of concept pages with formulas, the full indicator catalog with families and tags, and Pine Script® sources where publicly served. |
+| **[Library](https://www.luxalgo.com/library/)** | The encyclopedia of trading and technical analysis: hundreds of concept pages with formulas, the full indicator catalog organized by family and concept, and Pine Script® sources where publicly served. |
 | **Trade Journal** (sign-in) | Your own journal in the LuxAlgo app: the dashboard (metrics, Edge Score, equity curve), the P&L calendar, breakdowns by weekday / hold time / symbol / tag and more, every trade with its fills and annotations, day notes — and the writes that keep it alive: log fills by hand, annotate trades (tags, mistakes, rating, stop and target, review), write notes. Always as you, on your data; the app owns the rules. |
 | **Brokers** (local only) | Read-only access to your own accounts across 22 brokers and exchanges via [broker-sdk](https://github.com/LuxAlgo/broker-sdk): balances, positions, trade history, FIFO performance stats. Keys live in your MCP client config as env vars and never leave your machine. The hosted endpoint does not carry these tools, on purpose. |
 | **Edge Stats** | Hosted session statistics from the open-source [edge-stats](https://github.com/LuxAlgo/edge-stats) engine: how often a setup actually worked (gap fills, opening-range breakouts, day-of-week effects, event days) with the sample size and a Wilson 95% confidence interval on every number. A nightly build runs the real engine over free market data and publishes only derived statistics; these tools serve them verbatim. |
@@ -152,8 +152,7 @@ Tokens live in `~/.config/luxalgo/mcp-auth.json` (`%APPDATA%\luxalgo\mcp-auth.js
 | `library_get_indicator` | Indicator detail: body, family, concepts, source code availability |
 | `library_get_source_code` | Full source code when publicly served, fetched only on demand; otherwise `chart_url`, the indicator on a Vela chart |
 | `library_list_concepts` | Paginated concept roster, optionally per family |
-| `library_list_indicators` | Filtered, paginated browse (family, concept, tags, platform, tier) with server-side sort |
-| `library_list_tags` | The indicator tag vocabulary, for the tags filter |
+| `library_list_indicators` | Filtered, paginated browse (family, concept, platform, tier) with server-side sort |
 | `library_list_families` | The taxonomy backbone with counts |
 | `library_get_family` | A family hub as markdown plus concept roster |
 
