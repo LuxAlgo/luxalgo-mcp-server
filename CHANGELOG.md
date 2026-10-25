@@ -4,6 +4,8 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-25
+
 ### Changed
 
 - `library_get_source_code` relays the app's source previews: for an indicator the app shows signed-out users only in part, the result carries that part with `complete: false`, `shown_lines`, `total_lines` and `chart_url`; signed in, it is the full source as before. Full results now say `complete: true`. The description no longer says the code works on TradingView.
