@@ -112,7 +112,12 @@ export async function queryIndicators(params: {
 
 export async function getIndicatorBySlug(
   slug: string,
-): Promise<{ indicator: IndicatorDetail; pineScriptCode: string | null } | null> {
+): Promise<{
+  indicator: IndicatorDetail;
+  pineScriptCode: string | null;
+  /** Set by the app when `pineScriptCode` is only the start of the source. */
+  sourcePreview?: { shownLines: number; totalLines: number } | null;
+} | null> {
   try {
     return await appGet(`/api/library/indicators/by-slug/${encodeURIComponent(slug)}`);
   } catch (error) {
