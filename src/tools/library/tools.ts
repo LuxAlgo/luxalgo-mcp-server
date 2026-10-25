@@ -195,7 +195,7 @@ export function registerLibraryTools(server: McpServer) {
       title: "Get an indicator's source code",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
       description:
-        "The full, working source code of a Library indicator (works on TradingView). Kept separate from library_get_indicator because sources are long — call it only when the user wants the code itself.",
+        "The Pine Script® source code of a Library indicator. Kept separate from library_get_indicator because sources are long — call it only when the user wants the code itself. For some indicators the app returns only the start of the source to a signed-out user (`complete: false`, with the line counts): signing in to a LuxAlgo account, free included, returns all of it. `chart_url` opens the indicator on Vela either way.",
       inputSchema: z.object({
         slug: z.string().min(1).describe("Indicator slug"),
       }),
@@ -203,7 +203,22 @@ export function registerLibraryTools(server: McpServer) {
     async ({ slug }) => {
       const result = await getIndicatorBySlug(slug);
       if (!result) return toolError(`Unknown indicator slug '${slug}'.`);
-      const { indicator, pineScriptCode } = result;
+      const { indicator, pineScriptCode, sourcePreview } = result;
+      // The app sends only the start of some sources to a signed-out caller;
+      // relay that as it is (it decides who sees what, not this server).
+      if (sourcePreview && pineScriptCode !== null) {
+        return json({
+          slug: indicator.slug,
+          name: indicator.name,
+          available: true,
+          complete: false,
+          source: pineScriptCode,
+          shown_lines: sourcePreview.shownLines,
+          total_lines: sourcePreview.totalLines,
+          reason: "sign-in-for-full-source",
+          ...(indicator.pineScriptCodeId ? { chart_url: chartUrl(indicator.pineScriptCodeId) } : {}),
+        });
+      }
       let source = pineScriptCode;
       if (source === null && indicator.pineScriptCodeId) {
         source = await getPineScriptCode(indicator.pineScriptCodeId);
@@ -214,7 +229,7 @@ export function registerLibraryTools(server: McpServer) {
         name: indicator.name,
         available,
         ...(available
-          ? { source }
+          ? { complete: true, source }
           : {
               reason: "runs-in-quant",
               ...(indicator.pineScriptCodeId

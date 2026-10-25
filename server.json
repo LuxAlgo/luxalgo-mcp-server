@@ -8,12 +8,12 @@
     "source": "github"
   },
   "websiteUrl": "https://www.luxalgo.com/mcp",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@luxalgo/mcp",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "transport": {
         "type": "stdio"
       }
