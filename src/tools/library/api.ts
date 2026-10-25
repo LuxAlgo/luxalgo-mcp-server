@@ -1,8 +1,8 @@
 /*
   The Library endpoints of the app API — indicators, concepts, families,
-  tags, Pine source — plus the concept taxonomy the tools validate against.
-  The concepts and tags lists are cached in-process (small, rarely changing,
-  identical for every caller); everything else is fetched per call.
+  Pine source — plus the concept taxonomy the tools validate against.
+  The concepts list is cached in-process (small, rarely changing, identical
+  for every caller); everything else is fetched per call.
 */
 import { appGet, cachedAnonymous, isNotFound } from "../../platform/app-client.js";
 
@@ -68,8 +68,6 @@ export type IndicatorSummary = {
   creationDateDisplayed: string;
   family: ConceptFamily | null;
   pineScriptCodeId: string | null;
-  /** Tag ids/names served by the query route; absent on by-slug payloads. */
-  tags?: { id: string; name: string }[];
 };
 
 export type IndicatorDetail = IndicatorSummary & {
@@ -78,8 +76,6 @@ export type IndicatorDetail = IndicatorSummary & {
   concepts?: { slug: string; name: string; primary: boolean }[];
 } & Record<string, unknown>;
 
-export type LibraryTag = { id: string; name: string; order: number | null };
-
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 export const getConcepts = cachedAnonymous(CACHE_TTL_MS, async () => {
@@ -87,18 +83,11 @@ export const getConcepts = cachedAnonymous(CACHE_TTL_MS, async () => {
   return concepts;
 });
 
-export const getLibraryTags = cachedAnonymous(CACHE_TTL_MS, async () => {
-  const { tags } = await appGet<{ tags: LibraryTag[] }>("/api/library/tags", undefined, { access: null });
-  return tags;
-});
-
 export async function queryIndicators(params: {
   text?: string;
   family?: ConceptFamily;
   /** Concept slug — only indicators linked to this genome concept. */
   concept?: string;
-  /** Tag ids (AND-combined server-side), sent as a CSV. */
-  tags?: string[];
   platform?: string;
   tier?: string;
   authorName?: string;
@@ -111,7 +100,6 @@ export async function queryIndicators(params: {
     text: params.text,
     family: params.family,
     concept: params.concept,
-    tags: params.tags && params.tags.length > 0 ? params.tags.join(",") : undefined,
     platform: params.platform,
     tier: params.tier,
     authorName: params.authorName,

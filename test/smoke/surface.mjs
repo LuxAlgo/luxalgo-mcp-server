@@ -30,7 +30,6 @@ export async function run({ client, check, callJson, callStructured, httpUrl, ra
     "library_get_source_code",
     "library_list_concepts",
     "library_list_indicators",
-    "library_list_tags",
     "library_list_families",
     "library_get_family",
     "propfirms_search",
