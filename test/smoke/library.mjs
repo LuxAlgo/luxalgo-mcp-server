@@ -96,7 +96,10 @@ export async function run({ client, check, callJson, httpUrl }) {
     `library_get_source_code('${indSlug}') matches availability contract`,
     !source.isError &&
       (source.payload.available
-        ? typeof source.payload.source === "string" && source.payload.source.length > 0
+        ? typeof source.payload.source === "string" &&
+          source.payload.source.length > 0 &&
+          (source.payload.complete === true ||
+            (source.payload.complete === false && source.payload.total_lines > source.payload.shown_lines))
         : source.payload.reason === "runs-in-quant" &&
           (!source.payload.chart_url || source.payload.chart_url.startsWith(`${CHART_ORIGIN}/chart?pineScriptCodeId=`))),
     source.payload.available

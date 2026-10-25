@@ -150,7 +150,7 @@ Tokens live in `~/.config/luxalgo/mcp-auth.json` (`%APPDATA%\luxalgo\mcp-auth.js
 | `library_search` | One search over concepts (alias-aware) and indicators |
 | `library_get_concept` | Full concept page as markdown |
 | `library_get_indicator` | Indicator detail: body, family, concepts, source code availability |
-| `library_get_source_code` | Full source code when publicly served, fetched only on demand; otherwise `chart_url`, the indicator on a Vela chart |
+| `library_get_source_code` | Source code, fetched only on demand: in full when publicly served, or the start of it (`complete: false`) for indicators the app previews to signed-out users; `chart_url` opens the indicator on a Vela chart |
 | `library_list_concepts` | Paginated concept roster, optionally per family |
 | `library_list_indicators` | Filtered, paginated browse (family, concept, platform, tier) with server-side sort |
 | `library_list_families` | The taxonomy backbone with counts |
