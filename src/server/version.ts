@@ -6,7 +6,7 @@
   that forgets this file fails CI instead of shipping a stale version.
 */
 export const SERVER_NAME = "luxalgo";
-export const SERVER_VERSION = "1.5.0";
+export const SERVER_VERSION = "2.0.0";
 
 /*
   The `instructions` every entry sends in `initialize`: what LuxAlgo and Vela are,
