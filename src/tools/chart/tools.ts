@@ -20,6 +20,7 @@ import { readFileSync } from "node:fs";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { RESOURCE_MIME_TYPE, registerAppResource, registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import { currentSurface } from "../../auth/surface.js";
 import { ok, textError } from "../_shared/result.js";
 import {
   NATIVE_INDICATORS,
@@ -57,18 +58,28 @@ export const CHART_RESOURCE_DOMAINS = ["https://crypto-icons.ledger.com"];
 
 /**
  * A stable sandbox origin. The format is host-specific (spec: "Servers MUST
- * consult host-specific documentation"); this is Claude's documented form,
- * sha256 of the MCP server URL. LUXALGO_CHART_APP_DOMAIN overrides it, "none"
- * leaves it out. The exchange APIs answer CORS with "*", so nothing depends
- * on it today.
+ * consult host-specific documentation"):
+ *   - Claude: sha256 of the MCP server URL the user connected, as
+ *     `<hash>.claudemcpcontent.com`;
+ *   - ChatGPT: an origin (`https://…`), unique per plugin, required only when
+ *     a plugin with UI is submitted; left out here so ChatGPT uses its default
+ *     sandbox until the submission sets one;
+ *   - any other client: left out.
+ * LUXALGO_CHART_APP_DOMAIN overrides it everywhere, "none" leaves it out. The
+ * exchange APIs answer CORS with "*", so nothing depends on it today.
  */
 function appDomain(): string | undefined {
   const override = process.env.LUXALGO_CHART_APP_DOMAIN;
   if (override === "none") return undefined;
   if (override) return override;
-  const hash = createHash("sha256").update("https://mcp.luxalgo.com/mcp").digest("hex").slice(0, 32);
+  const surface = currentSurface();
+  if (surface.kind !== "claude") return undefined;
+  const hash = createHash("sha256").update(surface.resource).digest("hex").slice(0, 32);
   return `${hash}.claudemcpcontent.com`;
 }
+
+/** Where "Open in Vela" may send the user (ChatGPT's link allowlist; the chart link passes through the app host first). */
+const OPEN_LINK_DOMAINS = ["https://vela.luxalgo.com", "https://app.luxalgo.com"];
 
 /**
  * The built view (npm run build:chart; Vercel runs it in vercel-build). Two layouts: dist/tools/chart/tools.js
@@ -192,6 +203,12 @@ export function registerChartTools(server: McpServer) {
               csp: { connectDomains: CHART_CONNECT_DOMAINS, resourceDomains: CHART_RESOURCE_DOMAINS },
               ...(domain ? { domain } : {}),
               prefersBorder: true,
+            },
+            // ChatGPT reads link targets for openExternal/ui/open-link only from its own key.
+            "openai/widgetCSP": {
+              connect_domains: CHART_CONNECT_DOMAINS,
+              resource_domains: CHART_RESOURCE_DOMAINS,
+              redirect_domains: OPEN_LINK_DOMAINS,
             },
           },
         },
