@@ -6,9 +6,32 @@
   Only the two keyless crypto venues the chart view bundles are known here
   (Hyperliquid and Binance). A bare coin ("BTC") goes to Hyperliquid, a bare
   pair with a stablecoin quote ("BTCUSDT") to Binance.
+
+  Whether the model may read numbers off a chart (last price, change, the
+  visible high and low, indicator values) is decided here and nowhere else,
+  from where the provider's candles come from: numbersAllowedFor().
 */
 
 export type Venue = "hyperliquid" | "binance";
+
+/**
+ * Where a provider's candles come from:
+ *   exchange   the exchange's own public feed, streamed in the user's browser
+ *              (crypto venues such as Hyperliquid and Binance);
+ *   licensed   anything else: a data vendor, futures or stock exchanges whose
+ *              data is licensed.
+ * Only "exchange" charts may hand numbers to the model; "licensed" charts are
+ * described in words only. A provider missing from this table counts as
+ * licensed, so adding one never opens numbers by accident.
+ */
+export type DataSource = "exchange" | "licensed";
+
+const PROVIDER_SOURCES: Record<Venue, DataSource> = { hyperliquid: "exchange", binance: "exchange" };
+
+/** The one place that decides whether the model may receive numbers for a provider's charts. */
+export function numbersAllowedFor(provider: string): boolean {
+  return Object.prototype.hasOwnProperty.call(PROVIDER_SOURCES, provider) && PROVIDER_SOURCES[provider as Venue] === "exchange";
+}
 
 export type Market = {
   venue: Venue;
@@ -16,6 +39,8 @@ export type Market = {
   ticker: string;
   /** What Vela's setMarket takes: "hyperliquid:BTC". */
   symbol: string;
+  /** Whether the model may receive numbers for this market (numbersAllowedFor its provider). */
+  numbersAllowed: boolean;
 };
 
 const VENUE_NAMES: Record<Venue, string> = { hyperliquid: "Hyperliquid", binance: "Binance" };
@@ -42,7 +67,7 @@ export function parseMarket(input: string): Market | { error: string } {
   // Hyperliquid tickers are case-sensitive for a few spot names ("PURR/USDC"), but perps are upper-case.
   ticker = venue === "binance" ? ticker.toUpperCase() : ticker.includes("/") ? ticker : ticker.toUpperCase();
   if (!/^[A-Za-z0-9./_-]{1,30}$/.test(ticker)) return { error: `"${ticker}" is not a valid ticker` };
-  return { venue, ticker, symbol: `${venue}:${ticker}` };
+  return { venue, ticker, symbol: `${venue}:${ticker}`, numbersAllowed: numbersAllowedFor(venue) };
 }
 
 export function marketWords(market: Market): string {
