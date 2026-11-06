@@ -21,6 +21,8 @@ import {
 import { adaptFirm } from "@luxalgo/prop-firm-sim-core/directory";
 import { fetchDirectory } from "@luxalgo/prop-firm-sim-mcp/directory";
 import { fmtMoney, fmtPct } from "../../_shared/format.js";
+import { answersFrozen } from "../../_shared/surface.js";
+import { challengeNameWithoutFirm } from "./result-text.js";
 import {
   PRECOMPUTED_SEED,
   normalizeName,
@@ -135,7 +137,7 @@ interface ValidatedChallengeRow {
   inferredFields: string[];
 }
 
-function handleValidateStrategy(input: unknown): Promise<CallToolResult> {
+function handleValidateStrategy(input: unknown, open: boolean): Promise<CallToolResult> {
   return safely(async () => {
     const args = validateStrategySchema.parse(input);
 
@@ -266,7 +268,7 @@ function handleValidateStrategy(input: unknown): Promise<CallToolResult> {
     const bar =
       `pass per attempt >= ${fmtPct(minPass, 0)}` + (requireEv ? " AND expected value above zero" : "");
     const rowLine = (row: ValidatedChallengeRow) =>
-      `  - ${row.firmName}: ${row.name} [${row.firmId}/${row.challengeId}] ` +
+      `  - ${row.firmName}: ${open ? challengeNameWithoutFirm(row.name, row.firmName) : row.name} [${row.firmId}/${row.challengeId}] ` +
       `(${fmtMoney(row.accountSize, row.currency)} ${row.productType}): ` +
       `pass/attempt ${fmtPct(row.passPerAttempt)} (95% CI ${fmtPct(row.passCiLow)}-${fmtPct(row.passCiHigh)}), ` +
       `P(funded) ${fmtPct(row.fundedProbability)}, expected cost ${fmtMoney(row.expectedCost, row.currency)}, ` +
@@ -350,6 +352,6 @@ export function registerValidateStrategyTool(server: McpServer, toolset: Toolset
       ),
       inputSchema: toolset === "directory" ? rewriteSchemaDescriptions(validateStrategySchema, directoryCopy) : validateStrategySchema,
     },
-    (args: unknown) => handleValidateStrategy(args),
+    (args: unknown) => handleValidateStrategy(args, !answersFrozen()),
   );
 }

@@ -4,6 +4,28 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+### Added
+
+- Vela chart links (`chart_url`, "Open in Vela") on every result that names an indicator or a market: `library_search` indicator hits, `library_get_indicator`, `library_list_indicators` items, and a new `indicators` list on `library_get_concept` (the concept's implementations from one concept-filtered query, each with its link) open the indicator at `https://vela.luxalgo.com/chart?pineScriptCodeId=…`; `edge_report` and every `edge_symbols` entry open the hosted market at `?symbol=binance:BTCUSDT`, on 15-minute bars for intraday presets and daily bars for the rest. An indicator with no Vela script gets no link. Descriptions on those tools say what `chart_url` is. Not on the Claude address, whose tools and results stay byte for byte as they are while Anthropic reviews them; a `claude-surface` smoke suite holds that line (a hash of its tool list and the shape of its results) and checks the ChatGPT address carries the links.
+
+### Changed
+
+- The smoke suite's stdio server inherits the machine's outbound proxy and CA settings (and nothing else), so the live checks run behind a proxy.
+- Faster answers. Indicator queries (`library_list_indicators`, `library_search`) are fetched anonymously (the app's public query route is the same for everyone), as card rows without the article body, cached for 5 minutes and retried in parallel when the app is slow to answer (one app instance in two took 4 to 6 seconds); the concepts list and the marketing-site markdown pages (`library_get_concept`, `library_get_family`) are cached too. `propfirms_simulate`, `propfirms_optimal_risk` and `propfirms_compare` results are cached per exact inputs and directory snapshot (they are deterministic under the seed); `propfirms_pass_rates` runs challenges whose encoded rules and fees are identical once. None of this changes an answer.
+- Off the Claude address (the standard address, the ChatGPT address and stdio), answers are trimmed and say things in plain words. The Claude address keeps its reviewed tool definitions and results byte for byte while its directory review runs; a new `answers-surfaces` smoke suite (HTTP) pins its tool definitions and checks its results.
+  - `propfirms_pass_rates` without `challengeId` returns a firm overview: one account size per rules program (closest to 100K, up to three programs), each a full run, with every other simulatable challenge listed by id (FTMO: 35 KB in 12 to 17 s before, 11 KB in about 2 s now).
+  - `propfirms_list_simulatable` answers one line per firm (8 KB instead of 156 KB); its new optional `firmId` lists that firm's challenges exactly as before.
+  - `propfirms_get` leaves out the FAQ (it restates the rules and payout policy; `propfirms_search` with `include: ['overview']` returns it), the firm fields repeated on every challenge, site plumbing (row id, logo, visibility) and bold markers, and adds the firm's page `url`. `library_get_family` no longer repeats the concept roster its page already lists, and gives `concept_count`.
+  - Simulator result text states facts instead of instructing the assistant ("relay these to the user", "present both to the user"), names a challenge without repeating its firm ("FTMO - FTMO - …"), and says the fee in words: "Fee €540 per attempt, refunded on a pass; average cost across attempts €1" instead of "expected total cost: €1 (given funded: €1)".
+  - `edge_report` refuses opening-gap presets (the `gaps` category and gap-fill outcomes) on symbols that trade around the clock, with the reason and the presets that apply: their sessions are calendar days that open a minute after the last one closed, so "gap fill 99.7%" measured nothing. `edge_presets` marks those presets with `not_applicable_to`.
+
+### Fixed
+
+- `library_get_source_code` said `chart_url` opens the indicator on Vela either way, but a complete source came without one. It now carries `chart_url` whenever the indicator has a Vela script, complete, partial or not served (the Claude address keeps today's result and description until its review is done).
+- `propfirms_search_challenges` finds challenges for natural queries such as "FTMO 100K", "FTMO 2-step 100k", "ftmo 100000" or "the5ers 2 step", which matched nothing because the app's `text` filter is a plain substring match. When a text search comes back empty, the account size (100k, 12.5K, 1M, 100000), step count (2-step, two phase, instant) and firm in the text are mapped onto the existing structured filters (`accountSizeMin`/`accountSizeMax`, `steps`, `propfirmId`, `challengeName`), so the rows are exactly what those filters return, and the result says how it read the query (`interpretedAs`). Searches that already found rows answer exactly as before. When nothing matches, the result says why: a firm the directory does not list (with the firms it does), or the steps and account sizes the firm offers.
+- `propfirmId` and `challengeId` accept a single id (`"ftmo"`) as well as a list (`["ftmo"]`) on `propfirms_search`, `propfirms_search_challenges` and `propfirms_search_offers`. The schema only widens: every call valid before stays valid.
+- Both apply on `/mcp`, `/mcp/openai` and stdio. The Claude host keeps its reviewed definitions and results byte for byte while its directory review is open; a `claude-freeze` smoke suite checks them against `test/smoke/fixtures/claude-propfirms-tools.json`.
+
 ## [2.1.0] - 2026-10-25
 
 ### Changed

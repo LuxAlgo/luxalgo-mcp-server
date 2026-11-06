@@ -11,8 +11,12 @@
 import { z } from "zod";
 import type { CallToolResult, McpServer } from "@modelcontextprotocol/server";
 import { toolDefinitions } from "@luxalgo/prop-firm-sim-mcp/tools";
+import { fetchDirectory, resolveFirm } from "@luxalgo/prop-firm-sim-mcp/directory";
 import type { Toolset } from "../../../auth/surface.js";
+import { keyedCache } from "../../_shared/cache.js";
+import { answersFrozen } from "../../_shared/surface.js";
 import { directoryCopy } from "./directory-copy.js";
+import { fmtCurrency, plainResultText } from "./result-text.js";
 
 
 /** Package-name -> local-name map for the tools this server exposes
@@ -161,32 +165,209 @@ export const PACKAGE_TOOL_NAMES: readonly string[] = toolDefinitions
   .map((def) => TOOL_RENAMES[def.name])
   .filter((name): name is string => name !== undefined);
 
+/*
+  Deterministic simulations, cached per exact arguments. The same inputs and
+  seed give byte-identical results, so a repeated question (a model re-asking,
+  or a second user asking the same thing) is answered without re-running the
+  Monte Carlo. A directory challenge's rules come from the live directory, so
+  entries are kept per directory snapshot (the package refreshes it every
+  five minutes): new rules never meet an old result. The trade-series tool is
+  left out on purpose: its inputs are the user's own trades.
+*/
+const CACHED_SIMULATIONS = new Set(["simulate_challenge", "optimal_risk", "compare_challenges"]);
+const MAX_CACHED_ARGS = 64 * 1024;
+const INLINE_ONLY = {};
+const simulationCaches = new WeakMap<object, KeyedCache>();
+type KeyedCache = ReturnType<typeof keyedCache<CallToolResult>>;
+
+function namesDirectoryChallenge(args: unknown): boolean {
+  const record = (args ?? {}) as { firmId?: unknown; challenges?: unknown };
+  if (record.firmId !== undefined) return true;
+  return Array.isArray(record.challenges) && record.challenges.some((entry) => (entry as { firmId?: unknown })?.firmId !== undefined);
+}
+
+async function cachedSimulation(
+  name: string,
+  args: unknown,
+  run: () => Promise<CallToolResult>,
+): Promise<CallToolResult> {
+  if (!CACHED_SIMULATIONS.has(name)) return run();
+  const key = JSON.stringify(args ?? {});
+  if (key.length > MAX_CACHED_ARGS) return run();
+  let snapshot: object = INLINE_ONLY;
+  if (namesDirectoryChallenge(args)) {
+    try {
+      snapshot = await fetchDirectory();
+    } catch {
+      return run(); // the handler reports the unreachable directory itself
+    }
+  }
+  let cache = simulationCaches.get(snapshot);
+  if (!cache) {
+    cache = keyedCache<CallToolResult>({ ttlMs: 30 * 60 * 1000, max: 100 });
+    simulationCaches.set(snapshot, cache);
+  }
+  return cache.get(`${name}:${key}`, async () => {
+    const result = await run();
+    if (result.isError) throw Object.assign(new Error("not cached"), { result });
+    return result;
+  }).catch((error: unknown) => {
+    const failed = (error as { result?: CallToolResult }).result;
+    if (failed) return failed;
+    throw error;
+  });
+}
+
+/*
+  propfirms_list_simulatable off the Claude address: the package lists every
+  simulatable challenge of every firm (about 300, over 150 KB with its
+  structured twin). Without firmId the answer is one line per firm; with
+  firmId it is that firm's full entry, exactly as the package lists it.
+*/
+const LIST_FIRM_ID_FIELD = z
+  .string()
+  .min(1)
+  .optional()
+  .describe(
+    "Directory firm id or firm name (e.g. 'ftmo'). Returns that firm's simulatable challenges (ids, names, " +
+      "account sizes, prices, provenance). Omit for one line per firm.",
+  );
+
+const LIST_SUMMARY_NOTE =
+  " Without firmId the result is one line per firm (simulatable challenge count, account-size range, " +
+  "challenges that are not simulatable); with firmId it lists that firm's challenges with their ids.";
+
+type ListedChallenge = { accountSize: number; currency: string; productType: string };
+type ListedFirm = { firmId: string; name: string; challenges: ListedChallenge[]; notSimulatable?: string[] };
+
+function listSummary(result: CallToolResult, productType: string | undefined): CallToolResult {
+  const structured = (result.structuredContent ?? {}) as { firms?: ListedFirm[]; engineVersion?: string; disclaimer?: string };
+  const firms = (structured.firms ?? []).map((firm) => {
+    const sizes = firm.challenges.map((c) => c.accountSize);
+    const currencies = [...new Set(firm.challenges.map((c) => c.currency.toUpperCase()))];
+    return {
+      firmId: firm.firmId,
+      name: firm.name,
+      simulatableChallenges: firm.challenges.length,
+      productTypes: [...new Set(firm.challenges.map((c) => c.productType))],
+      ...(sizes.length > 0
+        ? { accountSizeMin: Math.min(...sizes), accountSizeMax: Math.max(...sizes), currencies }
+        : {}),
+      ...(firm.notSimulatable ? { notSimulatable: firm.notSimulatable.length } : {}),
+    };
+  });
+  const range = (firm: (typeof firms)[number]) => {
+    if (firm.accountSizeMin === undefined) return "";
+    const currency = firm.currencies?.[0] ?? "USD";
+    const min = fmtCurrency(firm.accountSizeMin, currency);
+    const max = fmtCurrency(firm.accountSizeMax ?? firm.accountSizeMin, currency);
+    return `, ${min === max ? min : `${min} to ${max}`}`;
+  };
+  const lines = [
+    `${firms.length} firm(s) in the live LuxAlgo directory` +
+      (productType ? ` with ${productType} challenges` : "") +
+      " (alphabetical - data, not endorsement or ranking). firmId lists one firm's challenges with their ids:",
+    ...firms.map(
+      (firm) =>
+        `${firm.firmId} - ${firm.name}: ${firm.simulatableChallenges} simulatable` +
+        (firm.productTypes.length > 0 ? ` (${firm.productTypes.join(", ")})` : "") +
+        range(firm) +
+        (firm.notSimulatable ? `; ${firm.notSimulatable} not simulatable (ambiguous rule text)` : ""),
+    ),
+    "Each firm's own page is authoritative.",
+  ];
+  if (structured.disclaimer) lines.push(structured.disclaimer);
+  return {
+    content: [{ type: "text", text: lines.join("\n") }],
+    structuredContent: { firms, engineVersion: structured.engineVersion, disclaimer: structured.disclaimer },
+  };
+}
+
+/** One firm's entry: the package's own lines and structured row for it, nothing else. */
+async function listOneFirm(result: CallToolResult, firmId: string, productType: string | undefined): Promise<CallToolResult> {
+  const firm = resolveFirm(await fetchDirectory(), firmId); // throws with the known firms
+  const structured = (result.structuredContent ?? {}) as { firms?: ListedFirm[]; engineVersion?: string; disclaimer?: string };
+  const row = (structured.firms ?? []).find((entry) => entry.firmId === firm.propfirmId);
+  if (!row) {
+    return {
+      content: [
+        {
+          type: "text",
+          text:
+            `${firm.name} (${firm.propfirmId}) has no ` +
+            (productType ? `${productType} ` : "") +
+            "challenges the engine can simulate in the live LuxAlgo directory.",
+        },
+      ],
+      isError: true,
+    };
+  }
+  const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+  const lines = text.split("\n");
+  const start = lines.indexOf(`${row.firmId} - ${row.name}`);
+  const block: string[] = [];
+  for (let i = start + 1; start >= 0 && i < lines.length && lines[i]!.startsWith("  - "); i++) block.push(lines[i]!);
+  const out = [
+    `${row.firmId} - ${row.name} in the live LuxAlgo directory:`,
+    ...block,
+    ...lines.filter((line) => line.startsWith("Provenance 'directory+inferred'")),
+  ];
+  if (structured.disclaimer) out.push(structured.disclaimer);
+  return {
+    content: [{ type: "text", text: out.join("\n") }],
+    structuredContent: { firms: [row], engineVersion: structured.engineVersion, disclaimer: structured.disclaimer },
+  };
+}
+
 export function registerPackageSimTools(server: McpServer, toolset: Toolset): void {
   const copy = (text: string) => (toolset === "directory" ? directoryCopy(text) : text);
+  const frozen = answersFrozen();
   for (const def of toolDefinitions) {
     const localName = TOOL_RENAMES[def.name];
     if (localName === undefined) continue;
+    const compactList = !frozen && def.name === "list_firms";
+    const shape = rewriteShapeDescriptions(def.inputShape, (text) => copy(rewriteToolReferences(text)));
     server.registerTool(
       localName,
       {
         title: def.title,
         description:
           copy(editDescription(rewriteToolReferences(def.description))) +
+          (compactList ? LIST_SUMMARY_NOTE : "") +
           (ROUTING_NOTES[toolset][localName] ?? "") +
           (DESCRIPTION_NOTES[localName] ?? ""),
-        inputSchema: z.object(rewriteShapeDescriptions(def.inputShape, (text) => copy(rewriteToolReferences(text)))),
+        inputSchema: z.object(compactList ? { ...shape, firmId: LIST_FIRM_ID_FIELD } : shape),
         annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
       },
       async (args: unknown): Promise<CallToolResult> => {
-        const result = await def.handler(args);
+        let result: CallToolResult;
+        if (compactList) {
+          const { firmId, ...rest } = (args ?? {}) as { firmId?: string; productType?: string };
+          const listed = (await def.handler(rest)) as CallToolResult;
+          if (listed.isError) {
+            result = listed;
+          } else {
+            try {
+              result = firmId === undefined ? listSummary(listed, rest.productType) : await listOneFirm(listed, firmId, rest.productType);
+            } catch (error) {
+              result = { content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }], isError: true };
+            }
+          }
+        } else {
+          result = await cachedSimulation(def.name, args, async () => (await def.handler(args)) as CallToolResult);
+        }
         // Result prose may also point at sibling tools (e.g. list_firms
         // suggests get_challenge_rules) — rewrite those references too.
-        // Structured content is data and passes through untouched.
+        // Off the Claude address the prose is also restated in plain
+        // language (result-text.ts). Structured content is data and passes
+        // through untouched.
         return {
           ...result,
-          content: result.content.map((item) =>
-            item.type === "text" ? { ...item, text: rewriteToolReferences(item.text) } : item,
-          ),
+          content: result.content.map((item) => {
+            if (item.type !== "text") return item;
+            const text = rewriteToolReferences(item.text);
+            return { ...item, text: frozen ? text : plainResultText(text, result.structuredContent) };
+          }),
         } as CallToolResult;
       },
     );

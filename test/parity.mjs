@@ -2,17 +2,23 @@
   Parity harness for the simulator tools: proves the renamed wrappers behave
   exactly like the upstream @luxalgo/prop-firm-sim-mcp handlers (identical
   structured content; text identical modulo the deliberate tool-name
-  rewrite), and that the two locally implemented tools (pass_rates,
-  validate_strategy) reproduce the raw engine's numbers bit-for-bit.
+  rewrite and the plain-language restatement of result-text.ts, which this
+  server applies off the Claude address), and that the two locally
+  implemented tools (pass_rates, validate_strategy) reproduce the raw
+  engine's numbers bit-for-bit.
+
+  This runs over stdio, the standard address: the firm list there is one
+  line per firm, so list_firms is compared one firm at a time (firmId).
 
   Run after every @luxalgo/prop-firm-sim-* version bump: npm run test:parity
 */
 import { Client } from "@modelcontextprotocol/client";
-import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/client/stdio";
 import { toolDefinitions } from "@luxalgo/prop-firm-sim-mcp/tools";
 import { fetchDirectory, resolveFirm } from "@luxalgo/prop-firm-sim-mcp/directory";
 import { ChallengeSpecSchema, simulate } from "@luxalgo/prop-firm-sim-core";
 import { adaptFirm } from "@luxalgo/prop-firm-sim-core/directory";
+import { plainResultText } from "../dist/tools/propfirms/simulation/result-text.js";
 
 const upstream = Object.fromEntries(toolDefinitions.map((t) => [t.name, t]));
 
@@ -41,9 +47,21 @@ function check(label, condition, detail = "") {
   console.log(`${status}  ${label}${detail ? ` — ${detail}` : ""}`);
 }
 
+/** Proxy and CA settings for the stdio server, as in smoke.mjs: the SDK's default child environment drops them. */
+function networkEnvironment() {
+  const names = ["HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy", "NODE_USE_ENV_PROXY", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE"];
+  const env = Object.fromEntries(names.filter((name) => process.env[name]).map((name) => [name, process.env[name]]));
+  if (/--use-env-proxy\b/.test(process.env.NODE_OPTIONS ?? "")) env.NODE_USE_ENV_PROXY = "1";
+  return env;
+}
+
 const client = new Client({ name: "parity", version: "0.0.0" });
 await client.connect(
-  new StdioClientTransport({ command: process.execPath, args: ["dist/index.js"] }),
+  new StdioClientTransport({
+    command: process.execPath,
+    args: ["dist/index.js"],
+    env: { ...getDefaultEnvironment(), ...networkEnvironment() },
+  }),
 );
 
 async function ours(name, args) {
@@ -73,7 +91,6 @@ const trader = { winRate: 0.48, avgWinR: 1.6, tradesPerDay: 4, riskValue: 1 };
 const rSeries = Array.from({ length: 60 }, (_, i) => (i % 5 < 2 ? 1.8 : i % 5 === 4 ? 2.2 : -1));
 
 const cases = [
-  ["list_firms", {}],
   ["get_challenge_rules", { firmId: firm.propfirmId, challengeId }],
   ["simulate_challenge", { firmId: firm.propfirmId, challengeId, ...trader, paths: 2000 }],
   [
@@ -109,11 +126,31 @@ const cases = [
 const UPSTREAM_NAMES = [...Object.keys(RENAMES), "analyze_portfolio_overlap"];
 const bareNames = new RegExp(`\\b(${UPSTREAM_NAMES.join("|")})\\b`);
 
+// list_firms, one firm: the package's own entry for it, line for line.
+{
+  const [a, b] = await Promise.all([
+    ours("propfirms_list_simulatable", { firmId: firm.propfirmId }),
+    theirs("list_firms", {}),
+  ]);
+  const entry = b.structured.firms.find((row) => row.firmId === firm.propfirmId);
+  const lines = rewrite(b.text).split("\n");
+  const start = lines.indexOf(`${entry.firmId} - ${entry.name}`);
+  const block = [];
+  for (let i = start + 1; i < lines.length && lines[i].startsWith("  - "); i++) block.push(lines[i]);
+  const structuredEqual = JSON.stringify(a.structured?.firms) === JSON.stringify([entry]);
+  const blockEqual = block.length > 0 && block.every((line) => a.text.split("\n").includes(line));
+  check(
+    "propfirms_list_simulatable(firmId) === list_firms's entry for that firm",
+    !a.isError && structuredEqual && blockEqual && !bareNames.test(a.text),
+    `structured ${structuredEqual}, ${block.length} challenge lines ${blockEqual ? "identical" : "differ"}`,
+  );
+}
+
 for (const [upstreamName, args] of cases) {
   const localName = RENAMES[upstreamName];
   const [a, b] = await Promise.all([ours(localName, args), theirs(upstreamName, args)]);
   const structuredEqual = JSON.stringify(a.structured) === JSON.stringify(b.structured);
-  const textEqual = a.text === rewrite(b.text);
+  const textEqual = a.text === plainResultText(rewrite(b.text), b.structured);
   check(
     `${localName} === ${upstreamName} (identical args)`,
     a.isError === b.isError && structuredEqual && textEqual && !bareNames.test(a.text),

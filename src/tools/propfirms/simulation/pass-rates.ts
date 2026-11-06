@@ -20,6 +20,8 @@ import {
 import { adaptFirm } from "@luxalgo/prop-firm-sim-core/directory";
 import { fetchDirectory, resolveFirm } from "@luxalgo/prop-firm-sim-mcp/directory";
 import { fmtMoney } from "../../_shared/format.js";
+import { answersFrozen } from "../../_shared/surface.js";
+import { challengeNameWithoutFirm, feeWords, fmtCurrency } from "./result-text.js";
 import { PRECOMPUTED_PATHS, PRECOMPUTED_SEED, ok, requireAdaptedChallenge, safely, simError } from "./shared.js";
 
 /*
@@ -91,8 +93,47 @@ const passRatesSchema = z.object({
     .describe("One challenge id. Omit to compute every simulatable challenge the firm has."),
 });
 
+/* Off the Claude address the overview is bounded (see firmOverview below). */
+const OVERVIEW_PROGRAMS = 3;
+const passRatesOpenSchema = passRatesSchema.extend({
+  challengeId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "One challenge id, for its exact numbers. Omit for the firm overview: one account size per rules " +
+        `program (up to ${OVERVIEW_PROGRAMS} programs), with every other simulatable challenge listed by id.`,
+    ),
+});
+
 /** Deterministic per exact ruleset, so cache on the spec itself. */
 const passRateCache = new Map<string, Record<string, unknown>>();
+
+/**
+ * The simulation never reads a challenge's id, name or citations, so two
+ * challenges with the same encoded rules and fees (a firm's "Normal" and
+ * "Swing" programs often are) share one run: the same numbers, computed once.
+ */
+const archetypeRuns = new Map<string, Record<string, unknown>[]>();
+
+function runArchetypes(spec: ChallengeSpec): Record<string, unknown>[] {
+  const { challengeId: _id, name: _name, sources: _sources, ...rules } = spec;
+  const key = JSON.stringify(rules);
+  const cached = archetypeRuns.get(key);
+  if (cached !== undefined) return cached;
+  const rows = TRADER_ARCHETYPES.map((archetype) =>
+    archetypeSummary(
+      simulate(spec, archetype.profile, {
+        paths: PRECOMPUTED_PATHS,
+        seed: PRECOMPUTED_SEED,
+        includeHistograms: false,
+      }),
+      archetype,
+    ),
+  );
+  archetypeRuns.set(key, rows);
+  return rows;
+}
 
 function archetypeSummary(result: SimResult, archetype: TraderArchetype): Record<string, unknown> {
   return {
@@ -142,30 +183,206 @@ function challengePassRates(
     lastVerified,
     provenance,
     inferredFields,
-    byArchetype: TRADER_ARCHETYPES.map((archetype) =>
-      archetypeSummary(
-        simulate(spec, archetype.profile, {
-          paths: PRECOMPUTED_PATHS,
-          seed: PRECOMPUTED_SEED,
-          includeHistograms: false,
-        }),
-        archetype,
-      ),
-    ),
+    byArchetype: runArchetypes(spec),
   };
   passRateCache.set(key, entry);
   return entry;
 }
 
-function handlePassRates(input: unknown): Promise<CallToolResult> {
+function passRatesFor(adapted: Adapted): Record<string, unknown> {
+  return challengePassRates(
+    adapted.propfirmId,
+    ChallengeSpecSchema.parse(adapted.spec),
+    adapted.provenance,
+    adapted.inferredFields,
+  );
+}
+
+/** The cached entry plus its fees, for the text only (structured content keeps its shape). */
+const feesById = new Map<string, unknown>();
+function withFees(entry: Record<string, unknown>): Record<string, unknown> {
+  return { ...entry, fees: feesById.get(String(entry.challengeId)) };
+}
+
+/*
+  The firm overview (no challengeId, off the Claude address). Simulating every
+  challenge of a large firm takes 10 to 20 seconds: FTMO has 14, three
+  archetypes each, 10,000 paths per run. Most of them are the same rules
+  program at different account sizes, and for those the rules are the same in
+  percentage terms. So the overview computes one challenge per program (the
+  size closest to 100K) for up to three programs, exactly as a challengeId
+  call would, and lists every other challenge by id under its program
+  without numbers. Nothing is estimated: every number shown is a full run.
+*/
+type Adapted = ReturnType<typeof adaptFirm>[number];
+
+/** Rule amounts (targets, limits, payout caps) as a fraction of the account; everything size-free kept as is. */
+function relativeToAccount(value: unknown, accountSize: number, key = ""): unknown {
+  if (typeof value === "number" && (/amount$/i.test(key) || key === "winningDayMinProfit")) return value / accountSize;
+  if (Array.isArray(value)) return value.map((entry) => relativeToAccount(entry, accountSize));
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([k, entry]) => [k, relativeToAccount(entry, accountSize, k)]),
+    );
+  }
+  return value;
+}
+
+/** Same signature = the same rules at another account size (fees and citations aside). */
+function programSignature(adapted: Adapted): string {
+  const spec = ChallengeSpecSchema.parse(adapted.spec);
+  const { challengeId: _id, name: _name, accountSize, fees, sources: _sources, ...rules } = spec;
+  return JSON.stringify({
+    productType: adapted.productType,
+    billing: fees.billing,
+    refundableOnPass: fees.refundableOnPass,
+    rules: relativeToAccount(rules, accountSize),
+  });
+}
+
+/** "FTMO - Normal Challenge - 2-Steps 100K" → "Normal Challenge - 2-Steps". */
+function programLabel(name: string, firmName: string): string {
+  const label = challengeNameWithoutFirm(name.trim(), firmName)
+    .replace(/[\s-]*\$?\d[\d,.]*\s*[kKmM]?\s*$/, "")
+    .trim();
+  return label.length > 0 ? label : name.trim();
+}
+
+type Program = { label: string; representative: Adapted; members: Adapted[] };
+
+function firmPrograms(adapted: Adapted[]): Program[] {
+  const bySignature = new Map<string, Adapted[]>();
+  for (const challenge of adapted) {
+    // The firm's own program name counts too: two programs can encode the same
+    // simulated rules (e.g. differing only in news or weekend terms) and still
+    // be different products.
+    const signature = `${programLabel(challenge.challengeName, challenge.firmName)}\n${programSignature(challenge)}`;
+    bySignature.set(signature, [...(bySignature.get(signature) ?? []), challenge]);
+  }
+  const distance = (challenge: Adapted) => Math.abs(Math.log((challenge.spec.accountSize as number) / 100_000));
+  return [...bySignature.values()]
+    .map((members) => {
+      const sorted = [...members].sort(
+        (a, b) => (a.spec.accountSize as number) - (b.spec.accountSize as number) || a.challengeId.localeCompare(b.challengeId),
+      );
+      const representative = [...sorted].sort(
+        (a, b) => distance(a) - distance(b) || (b.spec.accountSize as number) - (a.spec.accountSize as number),
+      )[0]!;
+      return { label: programLabel(representative.challengeName, representative.firmName), representative, members: sorted };
+    })
+    .sort((a, b) => b.members.length - a.members.length || a.label.localeCompare(b.label));
+}
+
+function feeNote(challenge: Record<string, unknown>): string {
+  const fees = challenge.fees as Parameters<typeof feeWords>[0] | undefined;
+  return fees ? `; ${feeWords(fees, String(challenge.currency)).replace(/^Fee/, "fee")}` : "";
+}
+
+function openText(
+  firmName: string,
+  challenges: Record<string, unknown>[],
+  overview: { programs: Record<string, unknown>[]; notComputed: number } | null,
+): string {
+  const lines: string[] = [];
+  lines.push(
+    `Reference pass rates for ${firmName}, computed live from the directory's encoded rules with the same ` +
+      `engine, seed (${PRECOMPUTED_SEED}), path count (${PRECOMPUTED_PATHS.toLocaleString("en-US")}) and ` +
+      "reference trader archetypes luxalgo.com/prop-firms uses. These are reference odds, not the user's own:",
+  );
+  for (const challenge of challenges) {
+    const byArchetype = challenge.byArchetype as Record<string, unknown>[];
+    lines.push(
+      `${challengeNameWithoutFirm(String(challenge.name), firmName)} (${String(challenge.challengeId)}, ` +
+        `${fmtCurrency(Number(challenge.accountSize), String(challenge.currency))}${feeNote(challenge)}): ` +
+        byArchetype
+          .map(
+            (row) =>
+              `${String(row.archetypeId)} ${Number(row.passPerAttemptPct).toFixed(1)}% per attempt ` +
+              `(average cost across attempts ${fmtCurrency(Number(row.expectedCostUsd), String(challenge.currency))})`,
+          )
+          .join(" | "),
+    );
+    const inferred = challenge.inferredFields as string[];
+    if (inferred.length > 0) {
+      lines.push(`  Rules inferred from listing text (the firm's page is authoritative): ${inferred.join(", ")}.`);
+    }
+    if (challenge.lastVerified !== null) {
+      lines.push(`  Rules last verified ${String(challenge.lastVerified)}.`);
+    }
+  }
+  if (overview) {
+    lines.push(
+      `Firm overview: one account size per rules program, up to ${OVERVIEW_PROGRAMS} programs. Other sizes of a ` +
+        "program have the same rules in percentage terms and their own fees; a challengeId gives any one's exact numbers.",
+    );
+    for (const program of overview.programs) {
+      const others = (program.otherChallengeIds as string[]) ?? [];
+      lines.push(
+        `  ${String(program.program)}: ` +
+          (program.computedChallengeId ? `computed ${String(program.computedChallengeId)}` : "not computed") +
+          (others.length > 0 ? `; other sizes ${others.join(", ")}` : ""),
+      );
+    }
+  }
+  lines.push(
+    "The archetypes span the realistic range, so the best case is not the base case. The user's own " +
+      "statistics go through propfirms_simulate, or propfirms_simulate_trades with their real trades.",
+  );
+  lines.push(DISCLAIMER);
+  return lines.join("\n");
+}
+
+function firmOverview(firm: Parameters<typeof adaptFirm>[0]): CallToolResult {
+  const adapted = adaptFirm(firm);
+  if (adapted.length === 0) {
+    return simError(
+      `No challenge of '${firm.name}' carries rule semantics the engine can adapt honestly. ` +
+        "propfirms_simulate takes an inline `spec` instead.",
+    );
+  }
+  for (const challenge of adapted) feesById.set(challenge.challengeId, ChallengeSpecSchema.parse(challenge.spec).fees);
+  const programs = firmPrograms(adapted);
+  const computed = programs.slice(0, OVERVIEW_PROGRAMS);
+  const challenges = computed.map((program) => passRatesFor(program.representative));
+  const programRows = programs.map((program, index) => ({
+    program: program.label,
+    ...(index < OVERVIEW_PROGRAMS ? { computedChallengeId: program.representative.challengeId } : {}),
+    otherChallengeIds: program.members
+      .filter((member) => index >= OVERVIEW_PROGRAMS || member !== program.representative)
+      .map((member) => member.challengeId),
+  }));
+  const notComputed = adapted.length - computed.length;
+  const firmName = adapted[0]!.firmName;
+  return ok(openText(firmName, challenges.map(withFees), { programs: programRows, notComputed }), {
+    firmId: adapted[0]!.propfirmId,
+    firmName,
+    challenges,
+    overview: {
+      programs: programRows,
+      simulatableChallenges: adapted.length,
+      computedChallenges: computed.length,
+      note:
+        "One account size per rules program; other sizes have the same rules in percentage terms and their own " +
+        "fees. Pass challengeId for any one's exact numbers.",
+    },
+    seed: PRECOMPUTED_SEED,
+    paths: PRECOMPUTED_PATHS,
+    engineVersion: ENGINE_VERSION,
+    disclaimer: DISCLAIMER,
+  });
+}
+
+function handlePassRates(input: unknown, open: boolean): Promise<CallToolResult> {
   return safely(async () => {
     const args = passRatesSchema.parse(input);
     const rows = await fetchDirectory();
     // Throws readable errors listing what actually exists.
     const firm = resolveFirm(rows, args.firmId);
+    if (open && !args.challengeId) return firmOverview(firm);
     const adaptedAll = args.challengeId
       ? [requireAdaptedChallenge(firm, args.challengeId)]
       : adaptFirm(firm);
+    for (const challenge of adaptedAll) feesById.set(challenge.challengeId, ChallengeSpecSchema.parse(challenge.spec).fees);
     if (adaptedAll.length === 0) {
       return simError(
         `No challenge of '${firm.name}' carries rule semantics the engine can adapt honestly. ` +
@@ -173,16 +390,20 @@ function handlePassRates(input: unknown): Promise<CallToolResult> {
       );
     }
 
-    const challenges = adaptedAll.map((adapted) =>
-      challengePassRates(
-        adapted.propfirmId,
-        ChallengeSpecSchema.parse(adapted.spec),
-        adapted.provenance,
-        adapted.inferredFields,
-      ),
-    );
+    const challenges = adaptedAll.map((adapted) => passRatesFor(adapted));
     const firmName = adaptedAll[0]!.firmName;
     const propfirmId = adaptedAll[0]!.propfirmId;
+    if (open) {
+      return ok(openText(firmName, challenges.map(withFees), null), {
+        firmId: propfirmId,
+        firmName,
+        challenges,
+        seed: PRECOMPUTED_SEED,
+        paths: PRECOMPUTED_PATHS,
+        engineVersion: ENGINE_VERSION,
+        disclaimer: DISCLAIMER,
+      });
+    }
 
     const lines: string[] = [];
     lines.push(
@@ -231,6 +452,7 @@ function handlePassRates(input: unknown): Promise<CallToolResult> {
 }
 
 export function registerPassRatesTool(server: McpServer, toolset: Toolset): void {
+  const open = !answersFrozen();
   server.registerTool(
     "propfirms_pass_rates",
     {
@@ -251,10 +473,18 @@ export function registerPassRatesTool(server: McpServer, toolset: Toolset): void
         (toolset === "directory"
           ? "listed challenge prices; full firm profiles are directory data (propfirms_get)."
           : "listed challenge prices; full firm profiles and live offers are directory data " +
-            "(propfirms_get, propfirms_search_offers)."),
+            "(propfirms_get, propfirms_search_offers).") +
+        (open
+          ? " Without challengeId the result is a firm overview: one account size per rules program (up to " +
+            `${OVERVIEW_PROGRAMS} programs) with every other simulatable challenge listed by id; a challengeId ` +
+            "gives that challenge's exact numbers."
+          : ""),
       ),
-      inputSchema: toolset === "directory" ? rewriteSchemaDescriptions(passRatesSchema, directoryCopy) : passRatesSchema,
+      inputSchema: (() => {
+        const schema = open ? passRatesOpenSchema : passRatesSchema;
+        return toolset === "directory" ? rewriteSchemaDescriptions(schema, directoryCopy) : schema;
+      })(),
     },
-    (args: unknown) => handlePassRates(args),
+    (args: unknown) => handlePassRates(args, open),
   );
 }

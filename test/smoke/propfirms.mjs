@@ -40,6 +40,15 @@ export async function run({ client, check, callJson, callStructured }) {
     `${firm.payload.firm?.challenges?.length} challenges, ${firm.payload.firm?.offers?.length} offers`,
   );
   check(
+    "a prop firm's dossier links its LuxAlgo page and says where the left-out FAQ lives",
+    !firm.isError &&
+      firm.payload.firm?.url === `https://www.luxalgo.com/prop-firms/${firmSlug}/` &&
+      !("faq" in (firm.payload.firm?.overview ?? {})) &&
+      !("id" in (firm.payload.firm ?? {})) &&
+      (firm.payload.firm?.omitted ?? []).every((note) => /propfirms_search/.test(note)),
+    `${JSON.stringify(firm.payload).length} B, omitted: ${firm.payload.firm?.omitted?.length ?? 0}`,
+  );
+  check(
     "propfirms_get output is compacted",
     firm.payload.firm?.challenges?.every(
       (c) =>
@@ -93,6 +102,99 @@ export async function run({ client, check, callJson, callStructured }) {
     zeroHit.payload.warnings?.[0]?.slice(0, 80),
   );
 
+  // propfirms_search_challenges — natural queries. The app's text filter is a
+  // substring match, so "FTMO 100K" matched nothing; the size, step count and
+  // firm in the text now map onto the structured filters, and the rows must be
+  // exactly what those filters return.
+  const idsOf = (result) => (result.payload.challenges ?? []).map((c) => c.challengeId).sort().join(",");
+  const structured = async (args) => callJson(client, "propfirms_search_challenges", { ...args, pageQuantity: 100 });
+  const natural = async (text) => callJson(client, "propfirms_search_challenges", { text, pageQuantity: 100 });
+
+  const ftmo100k = await structured({ propfirmId: ["ftmo"], accountSizeMin: 100000, accountSizeMax: 100000 });
+  for (const text of ["FTMO 100K", "ftmo 100000"]) {
+    const found = await natural(text);
+    check(
+      `a trader searching '${text}' finds FTMO's 100K challenges, the same ones the structured filters return`,
+      !found.isError &&
+        found.payload.count > 0 &&
+        idsOf(found) === idsOf(ftmo100k) &&
+        found.payload.challenges.some((c) => c.challengeId === "ftmo-normal-challenge-2-steps-100k"),
+      `${idsOf(found)} (interpretedAs ${JSON.stringify(found.payload.interpretedAs)})`,
+    );
+  }
+
+  const ftmo2step = await natural("FTMO 2-step 100k");
+  const ftmo2stepStructured = await structured({ propfirmId: ["ftmo"], steps: 2, accountSizeMin: 100000, accountSizeMax: 100000 });
+  check(
+    "a trader asking for FTMO 2-step 100k finds that challenge",
+    !ftmo2step.isError &&
+      ftmo2step.payload.challenges?.some((c) => c.challengeId === "ftmo-normal-challenge-2-steps-100k") &&
+      ftmo2step.payload.challenges.every((c) => c.propfirmId === "ftmo" && c.steps === 2 && c.accountSize === 100000) &&
+      idsOf(ftmo2step) === idsOf(ftmo2stepStructured),
+    idsOf(ftmo2step),
+  );
+
+  const the5ers = await natural("the5ers 2 step");
+  const the5ersStructured = await structured({ propfirmId: ["the-5-ers"], steps: 2 });
+  check(
+    "a trader searching 'the5ers 2 step' finds The5ers' two-step challenges",
+    !the5ers.isError &&
+      the5ers.payload.count > 0 &&
+      the5ers.payload.challenges.every((c) => c.propfirmId === "the-5-ers" && c.steps === 2) &&
+      idsOf(the5ers) === idsOf(the5ersStructured),
+    idsOf(the5ers),
+  );
+
+  // Topstep is not in LuxAlgo's prop-firm directory: never mapped onto
+  // another firm, and the answer says so and names the firms that are.
+  const topstep = await natural("Topstep 50k");
+  check(
+    "a search for a firm the directory does not list ('Topstep 50k') says so and names the firms it does list",
+    !topstep.isError &&
+      topstep.payload.count === 0 &&
+      /matches 'Topstep'/.test(topstep.payload.warnings?.[0] ?? "") &&
+      /FTMO \(ftmo\)/.test(topstep.payload.warnings?.[0] ?? ""),
+    topstep.payload.warnings?.[0]?.slice(0, 90),
+  );
+
+  const ftmo300k = await natural("FTMO 2-step 300k");
+  check(
+    "a size the firm does not offer comes back with the sizes it does offer",
+    !ftmo300k.isError && ftmo300k.payload.count === 0 && /2-step [^;]*100K/.test(ftmo300k.payload.warnings?.[0] ?? ""),
+    ftmo300k.payload.warnings?.[0]?.slice(0, 120),
+  );
+
+  const plainFtmo = await natural("FTMO");
+  check(
+    "a text search that already finds challenges answers exactly as the app does",
+    !plainFtmo.isError && plainFtmo.payload.count > 0 && plainFtmo.payload.interpretedAs === undefined,
+    `count=${plainFtmo.payload.count}`,
+  );
+
+  const singleSlug = await callJson(client, "propfirms_search_challenges", { propfirmId: "ftmo", pageQuantity: 100 });
+  const listSlug = await structured({ propfirmId: ["ftmo"] });
+  check(
+    "one firm slug on its own ('ftmo') works the same as a list of one",
+    !singleSlug.isError && singleSlug.payload.count > 0 && idsOf(singleSlug) === idsOf(listSlug),
+    `count=${singleSlug.payload.count}`,
+  );
+
+  // The reviewed ChatGPT test case end to end: search, then simulate what it found.
+  const reviewerChallenge = ftmo2step.payload.challenges?.find((c) => c.challengeId === "ftmo-normal-challenge-2-steps-100k");
+  const reviewerSim = await callStructured(client, "propfirms_simulate", {
+    firmId: reviewerChallenge?.propfirmId ?? "ftmo",
+    challengeId: reviewerChallenge?.challengeId ?? "not-found-by-search",
+    winRate: 0.5,
+    avgWinR: 2,
+    riskValue: 1,
+    tradesPerDay: 2,
+  });
+  check(
+    "a trader asking their odds on the FTMO 2-step 100k gets a simulation of the challenge the search found",
+    !reviewerSim.isError && typeof reviewerSim.data.perAttempt?.passProbability === "number",
+    reviewerSim.isError ? reviewerSim.text.slice(0, 80) : `pass/attempt=${(reviewerSim.data.perAttempt.passProbability * 100).toFixed(1)}%`,
+  );
+
   // propfirms_search_offers — live offers by challenge
   const challengeId = challenges.payload.challenges?.[0]?.challengeId;
   const offers = await callJson(client, "propfirms_search_offers", {
@@ -123,17 +225,30 @@ export async function run({ client, check, callJson, callStructured }) {
    * Simulator tools (prop-firm-sim engine)
    * ------------------------------------------------------------------ */
 
-  // propfirms_list_simulatable — the simulatable universe
+  // propfirms_list_simulatable — the simulatable universe, one line per firm
   const simFirms = await callStructured(client, "propfirms_list_simulatable", {});
+  const listBytes = simFirms.text.length + JSON.stringify(simFirms.data).length;
   check(
-    "propfirms_list_simulatable returns simulatable firms",
+    "the simulatable-firm list is one short line per firm, small enough for a model to read",
     !simFirms.isError &&
       simFirms.data.firms?.length > 0 &&
-      simFirms.data.firms.every((f) => f.firmId && Array.isArray(f.challenges)),
-    `${simFirms.data.firms?.length} firms, first=${simFirms.data.firms?.[0]?.firmId}`,
+      simFirms.data.firms.every((f) => f.firmId && typeof f.simulatableChallenges === "number" && !("challenges" in f)) &&
+      listBytes < 20_000,
+    `${simFirms.data.firms?.length} firms, ${listBytes} B`,
   );
 
-  const simFirm = simFirms.data.firms.find((f) => f.challenges.length >= 2) ?? simFirms.data.firms[0];
+  const summary = simFirms.data.firms.find((f) => f.simulatableChallenges >= 2) ?? simFirms.data.firms[0];
+  const oneFirm = await callStructured(client, "propfirms_list_simulatable", { firmId: summary.name });
+  check(
+    "asking for one firm (by name) lists every one of its simulatable challenges with ids",
+    !oneFirm.isError &&
+      oneFirm.data.firms?.length === 1 &&
+      oneFirm.data.firms[0].firmId === summary.firmId &&
+      oneFirm.data.firms[0].challenges.length === summary.simulatableChallenges &&
+      oneFirm.data.firms[0].challenges.every((c) => oneFirm.text.includes(c.challengeId)),
+    `${summary.firmId}: ${oneFirm.data.firms?.[0]?.challenges?.length} challenges`,
+  );
+  const simFirm = oneFirm.data.firms[0];
   const simChallenge = simFirm.challenges[0];
   const trader = { winRate: 0.48, avgWinR: 1.6, tradesPerDay: 4, riskValue: 1 };
 
@@ -168,6 +283,25 @@ export async function run({ client, check, callJson, callStructured }) {
       typeof sim.data.ev?.evTotal === "number" &&
       sim.data.meta?.seed === 42,
     `pass/attempt=${(passProb * 100).toFixed(1)}%, EV=${Math.round(sim.data.ev?.evTotal)}`,
+  );
+
+  check(
+    "simulation text states facts without instructing the assistant or repeating the firm's name",
+    !sim.isError &&
+      !/relay|present both|to the user/i.test(sim.text) &&
+      !/(^|\n)([^\n]{1,80}?) - \2 - /.test(sim.text) &&
+      /^Assumptions \(\d+ flags\): |^Assumptions: none flagged\./m.test(sim.text),
+    sim.text.split("\n").find((line) => line.startsWith("Assumptions")),
+  );
+  const fees = sim.data.assumptions?.spec?.fees;
+  check(
+    "the cost line names the fee in words, and says when it is refunded on a pass",
+    !sim.isError &&
+      !/expected total cost/.test(sim.text) &&
+      /Fee .+ (per attempt|a month)/.test(sim.text) &&
+      /average cost across attempts/.test(sim.text) &&
+      (fees?.refundableOnPass && fees?.billing !== "monthly" ? /refunded on a pass/.test(sim.text) : true),
+    sim.text.split("\n").find((line) => line.includes("average cost across attempts")),
   );
 
   // determinism: same seed, same numbers
@@ -250,6 +384,32 @@ export async function run({ client, check, callJson, callStructured }) {
     rates.data.challenges?.[0]?.byArchetype
       ?.map((a) => `${a.archetypeId}=${a.passPerAttemptPct.toFixed(1)}%`)
       .join(", "),
+  );
+
+  // propfirms_pass_rates without a challenge — the bounded firm overview
+  const overview = await callStructured(client, "propfirms_pass_rates", { firmId: simFirm.firmId });
+  const programs = overview.data.overview?.programs ?? [];
+  const listedIds = programs.flatMap((p) => [p.computedChallengeId, ...(p.otherChallengeIds ?? [])].filter(Boolean));
+  check(
+    "a firm's pass-rate overview computes at most three programs and lists every other challenge by id",
+    !overview.isError &&
+      overview.data.challenges?.length >= 1 &&
+      overview.data.challenges.length <= 3 &&
+      overview.data.challenges.every((c) => c.byArchetype?.length === 3) &&
+      listedIds.length === simFirm.challenges.length &&
+      new Set(listedIds).size === listedIds.length &&
+      simFirm.challenges.every((c) => listedIds.includes(c.challengeId)) &&
+      !/relay/i.test(overview.text),
+    `${overview.data.challenges?.length} computed of ${listedIds.length}; programs: ${programs.map((p) => p.program).join(" / ")}`,
+  );
+  const computedId = overview.data.challenges?.[0]?.challengeId;
+  const exact = await callStructured(client, "propfirms_pass_rates", { firmId: simFirm.firmId, challengeId: computedId });
+  check(
+    "the overview's numbers are exactly the ones a single-challenge call gives",
+    !exact.isError &&
+      JSON.stringify(exact.data.challenges?.[0]?.byArchetype) ===
+        JSON.stringify(overview.data.challenges?.[0]?.byArchetype),
+    computedId,
   );
 
   // propfirms_validate_strategy — screen against an explicit bar

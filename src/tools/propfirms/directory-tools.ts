@@ -5,12 +5,16 @@
   params mirror the public API contract names exactly; arrays become CSV
   query params and numbers/booleans are stringified at the boundary.
   The simulation tools (propfirms_simulate & co.) live in simulation-tools.ts.
+  One addition off the Claude address: a challenge text search that finds
+  nothing is read as size + steps + firm (challenge-query.ts) and retried
+  with the structured filters.
 */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
-import type { Toolset } from "../../auth/surface.js";
+import { currentSurface, type Toolset } from "../../auth/surface.js";
 import { json, toolError } from "../_shared/result.js";
 import { compact } from "../_shared/format.js";
+import { SITE_ORIGIN } from "../../platform/app-client.js";
 import {
   type PropfirmChallenge,
   type PropfirmFirm,
@@ -19,6 +23,14 @@ import {
   queryPropfirmOffers,
   queryPropfirms,
 } from "./api.js";
+import {
+  describeOfferedChallenges,
+  type FirmRef,
+  formatAccountSize,
+  formatSteps,
+  matchFirms,
+  parseChallengeText,
+} from "./challenge-query.js";
 
 const MAX_LOSS_MODES = [
   "static-initial",
@@ -103,6 +115,54 @@ function withoutOffers(firm: PropfirmFirm): Record<string, unknown> {
   const { offers: _offers, challenges, ...rest } = firm;
   if (!challenges) return rest;
   return { ...rest, challenges: challenges.map(({ offers: _o, ...challenge }) => challenge) };
+}
+
+/*
+  propfirms_get off the Claude address (_shared/surface.ts): a firm's dossier
+  without what a model does not need to answer from it. Each challenge
+  repeats its firm's ids and name (already on the firm); the internal row id,
+  logo and visibility flag are site plumbing; the overview's FAQ restates the
+  rules and payout policy sections; bold markers are layout. Everything left
+  out stays reachable: the FAQ through propfirms_search with include
+  ['overview'].
+*/
+const FIRM_PLUMBING = ["id", "logoImageUrl", "isVisible"] as const;
+const CHALLENGE_PARENT_FIELDS = ["firmId", "propfirmId", "propfirmName"] as const;
+
+function withoutBold(value: unknown): unknown {
+  if (typeof value === "string") return value.replace(/\*\*/g, "");
+  if (Array.isArray(value)) return value.map(withoutBold);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, withoutBold(entry)]));
+  }
+  return value;
+}
+
+function trimDossier(firm: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...firm };
+  for (const key of FIRM_PLUMBING) delete out[key];
+  if (Array.isArray(out.challenges)) {
+    out.challenges = (out.challenges as Record<string, unknown>[]).map((challenge) => {
+      const row = { ...challenge };
+      for (const key of CHALLENGE_PARENT_FIELDS) delete row[key];
+      return row;
+    });
+  }
+  const omitted: string[] = [];
+  if (out.overview !== null && typeof out.overview === "object") {
+    const { faq, ...overview } = out.overview as Record<string, unknown>;
+    out.overview = withoutBold(overview);
+    if (faq !== undefined && faq !== null) {
+      omitted.push(
+        `overview.faq (it restates the rules and payout policy): propfirms_search with propfirmId ['${String(firm.propfirmId)}'] and include ['overview'] returns it`,
+      );
+    }
+  }
+  return {
+    ...out,
+    url: `${SITE_ORIGIN}/prop-firms/${encodeURIComponent(String(firm.propfirmId))}/`,
+    ...(omitted.length > 0 ? { omitted } : {}),
+  };
 }
 
 /**
@@ -248,8 +308,169 @@ const offerPropertyShape = {
     .describe("When true, ended offers are not hidden (default false)"),
 };
 
+/* ------------------------------------------------------------------ *
+ * Natural challenge queries (challenge-query.ts) — not on the Claude address
+ * ------------------------------------------------------------------ */
+
+type ChallengeSearchArgs = Record<string, unknown>;
+
+function challengePayload({ challenges, count }: { challenges: PropfirmChallenge[]; count: number }) {
+  const { challenges: rows, offers, lifted } = liftChallengeOffers(challenges);
+  return { count, challenges: rows, ...(lifted ? { offers } : {}) };
+}
+
+function hasIds(value: unknown): boolean {
+  return Array.isArray(value) ? value.length > 0 : typeof value === "string" && value.length > 0;
+}
+
+function idsOf(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((id): id is string => typeof id === "string");
+  return typeof value === "string" && value ? [value] : [];
+}
+
+/** Every visible firm's slug and name (the directory has a few dozen). */
+async function listFirms(): Promise<FirmRef[]> {
+  const firms: FirmRef[] = [];
+  for (let pageIndex = 0; pageIndex < 10; pageIndex++) {
+    const page = await queryPropfirms({ pageQuantity: "100", pageIndex: String(pageIndex) });
+    firms.push(...page.firms.map(({ propfirmId, name }) => ({ propfirmId, name })));
+    if (page.firms.length < 100 || firms.length >= page.count) break;
+  }
+  return firms;
+}
+
+type Interpretation = {
+  /** Structured filters to try in order, each in place of `text`; the first with rows wins. */
+  candidates: ChallengeSearchArgs[];
+  /** The firms the text names, when it names one in the directory. */
+  firms: FirmRef[];
+  /** The text left after size and steps when it names no firm in the directory. */
+  unknownFirm?: string;
+};
+
+/**
+ * Reads a text query that matched nothing as account size + step count +
+ * firm. Filters the caller set explicitly always win over what the text says.
+ */
+async function interpret(args: ChallengeSearchArgs): Promise<Interpretation> {
+  const text = typeof args.text === "string" ? args.text.trim() : "";
+  if (!text) return { candidates: [], firms: [] };
+  const parsed = parseChallengeText(text);
+  const filters: ChallengeSearchArgs = {};
+  if (parsed.accountSize !== undefined && args.accountSizeMin === undefined && args.accountSizeMax === undefined) {
+    filters.accountSizeMin = parsed.accountSize;
+    filters.accountSizeMax = parsed.accountSize;
+  }
+  if (parsed.steps !== undefined && args.steps === undefined && args.stepsMin === undefined && args.stepsMax === undefined) {
+    filters.steps = parsed.steps;
+  }
+
+  const candidates: ChallengeSearchArgs[] = [];
+  // The app's own text match on what is left ("FTMO" of "FTMO 100K").
+  if (Object.keys(filters).length > 0) candidates.push(parsed.rest ? { ...filters, text: parsed.rest } : filters);
+  if (!parsed.rest || hasIds(args.propfirmId)) return { candidates, firms: [] };
+
+  // Else the firm the words name ("the 5ers", "funding pips", "ftmo swing").
+  const match = matchFirms(parsed.rest, await listFirms());
+  if (!match) return { candidates, firms: [], unknownFirm: parsed.rest };
+  const propfirmId = match.firms.map((firm) => firm.propfirmId);
+  if (match.leftover && args.challengeName === undefined) {
+    candidates.push({ ...filters, propfirmId, challengeName: match.leftover });
+  }
+  candidates.push({ ...filters, propfirmId });
+  return { candidates, firms: match.firms };
+}
+
+/** "2-step 100K" from the effective size and step filters, or "" when neither is exact. */
+function wantedLabel(args: ChallengeSearchArgs): string {
+  const parts: string[] = [];
+  if (typeof args.steps === "number") parts.push(formatSteps(args.steps));
+  if (typeof args.accountSizeMin === "number" && args.accountSizeMin === args.accountSizeMax) {
+    parts.push(formatAccountSize(args.accountSizeMin));
+  }
+  return parts.join(" ");
+}
+
+/** What to say when nothing matched: the firm is not listed, or what the firm does list. */
+async function noMatchHints(args: ChallengeSearchArgs, interpretation: Interpretation): Promise<string[]> {
+  const effective = { ...args, ...(interpretation.candidates.at(-1) ?? {}) };
+  const wanted = wantedLabel(effective);
+  if (interpretation.unknownFirm !== undefined) {
+    // The words may name challenges rather than a firm ("swing 300k"): say what they do match.
+    if (interpretation.candidates.length > 0) {
+      const byText = await queryPropfirmChallenges({ text: interpretation.unknownFirm, pageQuantity: "100" });
+      if (byText.count > 0) {
+        return [
+          `No ${wanted ? `${wanted} ` : ""}challenge matches '${interpretation.unknownFirm}' with these filters. ` +
+            `What matches '${interpretation.unknownFirm}' (steps, account sizes): ` +
+            `${describeOfferedChallenges(byText.challenges).slice(0, 5).join(" | ")}.`,
+        ];
+      }
+    }
+    const firms = await listFirms();
+    return [
+      `No prop firm or challenge in LuxAlgo's prop-firm directory matches '${interpretation.unknownFirm}'. ` +
+        `Firms listed: ${firms.map((firm) => `${firm.name} (${firm.propfirmId})`).join(", ")}. ` +
+        "Pass a slug as propfirmId, with accountSizeMin/accountSizeMax and steps for the account size and step count.",
+    ];
+  }
+  const firmIds = interpretation.firms.length > 0
+    ? interpretation.firms.map((firm) => firm.propfirmId)
+    : idsOf(args.propfirmId);
+  if (firmIds.length === 0 || firmIds.length > 3) return [];
+  const listed = await queryPropfirmChallenges({ propfirmId: firmIds.join(","), pageQuantity: "100" });
+  if (listed.count === 0) {
+    return [`No visible prop firm has the slug ${firmIds.map((id) => `'${id}'`).join(", ")}. Find slugs with propfirms_search.`];
+  }
+  return [
+    `No ${wanted ? `${wanted} ` : ""}challenge matches these filters. ` +
+      `What ${firmIds.length === 1 ? "this firm lists" : "these firms list"} (steps, account sizes): ` +
+      `${describeOfferedChallenges(listed.challenges).join(" | ")}.`,
+  ];
+}
+
+/**
+ * propfirms_search_challenges off the Claude address. The caller's filters go
+ * to the app as-is first, so every query that finds rows today answers
+ * exactly as before. Only an empty answer to a text query is read as
+ * size + steps + firm and retried with those structured filters (reported
+ * as `interpretedAs`); if that is empty too, the result says why.
+ */
+async function searchChallenges(args: ChallengeSearchArgs): Promise<Record<string, unknown>> {
+  const asked = await queryPropfirmChallenges(toQuery(args));
+  if (asked.count > 0) return challengePayload(asked);
+
+  const interpretation = await interpret(args);
+  for (const candidate of interpretation.candidates) {
+    const retried = await queryPropfirmChallenges(toQuery({ ...args, text: undefined, ...candidate }));
+    if (retried.count > 0) return { ...challengePayload(retried), interpretedAs: candidate };
+  }
+  const warnings = [...(zeroResultWarnings(args) ?? []), ...(await noMatchHints(args, interpretation))];
+  return { ...challengePayload(asked), warnings: warnings.length > 0 ? warnings : undefined };
+}
+
+/**
+ * An id filter that takes a list or a single id ('ftmo' as well as
+ * ['ftmo']). A widening of the list-only field: every call valid before is
+ * still valid. toQuery sends either form as the same CSV.
+ */
+function idListOrOne(description: string) {
+  return z.union([z.array(z.string()), z.string()]).optional().describe(description);
+}
+
 export function registerPropfirmTools(server: McpServer, toolset: Toolset) {
   const withOffers = toolset !== "directory";
+  /*
+    The Claude address is frozen while its directory review is open: there
+    the tools keep their reviewed definitions and results byte for byte
+    (test/smoke/claude-freeze.mjs). Everywhere else, ids may be passed on
+    their own and challenge searches read natural queries (searchChallenges).
+    Read at registration: hosted servers are built inside the request's surface.
+  */
+  const frozen = currentSurface().kind === "claude";
+  // Spread after the shapes that define these keys: same position, wider type.
+  const singleFirmId = frozen ? {} : { propfirmId: idListOrOne("Public firm slugs, e.g. ['ftmo']") };
+  const singleChallengeId = frozen ? {} : { challengeId: idListOrOne("Public challenge ids") };
   server.registerTool(
     "propfirms_search",
     {
@@ -292,6 +513,8 @@ export function registerPropfirmTools(server: McpServer, toolset: Toolset) {
           : {}),
         ...challengePropertyShape,
         ...(withOffers ? offerPropertyShape : {}),
+        ...singleFirmId,
+        ...singleChallengeId,
         include: z
           .array(withOffers ? z.enum(["challenges", "offers", "overview"]) : z.enum(["challenges", "overview"]))
           .optional()
@@ -332,7 +555,8 @@ export function registerPropfirmTools(server: McpServer, toolset: Toolset) {
           `Unknown prop firm slug '${propfirmId}'. Find slugs with propfirms_search.`,
         );
       }
-      return json(compact({ firm: withOffers ? liftFirmOffers(firm) : withoutOffers(firm) }));
+      const dossier = withOffers ? liftFirmOffers(firm) : withoutOffers(firm);
+      return json(compact({ firm: frozen ? dossier : trimDossier(dossier) }));
     },
   );
 
@@ -354,6 +578,8 @@ export function registerPropfirmTools(server: McpServer, toolset: Toolset) {
           .describe("Case-insensitive search over challenge name and firm name/slug"),
         ...challengePropertyShape,
         ...firmParentShape,
+        ...singleFirmId,
+        ...singleChallengeId,
         ...(withOffers
           ? {
               include: z
@@ -370,6 +596,7 @@ export function registerPropfirmTools(server: McpServer, toolset: Toolset) {
       }),
     },
     async (args) => {
+      if (!frozen) return json(compact(await searchChallenges(args)));
       const { challenges, count } = await queryPropfirmChallenges(toQuery(args));
       const { challenges: rows, offers, lifted } = liftChallengeOffers(challenges);
       const warnings = count === 0 ? zeroResultWarnings(args) : undefined;
@@ -394,13 +621,11 @@ export function registerPropfirmTools(server: McpServer, toolset: Toolset) {
           .string()
           .optional()
           .describe("Case-insensitive search over promo code, descriptions, and firm name/slug"),
-        propfirmId: z.array(z.string()).optional().describe("Public firm slugs, e.g. ['ftmo']"),
-        challengeId: z
-          .array(z.string())
-          .optional()
-          .describe(
-            "Public challenge ids; an offer matches when it applies to at least one (all-challenges offers match that firm's challenges)",
-          ),
+        // Never on the Claude address (no offers there), so always the widened ids.
+        propfirmId: idListOrOne("Public firm slugs, e.g. ['ftmo']"),
+        challengeId: idListOrOne(
+          "Public challenge ids; an offer matches when it applies to at least one (all-challenges offers match that firm's challenges)",
+        ),
         ...offerPropertyShape,
         isActive: z
           .boolean()
