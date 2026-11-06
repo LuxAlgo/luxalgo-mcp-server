@@ -62,10 +62,13 @@ export async function run({ client, check, callJson, callStructured, httpUrl, ra
     "broker_stats",
     "broker_refresh",
   ];
-  const expectedAll = httpUrl ? expected : [...expected, ...brokerExpected];
+  // The live chart tools are opt-in (LUXALGO_CHART_TOOLS=on or a Vercel preview): all three or none.
+  const chartExpected = ["chart_open", "chart_command", "chart_sync"];
+  const chartOn = tools.some((t) => t.name.startsWith("chart_"));
+  const expectedAll = [...expected, ...(httpUrl ? [] : brokerExpected), ...(chartOn ? chartExpected : [])];
   const names = tools.map((t) => t.name).sort();
   check(
-    `tools/list exposes exactly the ${expectedAll.length} ${httpUrl ? "hosted" : "stdio"} tools`,
+    `tools/list exposes exactly the ${expectedAll.length} ${httpUrl ? "hosted" : "stdio"} tools${chartOn ? " (chart tools on)" : ""}`,
     names.length === expectedAll.length && expectedAll.slice().sort().every((n, i) => names[i] === n),
     names.join(", "),
   );

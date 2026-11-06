@@ -177,6 +177,27 @@ import { appGet, appSend, AppAuthError, AppPermissionError, isNotFound } from ".
 
 Nothing else in `src/auth/` is for tools. In particular, do not import `currentAccess`/`runWithAccess`, `verifyAccessToken`, anything from `auth/local/`, or `config.ts` constants.
 
+### 7a. The one exception: live chart sessions
+
+`appSendChartSession(pathname, { body?, sessionKey?, query? })` and `appGetChartSession(pathname, { sessionKey, query? })` are the only anonymous write path to the app. They exist for the chart tools (`tools/chart/`) and nothing else, approved by a maintainer for exactly this.
+
+**Why it is safe.** A chart session is not user data. It is a short queue of chart edits (market, indicators, levels, zones, range) and a words-level state the chart view reports, and it is reachable only with one of two random keys the app mints when it creates the session: the write key queues edits, the read key follows the chart and reports its state. The key is the capability; there is no user to check, so nothing here decides anything about a user (§1 still holds). The app refuses everything it does not like with a 404, including when its chart sessions are switched off.
+
+**What the helpers allow, and nothing more:**
+
+| Route (path only) | Method | Credentials sent |
+|---|---|---|
+| `/api/chart-sessions` (create) | POST | the caller's token **when one is present** (the app records who opened the chart); never required |
+| `/api/chart-sessions/{id}/commands` | POST | `x-chart-session-key: <write key>`, no token |
+| `/api/chart-sessions/{id}/state` | POST | `x-chart-session-key: <read key>`, no token |
+| `/api/chart-sessions/{id}` | GET | `x-chart-session-key: <read or write key>`, no token |
+
+Any other pathname, or a method a route does not take, throws before a request goes out; every call after the create needs its key; no call follows a redirect, so a key never leaves for another origin. `appSend` is unchanged and still has no anonymous form.
+
+**Where the keys go.** The model gets the write key inside the `chart_id` (`a.<id>.<write key>`): it changes that one chart and nothing else, and it lets a stateless server find the chart again. The read key goes only to the chart view, in the `chart_open` result's `_meta`, never in `content` or `structuredContent`; the view passes it back on `chart_sync` and uses it for "Open in Vela", which then follows the same chart. Keys are never logged or printed. When the app does not offer chart sessions (404) or cannot be reached, the chart lives in the server's memory instead (`tools/chart/backend.ts`).
+
+The smoke suite's `chart` checks hold this line: the helpers refuse every other route and forward a token only on the create.
+
 ---
 
 ## 8. Recipes
@@ -288,7 +309,8 @@ src/auth/
   instrument.ts      instrumentToolRegistration (ambient token + error mapping), advertiseSecuritySchemes
   protected-tool.ts  registerProtectedTool
   local/             the stdio process as an OAuth client: cli, login (PKCE + loopback), provider, runtime, store
-src/platform/app-client.ts   appGet / appSend — the only HTTP client for the app; attaches the ambient token; types 401/403
+src/platform/app-client.ts   appGet / appSend — the only HTTP client for the app; attaches the ambient token; types 401/403;
+                             appSendChartSession / appGetChartSession — the keyed chart-session routes only (§7a)
 src/server/manifest.ts       TOOL_MODULES → PROTECTED_TOOL_NAMES, local-only modules
 src/server/create-server.ts  registration order: analytics → instrument → modules (asserted) → securitySchemes
 public/oauth/client.json     Client ID Metadata Document identifying the local client

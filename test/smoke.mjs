@@ -9,7 +9,8 @@
   `discovery` (OAuth discovery on the standard and the Claude host), and
   `claude-surface` (the Claude address stays frozen; over stdio it starts the
   node-http entry on a free port itself), and
-  `answers-surfaces` (the Claude address keeps its reviewed answers). Run a subset with
+  `answers-surfaces` (the Claude address keeps its reviewed answers), and
+  `chart` (the opt-in live charts and their chart-session client). Run a subset with
   --only <suite>[,<suite>], e.g. `node test/smoke.mjs --only library,edge`.
 */
 import { Client } from "@modelcontextprotocol/client";
@@ -34,6 +35,8 @@ const stdioEnv = {
   ...getDefaultEnvironment(),
   ...networkEnvironment(),
   LUXALGO_MCP_AUTH_FILE: join(tmpdir(), "luxalgo-mcp-smoke-no-login", "absent.json"),
+  // The opt-in chart tools, when this run asks for them.
+  ...(process.env.LUXALGO_CHART_TOOLS ? { LUXALGO_CHART_TOOLS: process.env.LUXALGO_CHART_TOOLS } : {}),
 };
 
 /**
@@ -150,6 +153,8 @@ const suites = [
   ["claude-freeze", () => import("./smoke/claude-freeze.mjs"), { stdioOnly: true }],
   ["trackers", () => import("./smoke/trackers.mjs")],
   ["edge", () => import("./smoke/edge.mjs")],
+  // Opt-in live charts; starts its own node-http entry and a stand-in for the app's chart-session routes.
+  ["chart", () => import("./smoke/chart.mjs")],
   ["answers-surfaces", () => import("./smoke/answers-surfaces.mjs"), { httpOnly: true }],
 ];
 
