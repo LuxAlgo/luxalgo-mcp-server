@@ -4,6 +4,12 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+### Fixed
+
+- `propfirms_search_challenges` finds challenges for natural queries such as "FTMO 100K", "FTMO 2-step 100k", "ftmo 100000" or "the5ers 2 step", which matched nothing because the app's `text` filter is a plain substring match. When a text search comes back empty, the account size (100k, 12.5K, 1M, 100000), step count (2-step, two phase, instant) and firm in the text are mapped onto the existing structured filters (`accountSizeMin`/`accountSizeMax`, `steps`, `propfirmId`, `challengeName`), so the rows are exactly what those filters return, and the result says how it read the query (`interpretedAs`). Searches that already found rows answer exactly as before. When nothing matches, the result says why: a firm the directory does not list (with the firms it does), or the steps and account sizes the firm offers.
+- `propfirmId` and `challengeId` accept a single id (`"ftmo"`) as well as a list (`["ftmo"]`) on `propfirms_search`, `propfirms_search_challenges` and `propfirms_search_offers`. The schema only widens: every call valid before stays valid.
+- Both apply on `/mcp`, `/mcp/openai` and stdio. The Claude host keeps its reviewed definitions and results byte for byte while its directory review is open; a `claude-freeze` smoke suite checks them against `test/smoke/fixtures/claude-propfirms-tools.json`.
+
 ## [2.1.0] - 2026-10-25
 
 ### Changed

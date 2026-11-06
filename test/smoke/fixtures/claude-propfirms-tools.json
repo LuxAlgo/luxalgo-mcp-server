@@ -1,0 +1,491 @@
+[
+  {
+    "name": "propfirms_search",
+    "title": "Search prop firms",
+    "description": "Search LuxAlgo's prop-firm catalog (proprietary trading firms offering funded accounts). Combine firm filters (platforms, markets, payment/payout methods, country availability, Trustpilot, year founded) with nested challenge filters (account size, price, steps, profit split, trading rules) — a firm matches when at least one of its challenges matches all of them. Omit every filter to list all firms. Use include to nest the matching challenges and the written overview; for one firm's full dossier prefer propfirms_get. Uncaptured (null) fields are omitted from results. This tool returns directory data (what exists and on what terms), not outcomes: for simulated pass odds on a challenge found here, use propfirms_pass_rates or propfirms_simulate with its firm and challenge ids.",
+    "inputSchema": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "text": {
+          "description": "Case-insensitive search over firm name and slug, e.g. 'ftmo'",
+          "type": "string"
+        },
+        "propfirmId": {
+          "description": "Public firm slugs, e.g. ['ftmo']",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "productTypes": {
+          "description": "Product types the firm must offer at least one of, e.g. 'CFD', 'Futures'",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tradedMarketTypes": {
+          "description": "Markets the firm must offer at least one of, e.g. 'forex', 'indices', 'commodities'",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tradingPlatforms": {
+          "description": "Platforms the firm must offer at least one of, e.g. 'MT5', 'cTrader', 'TradingView'",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "isPreferredPartner": {
+          "description": "Only LuxAlgo preferred-partner firms when true",
+          "type": "boolean"
+        },
+        "availableIn": {
+          "description": "Country names the firm must NOT restrict, e.g. ['United States']",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "paymentMethods": {
+          "description": "Payment methods the firm must accept at least one of, e.g. 'Crypto', 'PayPal'",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "payoutMethods": {
+          "description": "Payout methods the firm must offer at least one of, e.g. 'Bank Transfer', 'Crypto'",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "countryIso2": {
+          "description": "ISO-2 headquarters countries, e.g. ['GB', 'US']",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "currency": {
+          "description": "Account currencies, e.g. ['usd', 'eur']",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "minTrustPilotScore": {
+          "description": "Minimum Trustpilot score",
+          "type": "number"
+        },
+        "minTrustPilotCount": {
+          "description": "Minimum Trustpilot review count",
+          "type": "number"
+        },
+        "minYearFounded": {
+          "description": "Inclusive minimum year founded",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "maxYearFounded": {
+          "description": "Inclusive maximum year founded",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "challengeId": {
+          "description": "Public challenge ids",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "challengeName": {
+          "description": "Case-insensitive substring of the challenge name",
+          "type": "string"
+        },
+        "accountSizeMin": {
+          "description": "Minimum account size (inclusive)",
+          "type": "number"
+        },
+        "accountSizeMax": {
+          "description": "Maximum account size (inclusive)",
+          "type": "number"
+        },
+        "steps": {
+          "description": "Exact evaluation step count (1 = instant/funded, 2 = two-step, …)",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "stepsMin": {
+          "description": "Minimum step count (ignored when steps is set)",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "stepsMax": {
+          "description": "Maximum step count (ignored when steps is set)",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "priceMin": {
+          "description": "Minimum challenge fee (inclusive)",
+          "type": "number"
+        },
+        "priceMax": {
+          "description": "Maximum challenge fee (inclusive)",
+          "type": "number"
+        },
+        "profitSplitMin": {
+          "description": "Minimum trader profit-split percent",
+          "type": "number"
+        },
+        "maxLeverageMin": {
+          "description": "Minimum max leverage",
+          "type": "number"
+        },
+        "minTradingDaysMax": {
+          "description": "Maximum required minimum trading days (finds less-strict challenges)",
+          "type": "number"
+        },
+        "dailyLossMax": {
+          "description": "Upper bound on the daily-loss limit magnitude (smaller = stricter)",
+          "type": "number"
+        },
+        "maxLossMax": {
+          "description": "Upper bound on the overall-loss limit magnitude",
+          "type": "number"
+        },
+        "maxLossMode": {
+          "description": "Drawdown modes; challenges without a captured mode never match",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "static-initial",
+              "trailing-realized-eod",
+              "trailing-intraday-unrealized"
+            ]
+          }
+        },
+        "newsTrading": {
+          "description": "Whether news trading is allowed",
+          "type": "boolean"
+        },
+        "copyTrading": {
+          "description": "Whether copy trading is allowed",
+          "type": "boolean"
+        },
+        "autoTrading": {
+          "description": "Whether automated trading (EAs/bots) is allowed",
+          "type": "boolean"
+        },
+        "weekendHolding": {
+          "description": "Whether holding over the weekend is allowed",
+          "type": "boolean"
+        },
+        "overnightHolding": {
+          "description": "Whether holding overnight is allowed",
+          "type": "boolean"
+        },
+        "stoplossRequired": {
+          "description": "Whether a stop loss is required",
+          "type": "boolean"
+        },
+        "isFeeRefundable": {
+          "description": "Whether the challenge fee is refundable",
+          "type": "boolean"
+        },
+        "interval": {
+          "description": "Challenge fee intervals, e.g. 'one-time', 'monthly'",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "include": {
+          "description": "Extra payloads to nest on each firm (only children matching the filters are returned)",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "challenges",
+              "overview"
+            ]
+          }
+        },
+        "sort": {
+          "description": "Sort key (default name)",
+          "type": "string",
+          "enum": [
+            "name",
+            "yearFounded",
+            "reviewsTrustPilotScore",
+            "reviewsTrustPilotCount"
+          ]
+        },
+        "pageIndex": {
+          "description": "0-based page index (default 0)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "pageQuantity": {
+          "description": "Page size (default 50, max 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "direction": {
+          "description": "Sort direction; each sort key has a sensible default",
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ]
+        }
+      }
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true,
+      "title": "Search prop firms"
+    }
+  },
+  {
+    "name": "propfirms_get",
+    "title": "Get a prop firm",
+    "description": "One prop firm's full dossier by slug: general profile (platforms, markets, payments, Trustpilot, restricted countries), every challenge with its rules, and the written overview (about, rules, payout policy, FAQ). Find slugs with propfirms_search. Uncaptured (null) fields are omitted. For simulated pass odds on this firm's challenges (reference archetypes, same engine as luxalgo.com/prop-firms), use propfirms_pass_rates.",
+    "inputSchema": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "propfirmId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Public firm slug, e.g. 'ftmo'"
+        }
+      },
+      "required": [
+        "propfirmId"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true,
+      "title": "Get a prop firm"
+    }
+  },
+  {
+    "name": "propfirms_search_challenges",
+    "title": "Search prop-firm challenges",
+    "description": "Search funded-account challenges across all visible prop firms. Filter by challenge rules (account size, fee, steps, profit split, drawdown mode, news/copy/auto trading, weekend holding, …) and by parent-firm properties. Pass propfirmId to list one firm's challenges, or challengeId to fetch specific ones. Uncaptured (null) rule fields are omitted from results and never match filters. This returns each challenge's listed rules and terms, not outcomes: to simulate a challenge found here pass its ids to propfirms_simulate or propfirms_pass_rates, and to screen one strategy across many challenges at once use propfirms_validate_strategy.",
+    "inputSchema": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "text": {
+          "description": "Case-insensitive search over challenge name and firm name/slug",
+          "type": "string"
+        },
+        "challengeId": {
+          "description": "Public challenge ids",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "challengeName": {
+          "description": "Case-insensitive substring of the challenge name",
+          "type": "string"
+        },
+        "accountSizeMin": {
+          "description": "Minimum account size (inclusive)",
+          "type": "number"
+        },
+        "accountSizeMax": {
+          "description": "Maximum account size (inclusive)",
+          "type": "number"
+        },
+        "steps": {
+          "description": "Exact evaluation step count (1 = instant/funded, 2 = two-step, …)",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "stepsMin": {
+          "description": "Minimum step count (ignored when steps is set)",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "stepsMax": {
+          "description": "Maximum step count (ignored when steps is set)",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "priceMin": {
+          "description": "Minimum challenge fee (inclusive)",
+          "type": "number"
+        },
+        "priceMax": {
+          "description": "Maximum challenge fee (inclusive)",
+          "type": "number"
+        },
+        "profitSplitMin": {
+          "description": "Minimum trader profit-split percent",
+          "type": "number"
+        },
+        "maxLeverageMin": {
+          "description": "Minimum max leverage",
+          "type": "number"
+        },
+        "minTradingDaysMax": {
+          "description": "Maximum required minimum trading days (finds less-strict challenges)",
+          "type": "number"
+        },
+        "dailyLossMax": {
+          "description": "Upper bound on the daily-loss limit magnitude (smaller = stricter)",
+          "type": "number"
+        },
+        "maxLossMax": {
+          "description": "Upper bound on the overall-loss limit magnitude",
+          "type": "number"
+        },
+        "maxLossMode": {
+          "description": "Drawdown modes; challenges without a captured mode never match",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "static-initial",
+              "trailing-realized-eod",
+              "trailing-intraday-unrealized"
+            ]
+          }
+        },
+        "newsTrading": {
+          "description": "Whether news trading is allowed",
+          "type": "boolean"
+        },
+        "copyTrading": {
+          "description": "Whether copy trading is allowed",
+          "type": "boolean"
+        },
+        "autoTrading": {
+          "description": "Whether automated trading (EAs/bots) is allowed",
+          "type": "boolean"
+        },
+        "weekendHolding": {
+          "description": "Whether holding over the weekend is allowed",
+          "type": "boolean"
+        },
+        "overnightHolding": {
+          "description": "Whether holding overnight is allowed",
+          "type": "boolean"
+        },
+        "stoplossRequired": {
+          "description": "Whether a stop loss is required",
+          "type": "boolean"
+        },
+        "isFeeRefundable": {
+          "description": "Whether the challenge fee is refundable",
+          "type": "boolean"
+        },
+        "interval": {
+          "description": "Challenge fee intervals, e.g. 'one-time', 'monthly'",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "propfirmId": {
+          "description": "Public firm slugs, e.g. ['ftmo']",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "productTypes": {
+          "description": "Product types the firm must offer at least one of, e.g. 'CFD', 'Futures'",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tradedMarketTypes": {
+          "description": "Markets the firm must offer at least one of, e.g. 'forex', 'indices', 'commodities'",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tradingPlatforms": {
+          "description": "Platforms the firm must offer at least one of, e.g. 'MT5', 'cTrader', 'TradingView'",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "isPreferredPartner": {
+          "description": "Only LuxAlgo preferred-partner firms when true",
+          "type": "boolean"
+        },
+        "availableIn": {
+          "description": "Country names the firm must NOT restrict, e.g. ['United States']",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sort": {
+          "description": "Sort key (default accountSize descending)",
+          "type": "string",
+          "enum": [
+            "challengeName",
+            "accountSize",
+            "price",
+            "steps",
+            "profitSplitPercent"
+          ]
+        },
+        "pageIndex": {
+          "description": "0-based page index (default 0)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "pageQuantity": {
+          "description": "Page size (default 50, max 100)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "direction": {
+          "description": "Sort direction; each sort key has a sensible default",
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ]
+        }
+      }
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": true,
+      "title": "Search prop-firm challenges"
+    }
+  }
+]

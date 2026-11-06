@@ -247,7 +247,7 @@ The live directory the simulator draws from, queryable directly:
 | --- | --- |
 | `propfirms_search` | Search firms; firm filters (platforms, markets, payments, Trustpilot, country availability) compose with nested challenge and offer filters, and `include` nests matching children |
 | `propfirms_get` | One firm's full dossier: profile, every challenge, live offers, written overview |
-| `propfirms_search_challenges` | Search challenges by rules (size, fee, steps, profit split, drawdown, trading restrictions) and parent firm; can attach applicable live offers |
+| `propfirms_search_challenges` | Search challenges by rules (size, fee, steps, profit split, drawdown, trading restrictions) and parent firm; natural queries such as "FTMO 2-step 100k" work; can attach applicable live offers |
 | `propfirms_search_offers` | Current discounts and promo codes, resolvable per firm or per challenge |
 
 ## Charts, in your browser, with Vela
