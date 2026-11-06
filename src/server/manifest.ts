@@ -22,6 +22,7 @@ import { edgeModule } from "../tools/edge/index.js";
 import { accountModule } from "../tools/account/index.js";
 import { journalModule } from "../tools/journal/index.js";
 import { brokerModule } from "../tools/broker/index.js";
+import { chartModule, chartToolsEnabled } from "../tools/chart/index.js";
 
 /** Registration order is tools/list order. */
 export const TOOL_MODULES: readonly ToolModule[] = [
@@ -32,6 +33,8 @@ export const TOOL_MODULES: readonly ToolModule[] = [
   accountModule,
   journalModule,
   brokerModule,
+  // Spike: live charts (MCP Apps) stay off unless LUXALGO_CHART_TOOLS=on or VERCEL_ENV=preview.
+  ...(chartToolsEnabled() ? [chartModule] : []),
 ];
 
 export const PROTECTED_TOOL_NAMES: ReadonlySet<string> = new Set(
