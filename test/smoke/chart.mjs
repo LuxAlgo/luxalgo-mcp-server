@@ -3,7 +3,9 @@
 
   1. The chart-session helpers in platform/app-client.ts, in process with a
      stubbed fetch: they refuse every route but the app's chart-session ones,
-     and forward the caller's sign-in only when a session is created.
+     and forward the caller's sign-in only when a session is created. And the
+     one place that decides whether the model may read numbers off a chart:
+     only providers whose candles come from an exchange's public feed.
   2. The server under test, when it lists the chart tools: chart_open,
      chart_command and the view's chart_sync work end to end. While the app
      does not offer chart sessions (it answers 404) this is the in-memory
@@ -24,6 +26,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function run({ client, check }) {
   await helperChecks(check);
+  await numbersPolicyChecks(check);
 
   const { tools } = await client.listTools();
   if (!tools.some((t) => t.name === "chart_open")) {
@@ -117,27 +120,73 @@ async function helperChecks(check) {
   }
 }
 
+async function numbersPolicyChecks(check) {
+  const { numbersAllowedFor, parseMarket } = await import("../../dist/tools/chart/market.js");
+  const exchangeFed = ["hyperliquid", "binance"];
+  const others = ["polygon", "databento", "cme", "nasdaq", "nyse", "alpaca", "tradestation", "coinbase", "vendor", "", "BINANCE", "constructor", "__proto__", "toString"];
+  check(
+    "the model may read numbers off a chart only when its candles come from an exchange's public feed (Hyperliquid, Binance)",
+    exchangeFed.every((p) => numbersAllowedFor(p) === true) && parseMarket("BTC").numbersAllowed === true && parseMarket("binance:ETHUSDT").numbersAllowed === true,
+  );
+  check(
+    "any other provider (a data vendor, futures, stocks, or one the chart does not know) stays words only",
+    others.every((p) => numbersAllowedFor(p) === false),
+    others.filter((p) => numbersAllowedFor(p) !== false).join(", ") || `${others.length} providers words only`,
+  );
+}
+
 // ── 2. end to end through MCP ─────────────────────────────────────────────
 
-/** Plays the chart view: polls chart_sync, "applies" ops, reports a words-level state. */
-function startView(client, chartId, syncKey) {
+/**
+ * Plays the chart view: polls chart_sync, "applies" ops, reports its state with
+ * the numbers it would read off an exchange-fed chart, answers snapshot requests
+ * the way a host that takes no images makes it.
+ */
+function startView(client, chartId, syncKey, { symbol = "hyperliquid:BTC" } = {}) {
   let acked = 0;
   let stopped = false;
-  const state = { symbol: "hyperliquid:BTC", timeframe: "4h", indicators: [], levels: [], zones: [], candles_loaded: true, theme: "dark", display_mode: "inline" };
+  let snapshotAnswer;
+  const state = {
+    symbol,
+    timeframe: "4h",
+    indicators: [],
+    levels: [],
+    zones: [],
+    candles_loaded: true,
+    theme: "dark",
+    display_mode: "inline",
+    last_price: 2231.4,
+    change_pct: -0.4,
+    visible_high: 2310,
+    visible_low: 2180.5,
+    indicator_values: [],
+  };
   const loop = (async () => {
     while (!stopped) {
       const result = await client.callTool({
         name: "chart_sync",
-        arguments: { chart_id: chartId, ...(syncKey ? { sync_key: syncKey } : {}), acked_seq: acked, state },
+        arguments: {
+          chart_id: chartId,
+          ...(syncKey ? { sync_key: syncKey } : {}),
+          acked_seq: acked,
+          state,
+          ...(snapshotAnswer ? { snapshot_answer: snapshotAnswer } : {}),
+        },
       });
+      snapshotAnswer = undefined;
       const ops = result.structuredContent?.ops ?? [];
       for (const op of ops) {
         if (op.op === "set_market") Object.assign(state, op.symbol ? { symbol: op.symbol } : {}, op.timeframe ? { timeframe: op.timeframe } : {});
-        if (op.op === "add_indicator") state.indicators.push(op.name === "rsi" ? "RSI" : op.name);
+        if (op.op === "add_indicator") {
+          state.indicators.push(op.name === "rsi" ? "RSI" : op.name);
+          if (op.name === "rsi") state.indicator_values.push({ name: "Relative Strength Index", values: { RSI: 38.2 } });
+        }
         if (op.op === "add_level") state.levels.push({ price: op.price, label: op.label });
         acked = Math.max(acked, op.seq);
       }
-      if (!ops.length) await sleep(150);
+      const snapshot = result.structuredContent?.snapshot;
+      if (typeof snapshot === "number") snapshotAnswer = { id: snapshot, outcome: "unsupported" };
+      if (!ops.length && !snapshotAnswer) await sleep(150);
     }
   })();
   return async () => {
@@ -164,6 +213,8 @@ async function endToEnd(client, check, where) {
     name: "chart_command",
     arguments: { chart_id: chartId, ops: [{ op: "set_market", symbol: "ETH" }, { op: "add_indicator", name: "rsi" }, { op: "add_level", price: 4000, label: "Test level" }] },
   });
+  const read = await client.callTool({ name: "chart_command", arguments: { chart_id: chartId, ops: [{ op: "read" }] } });
+  const pictured = await client.callTool({ name: "chart_command", arguments: { chart_id: chartId, ops: [{ op: "read", image: true }] } });
   await stopView();
   const text = textOf(commanded);
   check(
@@ -171,11 +222,47 @@ async function endToEnd(client, check, where) {
     !commanded.isError && commanded.structuredContent?.applied === true && /ETH on Hyperliquid/.test(text) && /RSI/.test(text) && /Test level at 4000/.test(text),
     text.slice(0, 160),
   );
-  // Data rule: model-visible results carry no market data, only what the model itself asked for.
+  check(
+    `${where}, on a crypto chart chart_command's reply carries the last price, the day's change and the latest RSI`,
+    /Last 2,231\.4 \(-0\.4% today\)/.test(text) &&
+      /Visible range: high 2,310, low 2,180\.5/.test(text) &&
+      /RSI 38\.2/.test(text) &&
+      commanded.structuredContent?.view?.last_price === 2231.4 &&
+      commanded.structuredContent?.view?.indicator_values?.[0]?.values?.RSI === 38.2,
+    text.slice(-160),
+  );
+  // Data rule: model-visible results carry a few scalars at most, never bars.
   const visible = JSON.stringify([opened.content, opened.structuredContent, commanded.content, commanded.structuredContent]);
   check(
-    `${where}, no model-visible chart result carries candles or prices from a feed`,
-    !/"(open|high|close|volume|bars|candles|lastPrice|price_now)"\s*:/i.test(visible) && /carries no prices/.test(textOf(opened)),
+    `${where}, no model-visible chart result carries candles or bars, and chart_open carries no prices`,
+    !/"(open|high|low|close|volume|bars|candles|ohlc)"\s*:/i.test(visible) && /carries no prices/.test(textOf(opened)),
+  );
+
+  check(
+    `${where}, chart_command's read op changes nothing and returns what the chart shows with its numbers`,
+    !read.isError && /^The chart shows ETH on Hyperliquid/.test(textOf(read)) && /Last 2,231\.4/.test(textOf(read)) && /RSI 38\.2/.test(textOf(read)) && read.structuredContent?.seq === undefined,
+    textOf(read).slice(0, 160),
+  );
+  check(
+    `${where}, asking for a picture where the chat app takes no images says so and still answers in words`,
+    !pictured.isError && pictured.structuredContent?.snapshot === "unsupported" && /does not take pictures/.test(textOf(pictured)) && /Last 2,231\.4/.test(textOf(pictured)),
+    textOf(pictured).slice(-160),
+  );
+
+  // A market from any other source is described in words only, even when a view reports numbers for it.
+  const vendor = await client.callTool({ name: "chart_open", arguments: { symbol: "SOL" } });
+  const vendorId = vendor.structuredContent?.chart_id;
+  const stopVendor = startView(client, vendorId, vendor._meta?.["luxalgo/chart"]?.sync_key, { symbol: "databento:ES.c.0" });
+  await sleep(400);
+  const vendorRead = await client.callTool({ name: "chart_command", arguments: { chart_id: vendorId, ops: [{ op: "read", image: true }] } });
+  await stopVendor();
+  check(
+    `${where}, a chart whose candles do not come from an exchange's public feed is read in words only, with no numbers and no picture`,
+    !vendorRead.isError &&
+      !/Last |RSI|Visible range/.test(textOf(vendorRead)) &&
+      vendorRead.structuredContent?.view?.last_price === undefined &&
+      vendorRead.structuredContent?.snapshot === "words_only",
+    textOf(vendorRead).slice(0, 200),
   );
 
   const unknown = await client.callTool({ name: "chart_command", arguments: { chart_id: "ch_doesnotexist", ops: [{ op: "clear_drawings" }] } });
@@ -326,20 +413,20 @@ async function appBackendChecks(check) {
     );
 
     await endToEnd(mcp, check, "on an app session");
-    const later = app.log.filter((call) => call.path !== "/api/chart-sessions");
     const s2 = app.sessions.get("sess2");
+    const later = app.log.filter((call) => s2 && call.path.startsWith(`/api/chart-sessions/${s2.id}`));
     check(
       "chart_command writes with the write key and the view reads and reports with the read key, with no token on any of them",
       s2 &&
         later.length > 0 &&
-        later.every((call) => !call.authorization) &&
+        app.log.filter((call) => call.path !== "/api/chart-sessions").every((call) => !call.authorization) &&
         later.filter((call) => call.path.endsWith("/commands")).every((call) => call.key === s2.writeKey) &&
         later.filter((call) => call.path.endsWith("/state")).every((call) => call.key === s2.readKey) &&
         later.some((call) => call.method === "GET" && call.key === s2.readKey),
       `${later.length} calls`,
     );
     check(
-      "the view's report reaches the app in its words-only state schema (no theme or display mode)",
+      "the view's report reaches the app in its words-only state schema (no theme, display mode or numbers)",
       s2?.state && Object.keys(s2.state).every((k) => STATE_FIELDS.includes(k)) && s2.state.symbol === "hyperliquid:ETH",
       JSON.stringify(s2?.state ?? {}).slice(0, 160),
     );

@@ -14,9 +14,13 @@
 
   Nothing here is user data: chart ids are random, ops are what the model
   asked for, and the view reports words-level state (symbol, timeframe, dates,
-  indicator and drawing names) — never bars or exchange prices.
+  indicator and drawing names) — never bars. For a market whose numbers the
+  model may read (market.ts, numbersAllowedFor) the view also reports a few
+  scalars (./numbers.ts); those are kept beside the store, in ./local.ts,
+  never in it.
 */
 import { randomBytes } from "node:crypto";
+import type { ChartNumbers } from "./numbers.js";
 
 export type ChartOp =
   | { op: "set_market"; symbol?: string; timeframe?: string }
@@ -30,8 +34,8 @@ export type ChartOp =
 /** An op as the view receives it; `unsupported` stands in for one the view cannot apply (it acknowledges and skips it). */
 export type SequencedOp = (ChartOp | { op: "unsupported" }) & { seq: number };
 
-/** What the view reports about itself. Words-level only. */
-export type ViewState = {
+/** What the view reports about itself: words, plus the allowed numbers (ChartNumbers) for an exchange-fed market. */
+export type ViewState = ChartNumbers & {
   symbol?: string;
   timeframe?: string;
   range?: { from: string; to: string };
@@ -51,6 +55,8 @@ export type PushResult = { version: number } | { gone: true } | { refused: strin
 /** One open chart, wherever its edits live. */
 export interface ChartStore {
   readonly backend: "app" | "memory";
+  /** Names this chart in ./local.ts: "memory:<id>" or "app:<session id>". */
+  readonly key: string;
   /** Queues ops in order (chart_command). */
   push(ops: ChartOp[]): Promise<PushResult>;
   /** Waits until the view acknowledged `version` (or `timeoutMs` passed); returns the latest report. */
@@ -95,6 +101,7 @@ export function memoryStore(id: string): ChartStore | null {
   const chart = () => charts.get(id);
   return {
     backend: "memory",
+    key: `memory:${id}`,
     async push(ops) {
       const current = chart();
       if (!current) return { gone: true };

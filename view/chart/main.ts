@@ -10,14 +10,20 @@
     tool result (chart_id, normalized state).
   - Polls chart_sync (~1 s, app-only tool) for chart_command ops, applies them,
     acknowledges them, and reports its state in words.
-  - Tells the model what is on screen (updateModelContext, words only,
-    debounced); a candle click offers "Ask about this" (sendMessage); "Open in
-    Vela" (openLink); fullscreen and picture-in-picture (requestDisplayMode);
+  - Tells the model what is on screen (updateModelContext, debounced); a
+    candle click offers "Ask about this" (sendMessage); "Open in Vela"
+    (openLink); fullscreen and picture-in-picture (requestDisplayMode);
     follows the host's light/dark theme.
+  - On request (chart_command's read op with image: true, handed over by
+    chart_sync) adds a size-capped picture of the chart to the model context,
+    when the host lists images among the content it takes there.
 
-  Never sends bars or exchange prices anywhere: everything that leaves the
-  iframe is symbol, timeframe, dates and the names/levels the model itself
-  asked for.
+  Never sends bars anywhere. What leaves the iframe is symbol, timeframe,
+  dates and the names/levels the model itself asked for, and, only for a
+  market whose numbersAllowed is true (an exchange's public feed, decided in
+  src/tools/chart/market.ts), a few numbers read off the chart: the last
+  price, the day's change, the visible high and low and each indicator's
+  latest value (src/tools/chart/numbers.ts).
 */
 import { App, type McpUiHostContext } from "@modelcontextprotocol/ext-apps";
 import { VelaWorkspace } from "@luxalgo/vela/workspace";
@@ -35,6 +41,14 @@ import {
   type RangePreset,
   type Timeframe,
 } from "../../src/tools/chart/market.ts";
+import {
+  describeNumbers,
+  indicatorValuesFromReadout,
+  priceNumbers,
+  type Bar,
+  type ChartNumbers,
+  type IndicatorValues,
+} from "../../src/tools/chart/numbers.ts";
 
 type Level = { price: number; label?: string };
 type Zone = { low: number; high: number; label?: string };
@@ -112,6 +126,64 @@ class CountingWebSocket extends NativeWebSocket {
 }
 window.WebSocket = CountingWebSocket as typeof WebSocket;
 
+// ---------- the candles the chart loads, kept for the allowed numbers ----------
+/*
+  Vela's chart has no public accessor for its bars, so the providers are
+  wrapped: every bar a provider hands the chart (history and the live stream)
+  is also kept here, per provider, ticker and timeframe. They never leave the
+  iframe; only the scalars priceNumbers() derives from them do, and only for
+  a market whose numbersAllowed is true.
+*/
+const MAX_TAPPED_BARS = 20_000;
+const MAX_TAPPED_SERIES = 6;
+const tapped = new Map<string, Map<number, Bar>>();
+
+function tapKey(provider: string, ticker: string, tf: string) {
+  return `${provider}|${ticker}|${tf}`;
+}
+
+function record(key: string, bars: readonly Bar[]) {
+  let series = tapped.get(key);
+  if (!series) {
+    while (tapped.size >= MAX_TAPPED_SERIES) tapped.delete(tapped.keys().next().value as string);
+    series = new Map();
+    tapped.set(key, series);
+  }
+  for (const bar of bars) {
+    if (bar && Number.isFinite(bar.time)) series.set(bar.time, { time: bar.time, open: bar.open, high: bar.high, low: bar.low, close: bar.close });
+  }
+  if (series.size > MAX_TAPPED_BARS) {
+    const oldest = [...series.keys()].sort((a, b) => a - b).slice(0, series.size - MAX_TAPPED_BARS);
+    for (const time of oldest) series.delete(time);
+  }
+}
+
+type BarSource = {
+  getBars(ticker: string, timeframe: string, range: never): Promise<Bar[]>;
+  subscribe(ticker: string, timeframe: string, onBar: (bar: Bar) => void): () => void;
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function tappedProvider<C extends new (...args: any[]) => BarSource>(Base: C, name: string) {
+  return class extends Base {
+    override async getBars(ticker: string, timeframe: string, range: never) {
+      const bars = await super.getBars(ticker, timeframe, range);
+      record(tapKey(name, ticker, timeframe), bars);
+      return bars;
+    }
+    override subscribe(ticker: string, timeframe: string, onBar: (bar: Bar) => void) {
+      const key = tapKey(name, ticker, timeframe);
+      return super.subscribe(ticker, timeframe, (bar) => {
+        record(key, [bar]);
+        onBar(bar);
+      });
+    }
+  };
+}
+
+const TappedHyperliquid = tappedProvider(HyperliquidProvider as unknown as new () => BarSource, "hyperliquid");
+const TappedBinance = tappedProvider(BinanceProvider as unknown as new () => BarSource, "binance");
+
 // ---------- DOM ----------
 const titleEl = document.getElementById("title")!;
 const statusEl = document.getElementById("status")!;
@@ -168,6 +240,33 @@ function liveDrawingIds(): Set<string> {
   }
 }
 
+/** Whether the pointer is over the plot: the data window then reads the hovered bar, not the latest one. */
+let hovering = false;
+/** Indicator values last read with the pointer off the plot (the latest bar). */
+let latestIndicatorValues: IndicatorValues[] = [];
+
+function readIndicatorValues(): IndicatorValues[] {
+  if (!ws || hovering) return latestIndicatorValues;
+  try {
+    const readout = chart().renderer.dataWindowReadout();
+    if (readout) latestIndicatorValues = indicatorValuesFromReadout(readout.groups);
+  } catch {
+    /* a renderer without the readout: no indicator values */
+  }
+  return latestIndicatorValues;
+}
+
+/** The numbers the model may read, for a market that allows them; nothing for any other. */
+function chartNumbers(): ChartNumbers {
+  if (!ws || !market?.numbersAllowed || !candlesLoaded) return {};
+  const series = tapped.get(tapKey(market.venue, market.ticker, velaTimeframe(timeframe)));
+  const bars = series ? [...series.values()].sort((a, b) => a.time - b.time) : [];
+  const numbers: ChartNumbers = priceNumbers(bars, chart().getVisibleRange(), timeframe);
+  const indicatorValues = readIndicatorValues();
+  if (indicatorValues.length) numbers.indicator_values = indicatorValues;
+  return numbers;
+}
+
 function viewState() {
   const range = ws ? chart().getVisibleRange() : null;
   const ids = liveDrawingIds();
@@ -193,6 +292,7 @@ function viewState() {
     display_mode: displayMode,
     candles_loaded: candlesLoaded,
     ...(lastError ? { error: lastError.slice(0, 200) } : {}),
+    ...chartNumbers(),
   };
 }
 
@@ -206,28 +306,113 @@ function describe(): string {
   if (s.levels.length) text += ` Levels: ${s.levels.map((l) => `${l.label ?? "level"} at ${l.price}`).join(", ")}.`;
   if (s.zones.length) text += ` Zones: ${s.zones.map((z) => `${z.label ?? "zone"} ${z.low} to ${z.high}`).join(", ")}.`;
   if (s.other_drawings) text += ` The user added ${s.other_drawings} drawing(s) of their own.`;
+  const numbers = describeNumbers(s);
+  if (numbers) text += ` ${numbers} (Numbers as of ${formatDate(Date.now(), true)}, from the exchange's public feed.)`;
+  if (snapshot && snapshot.symbol === market.symbol && snapshot.timeframe === timeframe) {
+    text += ` The attached picture shows the chart as the user saw it at ${snapshot.takenAt}.`;
+  }
   if (chartId) text += ` chart_id: ${chartId}.`;
   return text;
 }
 
+// ---------- a picture of the chart for the model (opt-in, size-capped) ----------
+const SNAPSHOT_MAX_WIDTH = 1280;
+const SNAPSHOT_MAX_BYTES = 300 * 1024;
+/** The last picture sent, kept in later context updates while the chart shows the same market. */
+let snapshot: { data: string; mimeType: string; symbol: string; timeframe: Timeframe; takenAt: string } | null = null;
+
+function hostTakesImages(): boolean {
+  return !!app.getHostCapabilities()?.updateModelContext?.image;
+}
+
+async function sourceCanvas(): Promise<HTMLCanvasElement | null> {
+  const fromCell = (ws as unknown as { active?: { screenshotCanvas?: () => HTMLCanvasElement | null } }).active?.screenshotCanvas?.();
+  if (fromCell) return fromCell;
+  const url = chart().renderer.screenshot();
+  if (!url) return null;
+  const image = new Image();
+  image.src = url;
+  await image.decode();
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  canvas.getContext("2d")!.drawImage(image, 0, 0);
+  return canvas;
+}
+
+/** The chart as a JPEG at most SNAPSHOT_MAX_WIDTH wide and SNAPSHOT_MAX_BYTES big (base64, without the data: prefix). */
+async function captureSnapshot(): Promise<{ data: string; width: number; height: number; bytes: number }> {
+  const source = await sourceCanvas();
+  if (!source || !source.width || !source.height) throw new Error("this chart cannot export a picture");
+  let width = Math.min(SNAPSHOT_MAX_WIDTH, source.width);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const height = Math.round((source.height * width) / source.width);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d")!;
+    // JPEG has no transparency: paint the theme's background first.
+    ctx.fillStyle = getComputedStyle(document.body).backgroundColor || "#000";
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(source, 0, 0, width, height);
+    for (const quality of [0.85, 0.7, 0.55]) {
+      const data = canvas.toDataURL("image/jpeg", quality).split(",")[1] ?? "";
+      const bytes = Math.floor((data.length * 3) / 4);
+      if (bytes && bytes <= SNAPSHOT_MAX_BYTES) return { data, width, height, bytes };
+    }
+    width = Math.round(width * 0.75);
+  }
+  throw new Error("the picture stayed over the size cap");
+}
+
+type SnapshotAnswer =
+  | { id: number; outcome: "sent"; width: number; height: number; bytes: number }
+  | { id: number; outcome: "unsupported" | "words_only" | "failed"; reason?: string };
+
+/** Answers chart_sync's snapshot request: sends the picture with the words, or says why not. */
+async function answerSnapshotRequest(id: number): Promise<SnapshotAnswer> {
+  if (!market?.numbersAllowed) return { id, outcome: "words_only" };
+  if (!hostTakesImages()) return { id, outcome: "unsupported" };
+  try {
+    const shot = await captureSnapshot();
+    snapshot = { data: shot.data, mimeType: "image/jpeg", symbol: market.symbol, timeframe, takenAt: formatDate(Date.now(), true) };
+    await sendModelContext(true);
+    mark("snapshotSent", `${shot.width}x${shot.height} ${Math.round(shot.bytes / 1024)} KB`);
+    return { id, outcome: "sent", width: shot.width, height: shot.height, bytes: shot.bytes };
+  } catch (error) {
+    snapshot = null;
+    mark("snapshotError", String(error).slice(0, 200));
+    return { id, outcome: "failed", reason: String((error as Error).message ?? error).slice(0, 200) };
+  }
+}
+
 let contextTimer: ReturnType<typeof setTimeout> | undefined;
 let lastContext = "";
+/** Sends what the chart shows to the model context (each update replaces the last; a kept picture rides along). */
+async function sendModelContext(force = false) {
+  const text = describe();
+  if (text === lastContext && !force) return;
+  lastContext = text;
+  const keep = snapshot && market && snapshot.symbol === market.symbol && snapshot.timeframe === timeframe ? snapshot : null;
+  if (!keep) snapshot = null;
+  try {
+    await app.updateModelContext({
+      content: [{ type: "text", text }, ...(keep ? [{ type: "image" as const, data: keep.data, mimeType: keep.mimeType }] : [])],
+    });
+    mark("modelContextSent", Number(body.dataset.modelContextSent ?? 0) + 1);
+    mark("modelContextText", text);
+    log("updateModelContext", text, keep ? "(with picture)" : "");
+  } catch (error) {
+    log("updateModelContext failed", String(error));
+    mark("modelContextError", String(error));
+  }
+}
 function scheduleModelContext() {
   clearTimeout(contextTimer);
-  contextTimer = setTimeout(async () => {
-    const text = describe();
-    if (text === lastContext) return;
-    lastContext = text;
-    try {
-      await app.updateModelContext({ content: [{ type: "text", text }] });
-      mark("modelContextSent", Number(body.dataset.modelContextSent ?? 0) + 1);
-      log("updateModelContext", text);
-    } catch (error) {
-      log("updateModelContext failed", String(error));
-      mark("modelContextError", String(error));
-    }
-  }, 1200);
+  contextTimer = setTimeout(() => void sendModelContext(), 1200);
 }
+/** Live numbers drift with every tick: refresh the context at most this often when nothing else changed. */
+const NUMBERS_REFRESH_MS = 30_000;
 
 function refreshHeader() {
   if (!market) return;
@@ -274,7 +459,10 @@ async function mount(args: ChartArgs) {
     layout: false,
     symbol: market.symbol,
     timeframe: velaTimeframe(timeframe),
-    providers: { hyperliquid: () => new HyperliquidProvider(), binance: () => new BinanceProvider() },
+    providers: {
+      hyperliquid: () => new TappedHyperliquid() as unknown as HyperliquidProvider,
+      binance: () => new TappedBinance() as unknown as BinanceProvider,
+    },
     live: true,
     theme,
     persist: false,
@@ -306,6 +494,7 @@ async function mount(args: ChartArgs) {
   scheduleLevelLabels();
   initialApplied = true;
   scheduleModelContext();
+  if (market.numbersAllowed) setInterval(scheduleModelContext, NUMBERS_REFRESH_MS);
   mark("ready", true);
 }
 
@@ -318,6 +507,9 @@ function wireChartEvents() {
   for (const event of ["market:changed", "viewport:changed"] as const) {
     c.on(event as never, scheduleLevelLabels as never);
   }
+  c.renderer.onCrosshairMove(({ time }: { time: number | null }) => {
+    hovering = time != null;
+  });
   c.renderer.onClick(({ time }: { time: number | null }) => {
     if (time == null) return;
     clickedTime = time;
@@ -491,6 +683,9 @@ async function applyOp(op: Op) {
 
 // ---------- sync loop ----------
 let syncing = false;
+/** The answer to the last snapshot request, sent with the next chart_sync. */
+let snapshotAnswer: SnapshotAnswer | null = null;
+let answeredSnapshotId = 0;
 async function syncOnce(): Promise<number> {
   if (!chartId || !initialApplied || syncing) return 0;
   syncing = true;
@@ -503,10 +698,12 @@ async function syncOnce(): Promise<number> {
         ...(session.sync_key ? { sync_key: session.sync_key } : {}),
         acked_seq: ackedSeq,
         state: viewState(),
+        ...(snapshotAnswer ? { snapshot_answer: snapshotAnswer } : {}),
         context: "chart view sync",
       },
     });
-    const data = result.structuredContent as { known?: boolean; ops?: Op[] } | undefined;
+    snapshotAnswer = null;
+    const data = result.structuredContent as { known?: boolean; ops?: Op[]; snapshot?: number } | undefined;
     const ops = data?.ops ?? [];
     for (const op of ops) {
       if (op.seq <= ackedSeq) continue;
@@ -523,6 +720,12 @@ async function syncOnce(): Promise<number> {
       log("applied op", op.seq, op.op);
     }
     if (ops.length) scheduleModelContext();
+    // A snapshot is taken after the ops, so it shows the chart they produced.
+    if (typeof data?.snapshot === "number" && data.snapshot > answeredSnapshotId) {
+      answeredSnapshotId = data.snapshot;
+      snapshotAnswer = await answerSnapshotRequest(data.snapshot);
+      return ops.length + 1;
+    }
     return ops.length;
   } catch (error) {
     log("chart_sync failed", String(error));
