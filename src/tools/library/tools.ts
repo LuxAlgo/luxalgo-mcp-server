@@ -6,8 +6,9 @@
 */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
-import { fetchMarkdown } from "../../platform/app-client.js";
+import { AppAuthError, AppPermissionError, fetchMarkdown } from "../../platform/app-client.js";
 import { json, toolError } from "../_shared/result.js";
+import { velaLinksHere } from "../_shared/vela.js";
 import {
   CONCEPT_FAMILIES,
   FAMILY_NAMES,
@@ -22,14 +23,36 @@ import { chartUrl, conceptMdUrl, conceptUrl, familyMdUrl, familyUrl, indicatorUr
 
 const familyEnum = z.enum(CONCEPT_FAMILIES);
 
+/**
+ * What each tool's description adds where results carry Vela chart links. Kept apart
+ * from the base text so the Claude address, frozen while Anthropic reviews it, keeps
+ * every description byte for byte.
+ */
+const CHART_NOTE = {
+  search: " Indicator hits that run on Vela carry `chart_url`, the link that opens the indicator on a Vela chart.",
+  concept: " `indicators` lists the concept's Library implementations, each with `chart_url` (opens it on a Vela chart) when it runs on Vela.",
+  indicator: " `chart_url`, present when the indicator runs on Vela, opens it on a Vela chart.",
+  list: " Each indicator that runs on Vela carries `chart_url`, the link that opens it on a Vela chart.",
+};
+
+/** At most this many of a concept's implementations are listed in library_get_concept. */
+const CONCEPT_INDICATORS_MAX = 100;
+
 export function registerLibraryTools(server: McpServer) {
+  // Chart links on every address but Claude's (see _shared/vela.ts).
+  const links = velaLinksHere();
+  const note = (text: string) => (links ? text : "");
+  const chartLink = (pineScriptCodeId: string | null | undefined) =>
+    links && pineScriptCodeId ? { chart_url: chartUrl(pineScriptCodeId) } : {};
+
   server.registerTool(
     "library_search",
     {
       title: "Search the LuxAlgo Library",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
       description:
-        "Search the LuxAlgo Library — the encyclopedia of trading and technical analysis. One query over 800+ concepts (alias-aware: 'stochastics' finds Stochastic Oscillator) and 800+ ready-to-use indicators. Start here whenever you have a name, informal term, or topic; results carry slugs for the get tools plus canonical URLs for citation.",
+        "Search the LuxAlgo Library — the encyclopedia of trading and technical analysis. One query over 800+ concepts (alias-aware: 'stochastics' finds Stochastic Oscillator) and 800+ ready-to-use indicators. Start here whenever you have a name, informal term, or topic; results carry slugs for the get tools plus canonical URLs for citation." +
+        note(CHART_NOTE.search),
       inputSchema: z.object({
         query: z
           .string()
@@ -95,6 +118,7 @@ export function registerLibraryTools(server: McpServer) {
             family: row.family,
             description: row.description,
             url: indicatorUrl(row.slug),
+            ...chartLink(row.pineScriptCodeId),
           });
         }
       }
@@ -119,7 +143,8 @@ export function registerLibraryTools(server: McpServer) {
       title: "Get a Library concept",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
       description:
-        "Explain a trading concept: the Library's full write-up as markdown — definition, formula, how traders read it, and its indicator implementations. Use for any 'what is X / how does X work' question. Needs the exact slug — find it with library_search or library_list_concepts.",
+        "Explain a trading concept: the Library's full write-up as markdown — definition, formula, how traders read it, and its indicator implementations. Use for any 'what is X / how does X work' question. Needs the exact slug — find it with library_search or library_list_concepts." +
+        note(CHART_NOTE.concept),
       inputSchema: z.object({
         slug: z
           .string()
@@ -138,7 +163,10 @@ export function registerLibraryTools(server: McpServer) {
           `Unknown concept slug '${slug}'.${near.length ? ` Did you mean: ${near.join(", ")}?` : ""}`,
         );
       }
-      const content = await fetchMarkdown(`/library/concept/${concept.slug}.md`);
+      const [content, implementations] = await Promise.all([
+        fetchMarkdown(`/library/concept/${concept.slug}.md`),
+        links ? conceptImplementations(concept.slug) : Promise.resolve(null),
+      ]);
       return json({
         slug: concept.slug,
         name: concept.name,
@@ -149,6 +177,18 @@ export function registerLibraryTools(server: McpServer) {
         url: conceptUrl(concept.slug),
         md_url: conceptMdUrl(concept.slug),
         content_markdown: content,
+        ...(implementations
+          ? {
+              indicators: implementations.indicators.map((row) => ({
+                slug: row.slug,
+                name: row.name,
+                ...chartLink(row.pineScriptCodeId),
+              })),
+              ...(implementations.count > implementations.indicators.length
+                ? { indicators_total: implementations.count }
+                : {}),
+            }
+          : {}),
       });
     },
   );
@@ -159,7 +199,8 @@ export function registerLibraryTools(server: McpServer) {
       title: "Get a Library indicator",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
       description:
-        "Details for one indicator: what it does, how to read it, family, concept links, preview image — plus whether its source code is available (fetch the code itself with library_get_source_code). Use when the user asks about a specific indicator.",
+        "Details for one indicator: what it does, how to read it, family, concept links, preview image — plus whether its source code is available (fetch the code itself with library_get_source_code). Use when the user asks about a specific indicator." +
+        note(CHART_NOTE.indicator),
       inputSchema: z.object({
         slug: z.string().min(1).describe("Indicator slug, e.g. 'tri-star'"),
       }),
@@ -180,6 +221,7 @@ export function registerLibraryTools(server: McpServer) {
         image_url: indicator.imageUrl,
         date_displayed: indicator.creationDateDisplayed,
         url: indicatorUrl(indicator.slug),
+        ...chartLink(indicator.pineScriptCodeId),
         ...(indicator.concepts ? { concepts: indicator.concepts } : {}),
         code: {
           available,
@@ -194,8 +236,9 @@ export function registerLibraryTools(server: McpServer) {
     {
       title: "Get an indicator's source code",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
-      description:
-        "The Pine Script® source code of a Library indicator. Kept separate from library_get_indicator because sources are long — call it only when the user wants the code itself. For some indicators the app returns only the start of the source to a signed-out user (`complete: false`, with the line counts): signing in to a LuxAlgo account, free included, returns all of it. `chart_url` opens the indicator on Vela either way.",
+      description: links
+        ? "The Pine Script® source code of a Library indicator. Kept separate from library_get_indicator because sources are long — call it only when the user wants the code itself. For some indicators the app returns only the start of the source to a signed-out user (`complete: false`, with the line counts): signing in to a LuxAlgo account, free included, returns all of it. `chart_url`, present whenever the indicator runs on Vela, opens it on a Vela chart, whether the source is complete, partial or not served."
+        : "The Pine Script® source code of a Library indicator. Kept separate from library_get_indicator because sources are long — call it only when the user wants the code itself. For some indicators the app returns only the start of the source to a signed-out user (`complete: false`, with the line counts): signing in to a LuxAlgo account, free included, returns all of it. `chart_url` opens the indicator on Vela either way.",
       inputSchema: z.object({
         slug: z.string().min(1).describe("Indicator slug"),
       }),
@@ -229,7 +272,7 @@ export function registerLibraryTools(server: McpServer) {
         name: indicator.name,
         available,
         ...(available
-          ? { complete: true, source }
+          ? { complete: true, source, ...chartLink(indicator.pineScriptCodeId) }
           : {
               reason: "runs-in-quant",
               ...(indicator.pineScriptCodeId
@@ -284,7 +327,8 @@ export function registerLibraryTools(server: McpServer) {
       title: "List Library indicators",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
       description:
-        "Browse the indicator catalog with filters and server-side sorting (newest first by default). The Library is organized by family and concept: filter by family (keys from library_list_families) or by concept slug (that concept's implementations; slugs from library_list_concepts or library_search), and optionally by trading platform or plan tier. Use for structured browsing — 'latest indicators', 'everything in the volatility family', 'indicators implementing liquidity sweeps'; for keyword discovery prefer library_search.",
+        "Browse the indicator catalog with filters and server-side sorting (newest first by default). The Library is organized by family and concept: filter by family (keys from library_list_families) or by concept slug (that concept's implementations; slugs from library_list_concepts or library_search), and optionally by trading platform or plan tier. Use for structured browsing — 'latest indicators', 'everything in the volatility family', 'indicators implementing liquidity sweeps'; for keyword discovery prefer library_search." +
+        note(CHART_NOTE.list),
       inputSchema: z.object({
         family: familyEnum.optional().describe("Family key from library_list_families, e.g. 'volatility'"),
         text: z.string().optional().describe("Server-side text filter"),
@@ -334,6 +378,7 @@ export function registerLibraryTools(server: McpServer) {
           image_url: row.imageUrl,
           date_displayed: row.creationDateDisplayed,
           url: indicatorUrl(row.slug),
+          ...chartLink(row.pineScriptCodeId),
         })),
       });
     },
@@ -392,4 +437,19 @@ export function registerLibraryTools(server: McpServer) {
       });
     },
   );
+}
+
+/**
+ * A concept's Library implementations in one concept-filtered query (its rows carry
+ * the Vela script id, so no per-indicator call). Fetched per call with the caller's
+ * token, never cached. A failure leaves the list out rather than failing the concept;
+ * a sign-in or plan answer from the app still reaches the client.
+ */
+async function conceptImplementations(slug: string) {
+  try {
+    return await queryIndicators({ concept: slug, sort: "name", pageIndex: 0, pageQuantity: CONCEPT_INDICATORS_MAX });
+  } catch (error) {
+    if (error instanceof AppAuthError || error instanceof AppPermissionError) throw error;
+    return null;
+  }
 }
