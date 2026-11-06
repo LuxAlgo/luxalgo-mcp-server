@@ -606,13 +606,18 @@ function refreshModeButtons() {
 }
 
 let noteTimer: ReturnType<typeof setTimeout> | undefined;
-function showNote(text: string) {
+function showNote(text: string, detail?: string) {
   clearTimeout(noteTimer);
   noteEl.textContent = text;
+  if (detail) {
+    const small = document.createElement("small");
+    small.textContent = detail;
+    noteEl.append(small);
+  }
   noteEl.hidden = false;
   noteTimer = setTimeout(() => {
     noteEl.hidden = true;
-  }, 5000);
+  }, detail ? 9000 : 5000);
 }
 
 function setDisplayMode(mode: string) {
@@ -649,7 +654,14 @@ async function requestMode(mode: DisplayMode) {
   if (granted !== target) {
     if (target === "inline") showNote("The chat app kept this view.");
     else if (granted && granted !== "inline") showNote(`The chat app showed the chart ${MODE_WORDS[granted as DisplayMode] ?? granted} instead.`);
-    else showNote(`This chat app did not open ${MODE_WORDS[target]}. The chart stays here.`);
+    else {
+      // What the host actually answered, so a refusal can be diagnosed from a screenshot.
+      const offered = app.getHostContext()?.availableDisplayModes;
+      showNote(
+        `This chat app did not open ${MODE_WORDS[target]}. The chart stays here.`,
+        `Host modes: ${offered?.length ? offered.join(", ") : "not reported"} · answer: ${granted ?? "none"} · ChatGPT bridge: ${bridge ? "yes" : "no"}`,
+      );
+    }
   }
   refreshModeButtons();
   scheduleModelContext();
