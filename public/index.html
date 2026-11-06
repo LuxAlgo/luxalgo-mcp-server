@@ -499,24 +499,41 @@
         quotes: "\201C" "\201D";
       }
 
-      /* The Vela exhibit: hidden until the real chart has painted, so a blocked
-         CDN, an old browser or a provider hiccup leaves nothing that looks broken. */
-      .vela {
-        display: none;
-      }
-      .vela.ready {
-        display: block;
-      }
+      /* The Vela exhibit: the section stays hidden without module scripts, and
+         its chart loads only as it nears the viewport. A blocked CDN or a
+         quiet exchange leaves a plain note with a link, never an empty box. */
       .vela .chart {
-        height: 300px;
+        position: relative;
+        height: 420px;
         overflow: hidden;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 14px;
+        contain: layout paint;
       }
       @media (min-width: 900px) {
         .vela .chart {
-          height: 380px;
+          height: 520px;
         }
+      }
+      .vela .chart-mount {
+        position: absolute;
+        inset: 0;
+      }
+      .vela .chart-note {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        margin: 0;
+        text-align: center;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+      .vela .chart.ready .chart-note {
+        display: none;
       }
       .vela .caption {
         margin: 0.75rem 0 0;
@@ -763,13 +780,16 @@
         </div>
       </section>
 
-      <section class="vela" id="vela" aria-labelledby="vela-title">
+      <section class="vela" id="vela" aria-labelledby="vela-title" hidden>
         <div class="wrap">
           <h2 id="vela-title">Drawn by Vela</h2>
-          <p class="section-intro">The same engine behind Vela, running live in this page.</p>
-          <div class="chart" id="vela-chart" role="img" aria-label="Live Bitcoin hourly chart"></div>
+          <p class="section-intro">The same engine behind Vela, running live in this page. Pan, zoom and draw on it.</p>
+          <div class="chart" id="vela-chart" role="group" aria-label="Live Bitcoin 4 hour chart with RSI">
+            <div class="chart-mount" id="vela-mount"></div>
+            <p class="chart-note" id="vela-note">Loading the live chart</p>
+          </div>
           <p class="caption">
-            Live BTC, drawn in your browser by
+            Live BTC on 4 hour candles with RSI, drawn in your browser by
             <a href="https://velacharts.dev">the open-source core of Vela by LuxAlgo</a>.
             Building your own app? Pair <code>library_get_source_code</code> with Vela&rsquo;s open-source core to run
             any published Library indicator on a chart
@@ -869,42 +889,67 @@
         });
       })();
     </script>
-    <!-- Vela's self-contained browser build (window.Vela), pinned. Loaded after
-         the content so it never gates the page; the section above only appears
-         once the chart has actually painted. -->
-    <script
-      src="https://cdn.jsdelivr.net/npm/@luxalgo/vela@0.6.15/dist/vela.global.min.js"
-      defer
-    ></script>
-    <script>
-      window.addEventListener("load", function () {
-        var section = document.getElementById("vela");
-        var host = document.getElementById("vela-chart");
-        var api = window.Vela;
-        if (!api || !host) return;
+    <!-- The live chart: Vela's open-source core (@luxalgo/vela, pinned) as the
+         single-chart workspace, with its keyless Hyperliquid provider. Candles
+         stream from the exchange in the visitor's browser. Nothing loads until
+         the section nears the viewport, so the chart never gates the page. -->
+    <script type="module">
+      const VELA = "https://cdn.jsdelivr.net/npm/@luxalgo/vela@0.10.1";
+      const section = document.getElementById("vela");
+      const box = document.getElementById("vela-chart");
+      const mount = document.getElementById("vela-mount");
+      const note = document.getElementById("vela-note");
+      section.hidden = false;
+
+      function fallback() {
+        mount.replaceChildren();
+        note.innerHTML = 'The live chart could not load here. <a href="https://vela.luxalgo.com/chart?symbol=hyperliquid%3ABTC&amp;tf=4h">Open it on Vela</a>.';
+      }
+
+      async function start() {
         try {
-          var dark = matchMedia("(prefers-color-scheme: dark)");
-          var chart = new api.Vela(host, {
+          const [{ VelaWorkspace }, { HyperliquidProvider }] = await Promise.all([
+            import(`${VELA}/workspace/+esm`),
+            import(`${VELA}/providers/hyperliquid/+esm`),
+          ]);
+          const dark = matchMedia("(prefers-color-scheme: dark)");
+          const ws = new VelaWorkspace(mount, {
+            layout: false,
             symbol: "hyperliquid:BTC",
-            timeframe: "60",
+            timeframe: "240",
+            providers: { hyperliquid: () => new HyperliquidProvider() },
             live: true,
             theme: dark.matches ? "dark" : "light",
-            drawings: false,
-            volume: false,
+            persist: false,
+            autofocus: false,
           });
-          // ready() resolves even when the fetch came back empty, so reveal
-          // only once a load actually painted bars.
-          chart.on("load:end", function (e) {
-            if (e && e.bars > 0) section.classList.add("ready");
-          });
-          chart.data.registerProvider("hyperliquid", new api.HyperliquidProvider());
-          dark.addEventListener("change", function (e) {
-            chart.setTheme(e.matches ? "dark" : "light");
-          });
+          dark.addEventListener("change", (e) => ws.setTheme(e.matches ? "dark" : "light"));
+          // Reveal only once candles are on screen.
+          const started = performance.now();
+          while (!ws.chart.getVisibleRange()) {
+            if (performance.now() - started > 20000) return fallback();
+            await new Promise((resolve) => setTimeout(resolve, 80));
+          }
+          ws.chart.addNativeIndicator("rsi");
+          box.classList.add("ready");
         } catch (_) {
-          /* The section stays hidden. */
+          fallback();
         }
-      });
+      }
+
+      if ("IntersectionObserver" in window) {
+        const io = new IntersectionObserver(
+          (entries) => {
+            if (!entries.some((e) => e.isIntersecting)) return;
+            io.disconnect();
+            start();
+          },
+          { rootMargin: "600px 0px" },
+        );
+        io.observe(section);
+      } else {
+        start();
+      }
     </script>
   </body>
 </html>
