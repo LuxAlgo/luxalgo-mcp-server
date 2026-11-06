@@ -28,6 +28,7 @@
       header { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
       #title { font-weight: 600; }
       #status { color: var(--muted); margin-inline-end: auto; }
+      #note { color: var(--muted); font-size: 12px; }
       button { background: var(--btn); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; font: inherit; cursor: pointer; }
       button:disabled { opacity: 0.45; cursor: default; }
       #ask { background: #2962ff; border-color: #2962ff; color: #fff; }
@@ -38,6 +39,7 @@
     <header>
       <span id="title">Vela chart</span>
       <span id="status">Connecting</span>
+      <span id="note" role="status" hidden></span>
       <button id="ask" hidden>Ask about this</button>
       <button id="open">Open in Vela</button>
       <button id="fullscreen">Full screen</button>

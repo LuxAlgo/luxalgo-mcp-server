@@ -220,7 +220,7 @@ export function registerChartTools(server: McpServer) {
     server,
     "chart_open",
     {
-      title: "Open a live Vela chart",
+      title: "Vela chart",
       description:
         "Shows an interactive live chart from Vela, our next-generation charting platform, inside the chat: crypto candles streamed from Hyperliquid or Binance in the user's browser, with optional native indicators, horizontal levels, shaded zones and a date range. Use it when the user wants to see or discuss a crypto market visually. Returns a chart_id; change the open chart afterwards with chart_command rather than opening a new one. The result describes the chart in words only: this tool never returns candles or prices, so do not quote live prices from it. Symbols: \"BTC\" or \"hyperliquid:BTC\" (Hyperliquid perpetuals), \"binance:BTCUSDT\" (Binance spot); a bare pair ending in USDT/USDC goes to Binance.",
       inputSchema: z.object({
@@ -231,13 +231,14 @@ export function registerChartTools(server: McpServer) {
         zones: z.array(zoneSchema).max(10).optional().describe("Price zones to shade."),
         range: z.enum(RANGE_PRESETS).optional().describe("Visible date range, ending on the newest candle."),
       }),
-      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+      annotations: { title: "Vela chart", readOnlyHint: true, destructiveHint: false, openWorldHint: false },
       _meta: {
         ui: { resourceUri: CHART_RESOURCE_URI },
         // Older ChatGPT clients read the template from here.
         "openai/outputTemplate": CHART_RESOURCE_URI,
-        "openai/toolInvocation/invoking": "Opening the chart",
-        "openai/toolInvocation/invoked": "Chart opened",
+        // ChatGPT's status line while the tool runs and once it is done (64 characters at most).
+        "openai/toolInvocation/invoking": "Opening the Vela chart",
+        "openai/toolInvocation/invoked": "Vela chart ready",
       },
     },
     async ({ symbol, timeframe, indicators, levels, zones, range }) => {
@@ -275,14 +276,18 @@ export function registerChartTools(server: McpServer) {
   server.registerTool(
     "chart_command",
     {
-      title: "Change an open Vela chart",
+      title: "Vela chart change",
       description:
         "Edits a chart already open in the chat (from chart_open) in place: switch market or timeframe, add or remove a native indicator, draw a level or a zone, clear drawings, or zoom to a date range. Ops apply in order. Waits up to about 5 seconds for the chart to confirm and returns what it now shows, in words (no prices from the feed). If the chart is not on screen the ops stay queued and apply when it is shown again. Use chart_open instead to show a new chart.",
       inputSchema: z.object({
         chart_id: z.string().max(40).describe("The chart_id chart_open returned."),
         ops: z.array(opSchema).min(1).max(20),
       }),
-      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+      annotations: { title: "Vela chart change", readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+      _meta: {
+        "openai/toolInvocation/invoking": "Changing the chart",
+        "openai/toolInvocation/invoked": "Chart updated",
+      },
     },
     async ({ chart_id, ops }) => {
       if (!hasChart(chart_id)) {
