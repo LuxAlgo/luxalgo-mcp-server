@@ -4,8 +4,17 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+### Added
+
+- Vela chart links (`chart_url`, "Open in Vela") on every result that names an indicator or a market: `library_search` indicator hits, `library_get_indicator`, `library_list_indicators` items, and a new `indicators` list on `library_get_concept` (the concept's implementations from one concept-filtered query, each with its link) open the indicator at `https://vela.luxalgo.com/chart?pineScriptCodeId=…`; `edge_report` and every `edge_symbols` entry open the hosted market at `?symbol=binance:BTCUSDT`, on 15-minute bars for intraday presets and daily bars for the rest. An indicator with no Vela script gets no link. Descriptions on those tools say what `chart_url` is. Not on the Claude address, whose tools and results stay byte for byte as they are while Anthropic reviews them; a `claude-surface` smoke suite holds that line (a hash of its tool list and the shape of its results) and checks the ChatGPT address carries the links.
+
+### Changed
+
+- The smoke suite's stdio server inherits the machine's outbound proxy and CA settings (and nothing else), so the live checks run behind a proxy.
+
 ### Fixed
 
+- `library_get_source_code` said `chart_url` opens the indicator on Vela either way, but a complete source came without one. It now carries `chart_url` whenever the indicator has a Vela script, complete, partial or not served (the Claude address keeps today's result and description until its review is done).
 - `propfirms_search_challenges` finds challenges for natural queries such as "FTMO 100K", "FTMO 2-step 100k", "ftmo 100000" or "the5ers 2 step", which matched nothing because the app's `text` filter is a plain substring match. When a text search comes back empty, the account size (100k, 12.5K, 1M, 100000), step count (2-step, two phase, instant) and firm in the text are mapped onto the existing structured filters (`accountSizeMin`/`accountSizeMax`, `steps`, `propfirmId`, `challengeName`), so the rows are exactly what those filters return, and the result says how it read the query (`interpretedAs`). Searches that already found rows answer exactly as before. When nothing matches, the result says why: a firm the directory does not list (with the firms it does), or the steps and account sizes the firm offers.
 - `propfirmId` and `challengeId` accept a single id (`"ftmo"`) as well as a list (`["ftmo"]`) on `propfirms_search`, `propfirms_search_challenges` and `propfirms_search_offers`. The schema only widens: every call valid before stays valid.
 - Both apply on `/mcp`, `/mcp/openai` and stdio. The Claude host keeps its reviewed definitions and results byte for byte while its directory review is open; a `claude-freeze` smoke suite checks them against `test/smoke/fixtures/claude-propfirms-tools.json`.

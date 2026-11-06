@@ -120,6 +120,55 @@ export async function run({ client, check, callJson, httpUrl }) {
     quantUrl("abc 123"),
   );
 
+  // Vela chart links ("Open in Vela") on every result that names an indicator with a Vela script.
+  const chartPrefix = `${CHART_ORIGIN}/chart?pineScriptCodeId=`;
+  const linksToVela = (row) => typeof row?.chart_url === "string" && row.chart_url.startsWith(chartPrefix);
+
+  const obSearch = await callJson(client, "library_search", { query: "order blocks", type: "indicators", limit: 5 });
+  check(
+    "an indicator found by search links to it on a Vela chart",
+    !obSearch.isError && obSearch.payload.results?.length > 0 && obSearch.payload.results.every(linksToVela),
+    `${obSearch.payload.results?.filter(linksToVela).length}/${obSearch.payload.results?.length} hits with chart_url`,
+  );
+
+  const supertrend = await callJson(client, "library_list_indicators", { text: "supertrend", page_size: 5 });
+  check(
+    "every indicator in a listing that runs on Vela links to it on a Vela chart",
+    !supertrend.isError && supertrend.payload.indicators?.length > 0 && supertrend.payload.indicators.every(linksToVela),
+    `${supertrend.payload.indicators?.filter(linksToVela).length}/${supertrend.payload.indicators?.length} with chart_url`,
+  );
+
+  const dob = await callJson(client, "library_get_indicator", { slug: "dynamic-order-blocks" });
+  check("an indicator's page links to it on a Vela chart", !dob.isError && linksToVela(dob.payload), dob.payload.chart_url ?? "no chart_url");
+
+  const dobSource = await callJson(client, "library_get_source_code", { slug: "dynamic-order-blocks" });
+  check(
+    "an indicator's source code comes with its Vela chart link, complete source included",
+    !dobSource.isError && dobSource.payload.available === true && linksToVela(dobSource.payload),
+    `complete=${dobSource.payload.complete}, chart_url=${!!dobSource.payload.chart_url}`,
+  );
+  check(
+    "the source code's chart link opens the same script as the indicator's page",
+    dobSource.payload.chart_url === dob.payload.chart_url,
+  );
+
+  // The few Library entries with no Vela script (the toolkit products) get no link, never a made-up one.
+  const noScript = await callJson(client, "library_get_indicator", { slug: "luxalgo-backtester-osc" });
+  check(
+    "an indicator with no Vela script gets no chart link",
+    !noScript.isError && !("chart_url" in noScript.payload),
+    noScript.isError ? noScript.payload.error : `chart_url=${!!noScript.payload.chart_url}`,
+  );
+
+  const rsiConcept = await callJson(client, "library_get_concept", { slug: "rsi" });
+  check(
+    "a concept lists its indicators, each linking to it on a Vela chart",
+    !rsiConcept.isError &&
+      rsiConcept.payload.indicators?.length > 0 &&
+      rsiConcept.payload.indicators.every((row) => row.slug && row.name && linksToVela(row)),
+    `${rsiConcept.payload.indicators?.length} indicators`,
+  );
+
   // library_get_indicator — unknown slug
   const badInd = await callJson(client, "library_get_indicator", { slug: "not-a-real-indicator-xyz" });
   check("library_get_indicator(bad slug) returns isError", badInd.isError, badInd.payload.error);

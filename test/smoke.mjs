@@ -6,7 +6,9 @@
 
   One suite per tool domain under smoke/ (mirroring src/tools/), plus
   `surface` (tools/list, securitySchemes, serverInfo) and, over HTTP,
-  `discovery` (OAuth discovery on the standard and the Claude host). Run a subset with
+  `discovery` (OAuth discovery on the standard and the Claude host), and
+  `claude-surface` (the Claude address stays frozen; over stdio it starts the
+  node-http entry on a free port itself). Run a subset with
   --only <suite>[,<suite>], e.g. `node test/smoke.mjs --only library,edge`.
 */
 import { Client } from "@modelcontextprotocol/client";
@@ -29,8 +31,22 @@ const httpUrl = process.argv.includes("--http")
  */
 const stdioEnv = {
   ...getDefaultEnvironment(),
+  ...networkEnvironment(),
   LUXALGO_MCP_AUTH_FILE: join(tmpdir(), "luxalgo-mcp-smoke-no-login", "absent.json"),
 };
+
+/**
+ * The SDK's default child environment drops everything but a few shell
+ * variables, so behind an outbound proxy the stdio server could reach none of
+ * the live endpoints. Pass the proxy and CA settings through, and nothing else.
+ */
+function networkEnvironment() {
+  const names = ["HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy", "NODE_USE_ENV_PROXY", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE"];
+  const env = Object.fromEntries(names.filter((name) => process.env[name]).map((name) => [name, process.env[name]]));
+  // Node reads the proxy variables only with --use-env-proxy (or NODE_USE_ENV_PROXY=1).
+  if (/--use-env-proxy\b/.test(process.env.NODE_OPTIONS ?? "")) env.NODE_USE_ENV_PROXY = "1";
+  return env;
+}
 
 let failures = 0;
 function check(label, condition, detail = "") {
@@ -124,6 +140,7 @@ const suites = [
   ["surface", () => import("./smoke/surface.mjs")],
   ["account", () => import("./smoke/account.mjs")],
   ["discovery", () => import("./smoke/discovery.mjs"), { httpOnly: true }],
+  ["claude-surface", () => import("./smoke/claude-surface.mjs")],
   ["journal", () => import("./smoke/journal.mjs")],
   ["broker", () => import("./smoke/broker.mjs"), { stdioOnly: true }],
   ["library", () => import("./smoke/library.mjs")],

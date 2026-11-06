@@ -48,6 +48,26 @@ export async function run({ client, check, callJson, httpUrl }) {
       : `n=${edgeReport.payload.n} estimate=${edgeReport.payload.estimate}`,
   );
 
+  // Vela chart links: a hosted symbol is one exact market (Binance spot), opened at an interval that suits the question.
+  const chartOrigin = process.env.LUXALGO_CHART_ORIGIN ?? "https://vela.luxalgo.com";
+  const gapFill = await callJson(client, "edge_report", { preset: "gap-fill", symbol: "BTCUSDT" });
+  check(
+    "an Edge Stats report links to its market on a Vela chart, on intraday bars for an intraday question",
+    !gapFill.isError && gapFill.payload.chart_url === `${chartOrigin}/chart?symbol=binance:BTCUSDT&tf=15`,
+    gapFill.payload.chart_url ?? gapFill.payload.error,
+  );
+  check(
+    "a day-of-week report opens its market on daily bars",
+    !edgeReport.isError && edgeReport.payload.chart_url === `${chartOrigin}/chart?symbol=binance:BTCUSDT&tf=D`,
+    edgeReport.payload.chart_url,
+  );
+  check(
+    "every hosted symbol links to its market on a Vela chart",
+    !edgeSymbols.isError &&
+      edgeSymbols.payload.symbols?.every((s) => s.chart_url === `${chartOrigin}/chart?symbol=${s.adapter}:${s.symbol}&tf=D`),
+    edgeSymbols.payload.symbols?.map((s) => s.chart_url).join(", "),
+  );
+
   // edge_report — unknown symbol refuses with guidance, never guesses
   const edgeMiss = await callJson(client, "edge_report", { preset: "gap-fill", symbol: "NOPE" });
   check(

@@ -147,16 +147,16 @@ Tokens live in `~/.config/luxalgo/mcp-auth.json` (`%APPDATA%\luxalgo\mcp-auth.js
 
 | Tool | Description |
 | --- | --- |
-| `library_search` | One search over concepts (alias-aware) and indicators |
-| `library_get_concept` | Full concept page as markdown |
-| `library_get_indicator` | Indicator detail: body, family, concepts, source code availability |
-| `library_get_source_code` | Source code, fetched only on demand: in full when publicly served, or the start of it (`complete: false`) for indicators the app previews to signed-out users; `chart_url` opens the indicator on a Vela chart |
+| `library_search` | One search over concepts (alias-aware) and indicators; indicator hits carry `chart_url` |
+| `library_get_concept` | Full concept page as markdown, plus the concept's indicators, each with `chart_url` |
+| `library_get_indicator` | Indicator detail: body, family, concepts, source code availability, `chart_url` |
+| `library_get_source_code` | Source code, fetched only on demand: in full when publicly served, or the start of it (`complete: false`) for indicators the app previews to signed-out users; `chart_url` opens the indicator on a Vela chart whether the source is complete, partial or not served |
 | `library_list_concepts` | Paginated concept roster, optionally per family |
-| `library_list_indicators` | Filtered, paginated browse (family, concept, platform, tier) with server-side sort |
+| `library_list_indicators` | Filtered, paginated browse (family, concept, platform, tier) with server-side sort; each indicator carries `chart_url` |
 | `library_list_families` | The taxonomy backbone with counts |
 | `library_get_family` | A family hub as markdown plus concept roster |
 
-Library outputs are compact JSON with canonical `url`s for citation. Concept and family pages are also directly fetchable as markdown: append `.md` to any concept URL.
+Library outputs are compact JSON with canonical `url`s for citation. `chart_url` opens an indicator on a Vela chart (`https://vela.luxalgo.com/chart?pineScriptCodeId=…`); the few Library entries with no Vela script get none. Concept and family pages are also directly fetchable as markdown: append `.md` to any concept URL.
 
 ### Account (sign-in required)
 
@@ -205,9 +205,9 @@ Hosted session statistics from the open-source [edge-stats](https://github.com/L
 
 | Tool | Description |
 | --- | --- |
-| `edge_symbols` | What the hosted store covers: symbols, session calendars, coverage windows, last build |
+| `edge_symbols` | What the hosted store covers: symbols, session calendars, coverage windows, last build; each symbol carries `chart_url` |
 | `edge_presets` | The catalog of precomputed questions, each stating in plain language what its number means |
-| `edge_report` | One result in the engine's full honesty envelope: estimate, N, Wilson 95% CI, minimum-sample guards, stability split, per-year counts, distribution, disclaimer |
+| `edge_report` | One result in the engine's full honesty envelope: estimate, N, Wilson 95% CI, minimum-sample guards, stability split, per-year counts, distribution, disclaimer; `chart_url` opens the symbol on a Vela chart (`?symbol=binance:BTCUSDT`, 15-minute bars for intraday presets, daily for the rest) |
 
 Every number arrives with its sample size — the engine has no code path that returns a percentage without one. Results are historical conditional frequencies, never predictions. For arbitrary composed queries or your own market data, run edge-stats locally; its own MCP server exposes the full engine over your local store.
 
@@ -254,7 +254,7 @@ The live directory the simulator draws from, queryable directly:
 
 Every tool above returns text and JSON. When the answer wants a chart, draw it with **[the open-source core of Vela by LuxAlgo](https://velacharts.dev)** (`@luxalgo/vela`, Apache-2.0, [GitHub](https://github.com/LuxAlgo/Vela)), the charting library behind Vela: a headless chart with its own WebGL2 renderer that takes bars you already have, or fetches them from keyless public providers, and runs indicator scripts through pluggable engines. Pine Script® lives in the [`@luxalgo/vela-pinets`](https://github.com/LuxAlgo/Vela-pinets) addon, which is what closes the loop with the Library: `library_get_source_code` hands an agent an indicator's exact Pine source, and Vela's open-source core executes that source on a chart.
 
-To open an indicator on Vela, LuxAlgo's next-generation charting platform at [vela.luxalgo.com/chart](https://vela.luxalgo.com/chart), give the user the `chart_url` that `library_get_source_code` returns when the indicator's code runs only on LuxAlgo.
+To open an indicator or a market on Vela, LuxAlgo's next-generation charting platform at [vela.luxalgo.com/chart](https://vela.luxalgo.com/chart), give the user the `chart_url` the Library and Edge Stats results carry. The Claude connector's address (`claude.mcp.luxalgo.com`) does not carry these links yet; `library_get_source_code` there still returns one when the indicator's code runs only on LuxAlgo.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset=".github/assets/vela-supertrend-dark.png">
