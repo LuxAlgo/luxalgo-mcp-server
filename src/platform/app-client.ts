@@ -12,6 +12,11 @@
   journal is the only thing this server ever writes, and only as them. The
   app's answers map to two typed errors: 401 → sign in (AppAuthError),
   403 → the plan does not allow it (AppPermissionError).
+
+  One narrow exception, at the bottom of this file: the chart tools' live
+  chart sessions (`appSendChartSession` / `appGetChartSession`), which work
+  anonymously and are authorised by a per-session key, not by a user. See
+  docs/auth.md §7a.
 */
 import { currentAccess, type Access } from "../auth/access-context.js";
 
@@ -140,6 +145,80 @@ async function readEnvelope<T>(pathname: string, response: Response): Promise<T>
   if (firstError) throw new AppApiError(firstError.message, response.status);
   if (payload.data === undefined) throw new AppApiError(`Empty response for ${pathname}`, response.status);
   return payload.data;
+}
+
+/*
+  Live chart sessions: the ONE anonymous write path to the app (docs/auth.md
+  §7a). A chart session is not user data: it is a small queue of chart edits
+  and a words-level state, reachable only with one of the two random keys the
+  app mints when it creates the session (the write key queues edits, the read
+  key follows the chart and reports its state). The key, not a user, is what
+  authorises every call after the create, so these helpers:
+
+  - accept only the app's chart-session routes (anything else throws before a
+    request goes out) and only the method each route takes;
+  - send the caller's token, when there is one, on the create call only (the
+    app records who opened the chart) and never require one; every later call
+    carries the session key in `x-chart-session-key` and no token;
+  - never follow a redirect, so a key never leaves for another origin.
+
+  Keys are secrets of the chart: never log or print them (pathnames carry the
+  session id only, never a key).
+*/
+const CHART_SESSION_ROUTE = /^\/api\/chart-sessions(\/[A-Za-z0-9_-]+(\/(commands|state))?)?$/;
+const CHART_SESSION_KEY_HEADER = "x-chart-session-key";
+
+export type ChartSessionOptions = {
+  query?: Record<string, string | undefined>;
+  /** JSON-encoded request body (POST only). */
+  body?: unknown;
+  /** The session's write or read key; required on every call but the create. */
+  sessionKey?: string;
+  /** Gives up after this long (default 10 s). */
+  timeoutMs?: number;
+};
+
+/**
+ * POST to a chart-session route: `/api/chart-sessions` (create; forwards the
+ * caller's token when present), `/api/chart-sessions/{id}/commands` or
+ * `/api/chart-sessions/{id}/state` (session key only, never a token).
+ */
+export function appSendChartSession<T>(pathname: string, options: ChartSessionOptions = {}): Promise<T> {
+  return chartSessionRequest<T>("POST", pathname, options);
+}
+
+/** GET `/api/chart-sessions/{id}` with the session's read or write key; never sends a token. */
+export function appGetChartSession<T>(pathname: string, options: Omit<ChartSessionOptions, "body"> = {}): Promise<T> {
+  return chartSessionRequest<T>("GET", pathname, options);
+}
+
+async function chartSessionRequest<T>(method: "GET" | "POST", pathname: string, options: ChartSessionOptions): Promise<T> {
+  const route = CHART_SESSION_ROUTE.exec(pathname);
+  if (!route) throw new Error(`Not a chart-session route: ${pathname}`);
+  const isCreate = route[1] === undefined;
+  const isSessionRead = !isCreate && route[3] === undefined;
+  if (method === "GET" ? !isSessionRead : isSessionRead) throw new Error(`${method} is not allowed on ${pathname}`);
+
+  const headers: Record<string, string> = { accept: "application/json" };
+  if (isCreate) {
+    if (options.sessionKey !== undefined) throw new Error("Creating a chart session takes no session key");
+    const access = currentAccess();
+    if (access) headers.authorization = `Bearer ${access.token}`;
+  } else {
+    if (!options.sessionKey) throw new Error(`${pathname} needs the session's key`);
+    headers[CHART_SESSION_KEY_HEADER] = options.sessionKey;
+  }
+  const init: RequestInit = {
+    method,
+    headers,
+    redirect: "error",
+    signal: AbortSignal.timeout(options.timeoutMs ?? 10_000),
+  };
+  if (method === "POST" && options.body !== undefined) {
+    headers["content-type"] = "application/json";
+    init.body = JSON.stringify(options.body);
+  }
+  return readEnvelope<T>(pathname, await fetch(appUrl(pathname, options.query), init));
 }
 
 /** Plain-markdown page from the marketing site; null on 404. */

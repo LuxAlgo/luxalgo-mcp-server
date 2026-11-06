@@ -131,6 +131,8 @@ let ws: VelaWorkspace | null = null;
 let market: Market | null = null;
 let timeframe: Timeframe = "4h";
 let chartId: string | null = null;
+/** For a chart kept in the app's chart session: the view's own key and the Vela link that follows the chart (chart_open's _meta only). */
+let session: { sync_key?: string; follow_url?: string } = {};
 let ackedSeq = 0;
 let initialApplied = false;
 let candlesLoaded = false;
@@ -496,7 +498,13 @@ async function syncOnce(): Promise<number> {
     const result = await app.callServerTool({
       name: "chart_sync",
       // `context` is harmless when unused and satisfies analytics wrappers that require it.
-      arguments: { chart_id: chartId, acked_seq: ackedSeq, state: viewState(), context: "chart view sync" },
+      arguments: {
+        chart_id: chartId,
+        ...(session.sync_key ? { sync_key: session.sync_key } : {}),
+        acked_seq: ackedSeq,
+        state: viewState(),
+        context: "chart view sync",
+      },
     });
     const data = result.structuredContent as { known?: boolean; ops?: Op[] } | undefined;
     const ops = data?.ops ?? [];
@@ -560,6 +568,8 @@ app.ontoolresult = (result) => {
     return;
   }
   chartId = data.chart_id;
+  const meta = (result._meta as Record<string, unknown> | undefined)?.["luxalgo/chart"] as typeof session | undefined;
+  if (meta && typeof meta === "object") session = meta;
   mark("chartId", chartId);
   start(data);
   void syncLoop();
@@ -672,7 +682,8 @@ pipBtn.addEventListener("click", () => void requestMode("pip"));
 
 openBtn.addEventListener("click", async () => {
   if (!market) return;
-  const url = velaChartUrl(market, timeframe);
+  // An app session opens a Vela tab that follows this same chart.
+  const url = session.follow_url ?? velaChartUrl(market, timeframe);
   try {
     const result = await app.openLink({ url });
     mark("openLink", result.isError ? "refused" : "ok");

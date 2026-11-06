@@ -2,12 +2,15 @@
   Where chart_command leaves edits for an open chart and where the chart view
   (the iframe, through chart_sync) picks them up and reports back.
 
-  SPIKE ONLY: this is an in-process Map. It works on the plain-Node entry
-  (one long-lived process), but hosted entries build a server per request and
-  Vercel runs many instances, so chart_command and the view's chart_sync can
-  land on different processes. Before this ships the store must move to a
-  shared store (Redis/KV keyed by chart_id, with a TTL), and the wait in
-  chart_command must become a poll of that store (or a pub/sub wake-up).
+  Two backends behind one ChartStore interface (./backend.ts picks one per
+  chart and marks it in the chart_id):
+
+    app      the LuxAlgo app's chart sessions (./app-session.ts): shared by
+             every server instance, and a Vela tab can follow the same chart;
+    memory   this in-process Map, the fallback when the app does not offer
+             chart sessions (it answers 404 while its flag is off) or cannot
+             be reached. It works on the plain-Node entry (one long-lived
+             process) but not across Vercel instances.
 
   Nothing here is user data: chart ids are random, ops are what the model
   asked for, and the view reports words-level state (symbol, timeframe, dates,
@@ -24,7 +27,8 @@ export type ChartOp =
   | { op: "clear_drawings" }
   | { op: "zoom"; range: string };
 
-export type SequencedOp = ChartOp & { seq: number };
+/** An op as the view receives it; `unsupported` stands in for one the view cannot apply (it acknowledges and skips it). */
+export type SequencedOp = (ChartOp | { op: "unsupported" }) & { seq: number };
 
 /** What the view reports about itself. Words-level only. */
 export type ViewState = {
@@ -41,9 +45,25 @@ export type ViewState = {
   error?: string;
 };
 
-type ChartSession = {
+/** chart_command's outcome when queuing: the version of the last op, or why nothing was queued. */
+export type PushResult = { version: number } | { gone: true } | { refused: string };
+
+/** One open chart, wherever its edits live. */
+export interface ChartStore {
+  readonly backend: "app" | "memory";
+  /** Queues ops in order (chart_command). */
+  push(ops: ChartOp[]): Promise<PushResult>;
+  /** Waits until the view acknowledged `version` (or `timeoutMs` passed); returns the latest report. */
+  waitForAck(version: number, timeoutMs: number): Promise<{ applied: boolean; view?: ViewState }>;
+  /** The view's poll (chart_sync): records its ack and state, returns the ops it has not applied yet; null when the chart is gone. */
+  sync(ackedSeq: number, view: ViewState | undefined): Promise<{ ops: SequencedOp[] } | null>;
+}
+
+// ---------- memory backend ----------
+
+type MemoryChart = {
   createdAt: number;
-  ops: SequencedOp[];
+  ops: Array<ChartOp & { seq: number }>;
   ackedSeq: number;
   view?: ViewState;
   lastSyncAt?: number;
@@ -52,59 +72,52 @@ type ChartSession = {
 const TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_CHARTS = 5_000;
 const MAX_OPS = 500;
-const sessions = new Map<string, ChartSession>();
+const charts = new Map<string, MemoryChart>();
 
 function sweep(now = Date.now()): void {
-  for (const [id, session] of sessions) {
-    if (now - (session.lastSyncAt ?? session.createdAt) > TTL_MS) sessions.delete(id);
+  for (const [id, chart] of charts) {
+    if (now - (chart.lastSyncAt ?? chart.createdAt) > TTL_MS) charts.delete(id);
   }
-  while (sessions.size > MAX_CHARTS) sessions.delete(sessions.keys().next().value as string);
+  while (charts.size > MAX_CHARTS) charts.delete(charts.keys().next().value as string);
 }
 
-export function createChart(): string {
+/** A new in-memory chart; its id is the chart_id ("ch_…"). */
+export function createMemoryChart(): string {
   sweep();
   const id = `ch_${randomBytes(9).toString("base64url")}`;
-  sessions.set(id, { createdAt: Date.now(), ops: [], ackedSeq: 0 });
+  charts.set(id, { createdAt: Date.now(), ops: [], ackedSeq: 0 });
   return id;
 }
 
-export function hasChart(id: string): boolean {
-  return sessions.has(id);
-}
-
-/** Appends ops; returns the sequence number of the last one. */
-export function pushOps(id: string, ops: ChartOp[]): number | null {
-  const session = sessions.get(id);
-  if (!session) return null;
-  let seq = session.ops.at(-1)?.seq ?? 0;
-  for (const op of ops) session.ops.push({ ...op, seq: ++seq });
-  if (session.ops.length > MAX_OPS) session.ops.splice(0, session.ops.length - MAX_OPS);
-  return seq;
-}
-
-/** The view's poll: records its ack and state, returns the ops it has not applied yet. */
-export function syncChart(id: string, ackedSeq: number, view: ViewState | undefined): { ops: SequencedOp[] } | null {
-  const session = sessions.get(id);
-  if (!session) return null;
-  session.lastSyncAt = Date.now();
-  session.ackedSeq = Math.max(session.ackedSeq, ackedSeq);
-  if (view) session.view = view;
-  return { ops: session.ops.filter((op) => op.seq > ackedSeq) };
-}
-
-export function chartStatus(id: string): { ackedSeq: number; view?: ViewState; lastSyncAt?: number } | null {
-  const session = sessions.get(id);
-  return session ? { ackedSeq: session.ackedSeq, view: session.view, lastSyncAt: session.lastSyncAt } : null;
-}
-
-/** Resolves once the view acknowledged `seq`, or after `timeoutMs`. */
-export async function waitForAck(id: string, seq: number, timeoutMs: number): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const status = chartStatus(id);
-    if (!status) return false;
-    if (status.ackedSeq >= seq) return true;
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  return (chartStatus(id)?.ackedSeq ?? 0) >= seq;
+/** The store for an in-memory chart, or null when this process does not hold it. */
+export function memoryStore(id: string): ChartStore | null {
+  if (!charts.has(id)) return null;
+  const chart = () => charts.get(id);
+  return {
+    backend: "memory",
+    async push(ops) {
+      const current = chart();
+      if (!current) return { gone: true };
+      let seq = current.ops.at(-1)?.seq ?? 0;
+      for (const op of ops) current.ops.push({ ...op, seq: ++seq });
+      if (current.ops.length > MAX_OPS) current.ops.splice(0, current.ops.length - MAX_OPS);
+      return { version: seq };
+    },
+    async waitForAck(version, timeoutMs) {
+      const deadline = Date.now() + timeoutMs;
+      while ((chart()?.ackedSeq ?? 0) < version && chart() && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      const current = chart();
+      return { applied: (current?.ackedSeq ?? 0) >= version, view: current?.view };
+    },
+    async sync(ackedSeq, view) {
+      const current = chart();
+      if (!current) return null;
+      current.lastSyncAt = Date.now();
+      current.ackedSeq = Math.max(current.ackedSeq, ackedSeq);
+      if (view) current.view = view;
+      return { ops: current.ops.filter((op) => op.seq > ackedSeq) };
+    },
+  };
 }
