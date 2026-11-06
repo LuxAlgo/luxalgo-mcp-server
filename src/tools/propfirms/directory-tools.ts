@@ -14,6 +14,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { currentSurface, type Toolset } from "../../auth/surface.js";
 import { json, toolError } from "../_shared/result.js";
 import { compact } from "../_shared/format.js";
+import { SITE_ORIGIN } from "../../platform/app-client.js";
 import {
   type PropfirmChallenge,
   type PropfirmFirm,
@@ -114,6 +115,54 @@ function withoutOffers(firm: PropfirmFirm): Record<string, unknown> {
   const { offers: _offers, challenges, ...rest } = firm;
   if (!challenges) return rest;
   return { ...rest, challenges: challenges.map(({ offers: _o, ...challenge }) => challenge) };
+}
+
+/*
+  propfirms_get off the Claude address (_shared/surface.ts): a firm's dossier
+  without what a model does not need to answer from it. Each challenge
+  repeats its firm's ids and name (already on the firm); the internal row id,
+  logo and visibility flag are site plumbing; the overview's FAQ restates the
+  rules and payout policy sections; bold markers are layout. Everything left
+  out stays reachable: the FAQ through propfirms_search with include
+  ['overview'].
+*/
+const FIRM_PLUMBING = ["id", "logoImageUrl", "isVisible"] as const;
+const CHALLENGE_PARENT_FIELDS = ["firmId", "propfirmId", "propfirmName"] as const;
+
+function withoutBold(value: unknown): unknown {
+  if (typeof value === "string") return value.replace(/\*\*/g, "");
+  if (Array.isArray(value)) return value.map(withoutBold);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, withoutBold(entry)]));
+  }
+  return value;
+}
+
+function trimDossier(firm: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...firm };
+  for (const key of FIRM_PLUMBING) delete out[key];
+  if (Array.isArray(out.challenges)) {
+    out.challenges = (out.challenges as Record<string, unknown>[]).map((challenge) => {
+      const row = { ...challenge };
+      for (const key of CHALLENGE_PARENT_FIELDS) delete row[key];
+      return row;
+    });
+  }
+  const omitted: string[] = [];
+  if (out.overview !== null && typeof out.overview === "object") {
+    const { faq, ...overview } = out.overview as Record<string, unknown>;
+    out.overview = withoutBold(overview);
+    if (faq !== undefined && faq !== null) {
+      omitted.push(
+        `overview.faq (it restates the rules and payout policy): propfirms_search with propfirmId ['${String(firm.propfirmId)}'] and include ['overview'] returns it`,
+      );
+    }
+  }
+  return {
+    ...out,
+    url: `${SITE_ORIGIN}/prop-firms/${encodeURIComponent(String(firm.propfirmId))}/`,
+    ...(omitted.length > 0 ? { omitted } : {}),
+  };
 }
 
 /**
@@ -506,7 +555,8 @@ export function registerPropfirmTools(server: McpServer, toolset: Toolset) {
           `Unknown prop firm slug '${propfirmId}'. Find slugs with propfirms_search.`,
         );
       }
-      return json(compact({ firm: withOffers ? liftFirmOffers(firm) : withoutOffers(firm) }));
+      const dossier = withOffers ? liftFirmOffers(firm) : withoutOffers(firm);
+      return json(compact({ firm: frozen ? dossier : trimDossier(dossier) }));
     },
   );
 

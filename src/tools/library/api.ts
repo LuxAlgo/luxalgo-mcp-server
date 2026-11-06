@@ -1,10 +1,16 @@
 /*
   The Library endpoints of the app API — indicators, concepts, families,
   Pine source — plus the concept taxonomy the tools validate against.
-  The concepts list is cached in-process (small, rarely changing, identical
-  for every caller); everything else is fetched per call.
+
+  Cached in-process because they are identical for every caller: the
+  concepts list, indicator queries (the app's public query route never looks
+  at who is asking, so it is fetched anonymously) and the marketing site's
+  markdown pages (never fetched with a token). Indicator pages by slug are
+  fetched per call with the caller's token: the app decides how much source
+  a signed-out caller sees.
 */
-import { appGet, cachedAnonymous, isNotFound } from "../../platform/app-client.js";
+import { appGet, cachedAnonymous, fetchMarkdown, isNotFound } from "../../platform/app-client.js";
+import { hedged, keyedCache } from "../_shared/cache.js";
 
 export const CONCEPT_FAMILIES = [
   "trend",
@@ -79,9 +85,23 @@ export type IndicatorDetail = IndicatorSummary & {
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 export const getConcepts = cachedAnonymous(CACHE_TTL_MS, async () => {
-  const { concepts } = await appGet<{ concepts: Concept[] }>("/api/library/concepts", undefined, { access: null });
+  const { concepts } = await hedged(() =>
+    appGet<{ concepts: Concept[] }>("/api/library/concepts", undefined, { access: null }),
+  );
   return concepts;
 });
+
+const indicatorQueries = keyedCache<{ indicators: IndicatorSummary[]; count: number }>({
+  ttlMs: CACHE_TTL_MS,
+  max: 200,
+});
+
+const markdownPages = keyedCache<string | null>({ ttlMs: 10 * 60 * 1000, max: 300 });
+
+/** A marketing-site markdown page (no token is ever sent there), cached; null on 404. */
+export function getMarkdown(path: string): Promise<string | null> {
+  return markdownPages.get(path, () => hedged(() => fetchMarkdown(path)));
+}
 
 export async function queryIndicators(params: {
   text?: string;
@@ -96,7 +116,7 @@ export async function queryIndicators(params: {
   pageIndex?: number;
   pageQuantity?: number;
 }): Promise<{ indicators: IndicatorSummary[]; count: number }> {
-  return appGet("/api/library/indicators/query", {
+  const query = {
     text: params.text,
     family: params.family,
     concept: params.concept,
@@ -107,7 +127,20 @@ export async function queryIndicators(params: {
     direction: params.direction,
     pageIndex: params.pageIndex !== undefined ? String(params.pageIndex) : undefined,
     pageQuantity: params.pageQuantity !== undefined ? String(params.pageQuantity) : undefined,
-  });
+    // Card rows leave out the long article body, which no list result uses.
+    fields: "card",
+  };
+  // One app instance in two takes 4-6 s on this route: up to four parallel
+  // tries, 600 ms apart, so a slow instance rarely decides the answer time.
+  return indicatorQueries.get(JSON.stringify(query), () =>
+    hedged(
+      () =>
+        appGet<{ indicators: IndicatorSummary[]; count: number }>("/api/library/indicators/query", query, {
+          access: null,
+        }),
+      { afterMs: 600, attempts: 4 },
+    ),
+  );
 }
 
 export async function getIndicatorBySlug(

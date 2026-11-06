@@ -150,7 +150,8 @@ export async function run({ check, httpUrl }) {
 
     // ── the ChatGPT address: Vela links ────────────────────────────────────
     const openaiSource = await call(openai, "library_get_source_code", { slug: "dynamic-order-blocks" });
-    const openaiEdge = await call(openai, "edge_report", { preset: "gap-fill", symbol: "BTCUSDT" });
+    // An intraday preset that applies to a round-the-clock market (gap presets are refused there).
+    const openaiEdge = await call(openai, "edge_report", { preset: "orb", symbol: "BTCUSDT" });
     check(
       "on the ChatGPT address, an indicator's source comes with its Vela chart link",
       !openaiSource.isError && openaiSource.payload.chart_url?.startsWith(`${CHART_ORIGIN}/chart?pineScriptCodeId=`),

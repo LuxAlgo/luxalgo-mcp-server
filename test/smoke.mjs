@@ -8,7 +8,8 @@
   `surface` (tools/list, securitySchemes, serverInfo) and, over HTTP,
   `discovery` (OAuth discovery on the standard and the Claude host), and
   `claude-surface` (the Claude address stays frozen; over stdio it starts the
-  node-http entry on a free port itself). Run a subset with
+  node-http entry on a free port itself), and
+  `answers-surfaces` (the Claude address keeps its reviewed answers). Run a subset with
   --only <suite>[,<suite>], e.g. `node test/smoke.mjs --only library,edge`.
 */
 import { Client } from "@modelcontextprotocol/client";
@@ -149,6 +150,7 @@ const suites = [
   ["claude-freeze", () => import("./smoke/claude-freeze.mjs"), { stdioOnly: true }],
   ["trackers", () => import("./smoke/trackers.mjs")],
   ["edge", () => import("./smoke/edge.mjs")],
+  ["answers-surfaces", () => import("./smoke/answers-surfaces.mjs"), { httpOnly: true }],
 ];
 
 const context = { client, check, callJson, callStructured, httpUrl, rawToolsList };
