@@ -120,6 +120,7 @@ const openBtn = document.getElementById("open") as HTMLButtonElement;
 const fullBtn = document.getElementById("fullscreen") as HTMLButtonElement;
 const pipBtn = document.getElementById("pip") as HTMLButtonElement;
 const chartEl = document.getElementById("chart")!;
+const noteEl = document.getElementById("note")!;
 
 function setStatus(text: string) {
   statusEl.textContent = text;
@@ -295,10 +296,12 @@ async function mount(args: ChartArgs) {
     /* diagnostics only */
   }
   for (const name of args.indicators ?? []) addIndicator(name);
+  // The range first: levels and zones are placed inside the visible range.
+  if (args.range) chart().setVisibleRangePreset(args.range);
   for (const level of args.levels ?? []) addLevel(level);
   for (const zone of args.zones ?? []) addZone(zone);
-  if (args.range) chart().setVisibleRangePreset(args.range);
   wireChartEvents();
+  scheduleLevelLabels();
   initialApplied = true;
   scheduleModelContext();
   mark("ready", true);
@@ -309,6 +312,9 @@ function wireChartEvents() {
   const changed = () => scheduleModelContext();
   for (const event of ["market:changed", "indicator:added", "indicator:removed", "drawing:created", "drawing:removed", "viewport:changed"] as const) {
     c.on(event as never, changed as never);
+  }
+  for (const event of ["market:changed", "viewport:changed"] as const) {
+    c.on(event as never, scheduleLevelLabels as never);
   }
   c.renderer.onClick(({ time }: { time: number | null }) => {
     if (time == null) return;
@@ -348,14 +354,79 @@ function label(value: string | undefined) {
   return value ? { value, size: "normal" as const, hAlign: "left" as const, vAlign: "top" as const } : undefined;
 }
 
+/** A price for a label: thousands separators, and enough decimals for small coins (80000 -> "80,000"). */
+function formatPrice(price: number): string {
+  const decimals = price >= 1000 ? 2 : price >= 1 ? 4 : 8;
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: decimals, useGrouping: true }).format(price);
+}
+
+/** Groups the digits of any number written in a label ("80000" -> "80,000"); leaves years and short numbers alone. */
+function groupDigits(text: string): string {
+  return text.replace(/\d{5,}(\.\d+)?/g, (n) => formatPrice(Number(n)));
+}
+
+/** A level's words on the chart: its label and its price, or just the price. */
+function levelText(level: Level): string {
+  const price = formatPrice(level.price);
+  if (!level.label) return price;
+  // A label that is only a number ("3500", "80000.5") reads as a price.
+  const bare = level.label.trim().replace(/,/g, "");
+  if (/^\d+(\.\d+)?$/.test(bare)) return formatPrice(Number(bare));
+  // A label that already carries a number ("80000", "Target 80k") is shown as given, digits grouped.
+  return /\d/.test(level.label) ? groupDigits(level.label) : `${level.label} ${price}`;
+}
+
+/*
+  A horizontal line spans the full width, but Vela draws its label just right
+  of the line's anchor, left-aligned, so the anchor's time decides where the
+  words sit. Anchored on the newest candle the label runs off the right edge;
+  anchored a quarter into the visible range it is fully visible and clear of
+  the legend in the top-left corner. LABEL_AT is that spot (share of the
+  visible span from its start); the label is moved back there when panning or
+  zooming takes it outside [LABEL_MIN_AT, LABEL_MAX_AT].
+*/
+const LABEL_AT = 0.25;
+const LABEL_MIN_AT = 0.05;
+const LABEL_MAX_AT = 0.6;
+
+function levelAnchorTime(): number {
+  const { from, to } = anchorTimes();
+  return from + (to - from) * LABEL_AT;
+}
+
 function addLevel(level: Level) {
-  const { to } = anchorTimes();
   const drawing = chart().drawings.add("hline", {
-    anchors: [{ time: to, price: level.price }],
-    text: label(level.label),
+    anchors: [{ time: levelAnchorTime(), price: level.price }],
+    text: label(levelText(level)),
     style: { lineColor: "#f5a623", lineWidth: 2 } as never,
   });
   if (drawing) levels.push({ ...level, id: drawing.id });
+}
+
+/** Moves the model's level labels back into view after the visible range changed. */
+function keepLevelLabelsInView() {
+  if (!ws || !levels.length) return;
+  const range = chart().getVisibleRange();
+  if (!range || range.to <= range.from) return;
+  const span = range.to - range.from;
+  const time = range.from + span * LABEL_AT;
+  const byId = new Map(chart().drawings.all().map((d) => [d.id, d]));
+  const patches: Array<{ id: string; patch: { anchors: Array<{ time: number; price: number }> } }> = [];
+  for (const level of levels) {
+    const anchor = (byId.get(level.id) as { anchors?: Array<{ time: number; price: number }> } | undefined)?.anchors?.[0];
+    if (!anchor) continue;
+    const at = (anchor.time - range.from) / span;
+    if (at >= LABEL_MIN_AT && at <= LABEL_MAX_AT) continue;
+    // Keep the price: the user may have dragged the line.
+    patches.push({ id: level.id, patch: { anchors: [{ time, price: anchor.price }] } });
+  }
+  if (patches.length) chart().drawings.updateMany(patches as never);
+}
+
+let labelTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleLevelLabels() {
+  clearTimeout(labelTimer);
+  labelTimer = setTimeout(keepLevelLabelsInView, 250);
 }
 
 function addZone(zone: Zone) {
@@ -503,26 +574,82 @@ app.onhostcontextchanged = (ctx: Partial<McpUiHostContext>) => {
   refreshModeButtons();
 };
 
+type DisplayMode = "inline" | "fullscreen" | "pip";
+
+/** ChatGPT's compatibility bridge (it implements MCP Apps; window.openai is an alias). */
+type OpenAiBridge = { requestDisplayMode?: (args: { mode: DisplayMode }) => Promise<{ mode?: string } | undefined | void> };
+function openAiBridge(): OpenAiBridge | undefined {
+  return (window as unknown as { openai?: OpenAiBridge }).openai;
+}
+
+/**
+ * Whether to offer a mode. A host that reports no modes (or an empty list) is
+ * asked anyway: ChatGPT web, for one, offers picture in picture without
+ * listing it. Only a host that lists its modes and leaves this one out, with
+ * no other way to ask, gets a disabled button.
+ */
+function modeOffered(mode: DisplayMode): boolean {
+  const listed = app.getHostContext()?.availableDisplayModes;
+  if (!listed || listed.length === 0) return true;
+  if (listed.includes(mode)) return true;
+  return typeof openAiBridge()?.requestDisplayMode === "function";
+}
+
 function refreshModeButtons() {
-  const available = app.getHostContext()?.availableDisplayModes ?? [];
   fullBtn.textContent = displayMode === "fullscreen" ? "Exit full screen" : "Full screen";
   pipBtn.textContent = displayMode === "pip" ? "Back to chat" : "Picture in picture";
-  fullBtn.disabled = !available.includes("fullscreen");
-  pipBtn.disabled = !available.includes("pip");
+  // Leaving a mode is always allowed.
+  fullBtn.disabled = displayMode !== "fullscreen" && !modeOffered("fullscreen");
+  pipBtn.disabled = displayMode !== "pip" && !modeOffered("pip");
   fullBtn.title = fullBtn.disabled ? "This chat app does not offer full screen" : "";
   pipBtn.title = pipBtn.disabled ? "This chat app does not offer picture in picture" : "";
 }
 
-async function requestMode(mode: "inline" | "fullscreen" | "pip") {
-  const target = displayMode === mode ? "inline" : mode;
+let noteTimer: ReturnType<typeof setTimeout> | undefined;
+function showNote(text: string) {
+  clearTimeout(noteTimer);
+  noteEl.textContent = text;
+  noteEl.hidden = false;
+  noteTimer = setTimeout(() => {
+    noteEl.hidden = true;
+  }, 5000);
+}
+
+function setDisplayMode(mode: string) {
+  displayMode = mode;
+  document.documentElement.dataset.displayMode = displayMode;
+}
+
+const MODE_WORDS: Record<DisplayMode, string> = { inline: "in the chat", fullscreen: "full screen", pip: "picture in picture" };
+
+async function requestMode(mode: DisplayMode) {
+  const target: DisplayMode = displayMode === mode ? "inline" : mode;
+  let granted: string | undefined;
   try {
-    const result = await app.requestDisplayMode({ mode: target });
-    displayMode = result.mode;
-    document.documentElement.dataset.displayMode = displayMode;
-    mark("displayModeResult", `${target}->${result.mode}`);
-    log("requestDisplayMode", target, "->", result.mode);
+    const result = await withTimeout(app.requestDisplayMode({ mode: target }), 4000);
+    granted = result?.mode;
+    mark("displayModeResult", `${target}->${granted ?? "no answer"}`);
   } catch (error) {
-    mark("displayModeResult", `${target}->error ${String(error)}`);
+    mark("displayModeResult", `${target}->error ${String(error).slice(0, 120)}`);
+  }
+  // Not granted as asked: try ChatGPT's own bridge, when the page has one.
+  const bridge = openAiBridge();
+  if (granted !== target && typeof bridge?.requestDisplayMode === "function") {
+    try {
+      const result = await withTimeout(Promise.resolve(bridge.requestDisplayMode({ mode: target })), 4000);
+      // The bridge may answer without a mode; the host context then reports the change.
+      granted = (result && typeof result === "object" && typeof result.mode === "string" ? result.mode : undefined) ?? target;
+      mark("displayModeFallback", `${target}->${granted}`);
+    } catch (error) {
+      mark("displayModeFallback", `${target}->error ${String(error).slice(0, 120)}`);
+    }
+  }
+  log("requestDisplayMode", target, "->", granted ?? "refused");
+  if (granted === "inline" || granted === "fullscreen" || granted === "pip") setDisplayMode(granted);
+  if (granted !== target) {
+    if (target === "inline") showNote("The chat app kept this view.");
+    else if (granted && granted !== "inline") showNote(`The chat app showed the chart ${MODE_WORDS[granted as DisplayMode] ?? granted} instead.`);
+    else showNote(`This chat app did not open ${MODE_WORDS[target]}. The chart stays here.`);
   }
   refreshModeButtons();
   scheduleModelContext();
