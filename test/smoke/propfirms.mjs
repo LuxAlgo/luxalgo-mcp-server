@@ -93,6 +93,99 @@ export async function run({ client, check, callJson, callStructured }) {
     zeroHit.payload.warnings?.[0]?.slice(0, 80),
   );
 
+  // propfirms_search_challenges — natural queries. The app's text filter is a
+  // substring match, so "FTMO 100K" matched nothing; the size, step count and
+  // firm in the text now map onto the structured filters, and the rows must be
+  // exactly what those filters return.
+  const idsOf = (result) => (result.payload.challenges ?? []).map((c) => c.challengeId).sort().join(",");
+  const structured = async (args) => callJson(client, "propfirms_search_challenges", { ...args, pageQuantity: 100 });
+  const natural = async (text) => callJson(client, "propfirms_search_challenges", { text, pageQuantity: 100 });
+
+  const ftmo100k = await structured({ propfirmId: ["ftmo"], accountSizeMin: 100000, accountSizeMax: 100000 });
+  for (const text of ["FTMO 100K", "ftmo 100000"]) {
+    const found = await natural(text);
+    check(
+      `a trader searching '${text}' finds FTMO's 100K challenges, the same ones the structured filters return`,
+      !found.isError &&
+        found.payload.count > 0 &&
+        idsOf(found) === idsOf(ftmo100k) &&
+        found.payload.challenges.some((c) => c.challengeId === "ftmo-normal-challenge-2-steps-100k"),
+      `${idsOf(found)} (interpretedAs ${JSON.stringify(found.payload.interpretedAs)})`,
+    );
+  }
+
+  const ftmo2step = await natural("FTMO 2-step 100k");
+  const ftmo2stepStructured = await structured({ propfirmId: ["ftmo"], steps: 2, accountSizeMin: 100000, accountSizeMax: 100000 });
+  check(
+    "a trader asking for FTMO 2-step 100k finds that challenge",
+    !ftmo2step.isError &&
+      ftmo2step.payload.challenges?.some((c) => c.challengeId === "ftmo-normal-challenge-2-steps-100k") &&
+      ftmo2step.payload.challenges.every((c) => c.propfirmId === "ftmo" && c.steps === 2 && c.accountSize === 100000) &&
+      idsOf(ftmo2step) === idsOf(ftmo2stepStructured),
+    idsOf(ftmo2step),
+  );
+
+  const the5ers = await natural("the5ers 2 step");
+  const the5ersStructured = await structured({ propfirmId: ["the-5-ers"], steps: 2 });
+  check(
+    "a trader searching 'the5ers 2 step' finds The5ers' two-step challenges",
+    !the5ers.isError &&
+      the5ers.payload.count > 0 &&
+      the5ers.payload.challenges.every((c) => c.propfirmId === "the-5-ers" && c.steps === 2) &&
+      idsOf(the5ers) === idsOf(the5ersStructured),
+    idsOf(the5ers),
+  );
+
+  // Topstep is not in LuxAlgo's prop-firm directory: never mapped onto
+  // another firm, and the answer says so and names the firms that are.
+  const topstep = await natural("Topstep 50k");
+  check(
+    "a search for a firm the directory does not list ('Topstep 50k') says so and names the firms it does list",
+    !topstep.isError &&
+      topstep.payload.count === 0 &&
+      /matches 'Topstep'/.test(topstep.payload.warnings?.[0] ?? "") &&
+      /FTMO \(ftmo\)/.test(topstep.payload.warnings?.[0] ?? ""),
+    topstep.payload.warnings?.[0]?.slice(0, 90),
+  );
+
+  const ftmo300k = await natural("FTMO 2-step 300k");
+  check(
+    "a size the firm does not offer comes back with the sizes it does offer",
+    !ftmo300k.isError && ftmo300k.payload.count === 0 && /2-step [^;]*100K/.test(ftmo300k.payload.warnings?.[0] ?? ""),
+    ftmo300k.payload.warnings?.[0]?.slice(0, 120),
+  );
+
+  const plainFtmo = await natural("FTMO");
+  check(
+    "a text search that already finds challenges answers exactly as the app does",
+    !plainFtmo.isError && plainFtmo.payload.count > 0 && plainFtmo.payload.interpretedAs === undefined,
+    `count=${plainFtmo.payload.count}`,
+  );
+
+  const singleSlug = await callJson(client, "propfirms_search_challenges", { propfirmId: "ftmo", pageQuantity: 100 });
+  const listSlug = await structured({ propfirmId: ["ftmo"] });
+  check(
+    "one firm slug on its own ('ftmo') works the same as a list of one",
+    !singleSlug.isError && singleSlug.payload.count > 0 && idsOf(singleSlug) === idsOf(listSlug),
+    `count=${singleSlug.payload.count}`,
+  );
+
+  // The reviewed ChatGPT test case end to end: search, then simulate what it found.
+  const reviewerChallenge = ftmo2step.payload.challenges?.find((c) => c.challengeId === "ftmo-normal-challenge-2-steps-100k");
+  const reviewerSim = await callStructured(client, "propfirms_simulate", {
+    firmId: reviewerChallenge?.propfirmId ?? "ftmo",
+    challengeId: reviewerChallenge?.challengeId ?? "not-found-by-search",
+    winRate: 0.5,
+    avgWinR: 2,
+    riskValue: 1,
+    tradesPerDay: 2,
+  });
+  check(
+    "a trader asking their odds on the FTMO 2-step 100k gets a simulation of the challenge the search found",
+    !reviewerSim.isError && typeof reviewerSim.data.perAttempt?.passProbability === "number",
+    reviewerSim.isError ? reviewerSim.text.slice(0, 80) : `pass/attempt=${(reviewerSim.data.perAttempt.passProbability * 100).toFixed(1)}%`,
+  );
+
   // propfirms_search_offers — live offers by challenge
   const challengeId = challenges.payload.challenges?.[0]?.challengeId;
   const offers = await callJson(client, "propfirms_search_offers", {

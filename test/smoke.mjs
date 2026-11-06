@@ -128,6 +128,8 @@ const suites = [
   ["broker", () => import("./smoke/broker.mjs"), { stdioOnly: true }],
   ["library", () => import("./smoke/library.mjs")],
   ["propfirms", () => import("./smoke/propfirms.mjs")],
+  // In-process against dist/, on the Claude surface; not a deployment check.
+  ["claude-freeze", () => import("./smoke/claude-freeze.mjs"), { stdioOnly: true }],
   ["trackers", () => import("./smoke/trackers.mjs")],
   ["edge", () => import("./smoke/edge.mjs")],
 ];
