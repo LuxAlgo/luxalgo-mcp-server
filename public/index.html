@@ -3,180 +3,904 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LuxAlgo MCP</title>
-    <meta name="description" content="LuxAlgo MCP connects AI agents to the LuxAlgo Library, prop firm data, Market Trackers, Edge Stats and your Trade Journal." />
+    <title>MCP for ChatGPT, Claude and any agent | LuxAlgo</title>
+    <meta name="description" content="Add LuxAlgo to ChatGPT, Claude or any MCP client: the Library, prop-firm challenge simulations, session statistics and your Trade Journal. From the trading technology company that built Vela, the next-generation charting platform." />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
     <link rel="canonical" href="https://mcp.luxalgo.com/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="LuxAlgo" />
     <meta property="og:url" content="https://mcp.luxalgo.com/" />
-    <meta property="og:title" content="LuxAlgo MCP" />
-    <meta property="og:description" content="LuxAlgo MCP connects AI agents to the LuxAlgo Library, prop firm data, Market Trackers, Edge Stats and your Trade Journal." />
-    <meta property="og:image" content="https://www.luxalgo.com/api/og/page/?title=One+MCP+for+all+of+trading.&amp;eyebrow=LuxAlgo+MCP&amp;sub=The+Library%2C+your+journal%2C+prop-firm+sims+and+session+stats+for+any+agent.&amp;u=%2Fmcp" />
+    <meta property="og:title" content="MCP for ChatGPT, Claude and any agent | LuxAlgo" />
+    <meta property="og:description" content="Add LuxAlgo to ChatGPT, Claude or any MCP client: the Library, prop-firm challenge simulations, session statistics and your Trade Journal." />
+    <meta property="og:image" content="https://www.luxalgo.com/api/og/page/?title=LuxAlgo+in+ChatGPT%2C+Claude+and+any+agent.&amp;eyebrow=LuxAlgo+MCP&amp;sub=The+Library%2C+prop-firm+simulations%2C+session+stats+and+your+Trade+Journal.&amp;u=%2Fmcp" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="LuxAlgo in ChatGPT, Claude and any agent." />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@LuxAlgo" />
-    <meta name="twitter:title" content="LuxAlgo MCP" />
-    <meta name="twitter:description" content="LuxAlgo MCP connects AI agents to the LuxAlgo Library, prop firm data, Market Trackers, Edge Stats and your Trade Journal." />
-    <meta name="twitter:image" content="https://www.luxalgo.com/api/og/page/?title=One+MCP+for+all+of+trading.&amp;eyebrow=LuxAlgo+MCP&amp;sub=The+Library%2C+your+journal%2C+prop-firm+sims+and+session+stats+for+any+agent.&amp;u=%2Fmcp" />
+    <meta name="twitter:title" content="MCP for ChatGPT, Claude and any agent | LuxAlgo" />
+    <meta name="twitter:description" content="Add LuxAlgo to ChatGPT, Claude or any MCP client: the Library, prop-firm challenge simulations, session statistics and your Trade Journal." />
+    <meta name="twitter:image" content="https://www.luxalgo.com/api/og/page/?title=LuxAlgo+in+ChatGPT%2C+Claude+and+any+agent.&amp;eyebrow=LuxAlgo+MCP&amp;sub=The+Library%2C+prop-firm+simulations%2C+session+stats+and+your+Trade+Journal.&amp;u=%2Fmcp" />
     <style>
       :root {
         color-scheme: light dark;
         --bg: #ffffff;
-        --fg: #111111;
-        --muted: #56565c;
-        --border: rgba(17, 17, 17, 0.12);
-        --chip: #f4f4f5;
-        --link: #2563eb;
+        --surface: #f6f6f7;
+        --fg: #0b0b0c;
+        --muted: #55555c;
+        --border: rgba(11, 11, 12, 0.11);
+        --border-strong: rgba(11, 11, 12, 0.22);
+        --code-bg: #ffffff;
+        --link: #1d5fd1;
+        --btn-bg: #0b0b0c;
+        --btn-fg: #ffffff;
+        --focus: #1d5fd1;
+        --ok: #0f7a3e;
       }
       @media (prefers-color-scheme: dark) {
         :root {
           --bg: #0a0a0a;
+          --surface: #131315;
           --fg: #ededed;
-          --muted: #a0a0a0;
-          --border: rgba(255, 255, 255, 0.14);
-          --chip: rgba(255, 255, 255, 0.07);
-          --link: #35a2de;
+          --muted: #a3a3aa;
+          --border: rgba(255, 255, 255, 0.11);
+          --border-strong: rgba(255, 255, 255, 0.24);
+          --code-bg: #0a0a0a;
+          --link: #5db6ea;
+          --btn-bg: #ededed;
+          --btn-fg: #0a0a0a;
+          --focus: #5db6ea;
+          --ok: #4fc483;
+        }
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      html {
+        -webkit-text-size-adjust: 100%;
+        scroll-behavior: smooth;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
         }
       }
       body {
-        font-family: system-ui, sans-serif;
-        max-width: 40rem;
-        margin: 3.5rem auto;
-        padding: 0 1rem;
+        margin: 0;
         background: var(--bg);
         color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-size: 1rem;
+        line-height: 1.55;
+        overflow-wrap: break-word;
       }
-      /* The brand lockup: the full LuxAlgo logo (symbol + wordmark), then
-         the product name, the way the README banner composes it. */
-      header {
+      a {
+        color: var(--link);
+        text-underline-offset: 0.15em;
+      }
+      a:focus-visible,
+      button:focus-visible {
+        outline: 2px solid var(--focus);
+        outline-offset: 2px;
+        border-radius: 6px;
+      }
+      code,
+      pre {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+        font-size: 0.86rem;
+      }
+      .wrap {
+        width: 100%;
+        max-width: 68rem;
+        margin: 0 auto;
+        padding: 0 1rem;
+      }
+      @media (min-width: 640px) {
+        .wrap {
+          padding: 0 1.5rem;
+        }
+      }
+      .skip {
+        position: absolute;
+        left: -999px;
+        top: 0.5rem;
+        background: var(--btn-bg);
+        color: var(--btn-fg);
+        padding: 0.5rem 0.75rem;
+        border-radius: 8px;
+        z-index: 10;
+      }
+      .skip:focus {
+        left: 0.5rem;
+      }
+
+      /* Header: the LuxAlgo lockup (symbol and wordmark), then the product name. */
+      .site-header {
+        border-bottom: 1px solid var(--border);
+      }
+      .site-header .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        height: 3.75rem;
+      }
+      .brand {
         display: flex;
         align-items: center;
         gap: 0.55rem;
-        padding-bottom: 1.1rem;
-        margin-bottom: 1.4rem;
-        border-bottom: 1px solid var(--border);
+        color: var(--fg);
+        text-decoration: none;
       }
-      header svg {
+      .brand svg {
         display: block;
-        height: 1.35rem;
+        height: 1.3rem;
         width: auto;
-        flex: none;
         fill: var(--fg);
       }
-      header .product {
-        font-size: 1.2rem;
+      .brand span {
+        font-size: 1.15rem;
         font-weight: 600;
         letter-spacing: 0.02em;
         line-height: 1;
         transform: translateY(0.05rem);
       }
-      code {
-        background: var(--chip);
-        padding: 0.15rem 0.4rem;
-        border-radius: 4px;
+      .header-links {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        font-size: 0.92rem;
       }
-      a { color: var(--link); }
-      footer {
-        margin-top: 2rem;
-        padding-top: 1rem;
-        border-top: 1px solid var(--border);
-        font-size: 0.85rem;
+      .header-links a.plain {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      .header-links a.plain:hover {
+        color: var(--fg);
+      }
+
+      /* Buttons */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        min-height: 2.75rem;
+        padding: 0 1.15rem;
+        border-radius: 999px;
+        font: inherit;
+        font-weight: 600;
+        font-size: 0.95rem;
+        text-decoration: none;
+        cursor: pointer;
+        border: 1px solid transparent;
+        white-space: nowrap;
+      }
+      .btn-primary {
+        background: var(--btn-bg);
+        color: var(--btn-fg);
+      }
+      .btn-primary:hover {
+        opacity: 0.88;
+      }
+      .btn-secondary {
+        background: transparent;
+        color: var(--fg);
+        border-color: var(--border-strong);
+      }
+      .btn-secondary:hover {
+        background: var(--surface);
+      }
+      .btn-sm {
+        min-height: 2.25rem;
+        padding: 0 0.9rem;
+        font-size: 0.88rem;
+      }
+
+      /* Hero */
+      .hero {
+        padding-top: 3rem;
+        padding-bottom: 2.5rem;
+      }
+      @media (min-width: 900px) {
+        .hero {
+          padding-top: 5rem;
+          padding-bottom: 3.5rem;
+        }
+      }
+      .eyebrow {
+        margin: 0 0 0.9rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
         color: var(--muted);
       }
-      /* The Vela exhibit: hidden until the real chart has painted, so a
-         blocked CDN, an old browser, or a provider hiccup leaves the page
-         exactly as it was, with nothing that looks broken. */
-      .vela { display: none; margin-top: 2rem; }
-      .vela.ready { display: block; }
-      .vela .chart {
-        height: 320px;
-        overflow: hidden;
+      h1 {
+        margin: 0;
+        max-width: 18ch;
+        font-size: clamp(2.1rem, 7.2vw, 3.9rem);
+        line-height: 1.06;
+        letter-spacing: -0.025em;
+        font-weight: 700;
+        text-wrap: balance;
+      }
+      .lead {
+        margin: 1.25rem 0 0;
+        max-width: 40rem;
+        font-size: clamp(1.05rem, 2.4vw, 1.2rem);
+        color: var(--muted);
+      }
+      .lead strong {
+        color: var(--fg);
+        font-weight: 600;
+      }
+      .cta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-top: 1.75rem;
+      }
+
+      /* Sections */
+      section {
+        padding: 2.5rem 0;
+        border-top: 1px solid var(--border);
+      }
+      @media (min-width: 900px) {
+        section {
+          padding: 3.5rem 0;
+        }
+      }
+      h2 {
+        margin: 0 0 0.5rem;
+        font-size: clamp(1.45rem, 3.6vw, 1.9rem);
+        line-height: 1.2;
+        letter-spacing: -0.015em;
+      }
+      .section-intro {
+        margin: 0 0 1.75rem;
+        max-width: 42rem;
+        color: var(--muted);
+      }
+      h3 {
+        margin: 0;
+        font-size: 1.08rem;
+        line-height: 1.3;
+      }
+
+      /* "Add it to" cards */
+      .add-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      @media (min-width: 760px) {
+        .add-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .add-grid .wide {
+          grid-column: 1 / -1;
+        }
+      }
+      .card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.9rem;
+        min-width: 0;
+        padding: 1.25rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+      }
+      @media (min-width: 640px) {
+        .card {
+          padding: 1.5rem;
+        }
+      }
+      .card-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+      .tag {
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .steps {
+        margin: 0;
+        padding-left: 1.25rem;
+        color: var(--muted);
+      }
+      .steps li + li {
+        margin-top: 0.3rem;
+      }
+      .steps strong {
+        color: var(--fg);
+        font-weight: 600;
+      }
+      .card .btn {
+        align-self: flex-start;
+      }
+      .card .push {
+        margin-top: auto;
+      }
+
+      /* Copy rows */
+      .copy-row {
+        display: flex;
+        align-items: stretch;
+        min-width: 0;
+        background: var(--code-bg);
         border: 1px solid var(--border);
         border-radius: 10px;
+        overflow: hidden;
+      }
+      .copy-row code,
+      .copy-row pre {
+        flex: 1 1 auto;
+        min-width: 0;
+        margin: 0;
+        padding: 0.7rem 0.85rem;
+        background: none;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      /* Multi-line snippets: the button moves under the code so the code
+         gets the full width of the card on a phone. */
+      .copy-row.stack {
+        flex-direction: column;
+      }
+      .copy-row.stack .copy-btn {
+        min-height: 2.5rem;
+        border-left: 0;
+        border-top: 1px solid var(--border);
+      }
+      @media (max-width: 639px) {
+        .copy-row {
+          flex-direction: column;
+        }
+        .copy-row .copy-btn {
+          min-height: 2.5rem;
+          border-left: 0;
+          border-top: 1px solid var(--border);
+        }
+        .copy-row code,
+        .copy-row pre {
+          padding: 0.65rem 0.7rem;
+          font-size: 0.8rem;
+        }
+        .copy-row pre {
+          font-size: 0.74rem;
+        }
+        .card {
+          padding: 1rem;
+        }
+      }
+      .copy-btn {
+        flex: none;
+        min-width: 4.6rem;
+        padding: 0 0.85rem;
+        border: 0;
+        border-left: 1px solid var(--border);
+        background: transparent;
+        color: var(--fg);
+        font: inherit;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .copy-btn:hover {
+        background: var(--surface);
+      }
+      .copy-btn[data-state="done"] {
+        color: var(--ok);
+      }
+      .copy-btn:focus-visible {
+        outline-offset: -3px;
+      }
+      .clients {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      @media (min-width: 900px) {
+        .clients {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      .client {
+        min-width: 0;
+      }
+      .client-label {
+        display: block;
+        margin: 0 0 0.4rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--fg);
+      }
+      .client-label span {
+        font-weight: 400;
+        color: var(--muted);
+      }
+      .note {
+        margin: 1.25rem 0 0;
+        max-width: 46rem;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+
+      /* "What it can do" */
+      .tools-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      @media (min-width: 760px) {
+        .tools-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      .tool {
+        padding: 1.25rem;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+      }
+      @media (min-width: 640px) {
+        .tool {
+          padding: 1.5rem;
+        }
+      }
+      .tool h3 {
+        display: flex;
+        align-items: baseline;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+      }
+      .pill {
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        padding: 0.1rem 0.5rem;
+        border: 1px solid var(--border-strong);
+        border-radius: 999px;
+        color: var(--muted);
+      }
+      .tool p {
+        margin: 0.6rem 0 0;
+        color: var(--muted);
+      }
+      .tool .ask {
+        margin-top: 0.9rem;
+        padding-top: 0.9rem;
+        border-top: 1px dashed var(--border);
+        font-size: 0.92rem;
+      }
+      .tool .ask span {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.2rem;
+      }
+      .tool .ask q {
+        color: var(--fg);
+        quotes: "\201C" "\201D";
+      }
+
+      /* The Vela exhibit: hidden until the real chart has painted, so a blocked
+         CDN, an old browser or a provider hiccup leaves nothing that looks broken. */
+      .vela {
+        display: none;
+      }
+      .vela.ready {
+        display: block;
+      }
+      .vela .chart {
+        height: 300px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+      }
+      @media (min-width: 900px) {
+        .vela .chart {
+          height: 380px;
+        }
       }
       .vela .caption {
-        margin: 0.6rem 0 0;
-        font-size: 0.8rem;
+        margin: 0.75rem 0 0;
+        max-width: 48rem;
+        font-size: 0.88rem;
         color: var(--muted);
+      }
+      .vela .caption code {
+        font-size: 0.82rem;
+      }
+
+      /* Run it locally */
+      .local {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      @media (min-width: 900px) {
+        .local {
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          align-items: start;
+          gap: 2rem;
+        }
+      }
+      .local p {
+        margin: 0 0 1rem;
+        color: var(--muted);
+      }
+
+      /* Footer */
+      .site-footer {
+        border-top: 1px solid var(--border);
+        padding: 2rem 0 2.5rem;
+        font-size: 0.88rem;
+        color: var(--muted);
+      }
+      .site-footer .wrap {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 1rem 2rem;
+      }
+      .site-footer p {
+        margin: 0;
+        max-width: 34rem;
+      }
+      .site-footer nav ul {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1.25rem;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .site-footer a {
+        color: var(--muted);
+      }
+      .site-footer a:hover {
+        color: var(--fg);
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
       }
     </style>
   </head>
   <body>
-    <header>
-      <svg viewBox="0 0 180 40" role="img" aria-label="LuxAlgo">
-        <path d="M36.217 34.646l4.139-7.231L25.868 2.108 11.381 27.415h8.279l6.209-10.845z"/>
-        <path d="M31.042 29.224 8.267 29.22 24.833.3h-8.277L0 29.216l4.137 7.237h31.045z"/>
-        <path d="M46.234 5.729h5.854V26.02h11.459v5.007H46.234zm36.214 25.298H77.23v-2.539h-.352c-1.34 2.046-3.068 3.068-5.254 3.068-4.09 0-6.805-3.173-6.805-7.51V12.974h5.219v10.331c0 2.222 1.27 3.774 3.384 3.774 2.08 0 3.808-1.657 3.808-3.95V12.974h5.22zm41.904 0h6.081L115.941 5.729l-14.48 25.298h6.055l8.425-14.693z"/>
-        <path d="M101.461 12.974H96.52l-3.996 7.012-3.997-7.012h-4.941l5.144 9.027-5.144 9.026h4.879l4.06-7.122 4.057 7.122h4.879l-5.144-9.026zm30.049-8.11h5.219v26.163h-5.219zm7.083 28.491 5.043-.988c.669 1.975 2.328 3.174 4.584 3.174 2.892 0 4.761-1.904 4.761-4.867v-2.01h-.353c-1.445 1.657-3.279 2.61-5.712 2.61-5.006 0-8.533-3.702-8.533-9.273 0-5.817 3.492-9.555 8.498-9.555 2.61 0 4.478 1.059 5.889 2.821h.353v-2.291h5.077v17.84c0 5.57-3.808 8.885-9.838 8.885-5.255 0-8.887-2.291-9.769-6.346M153.156 22c0-2.962-1.975-5.112-4.761-5.112S143.6 19.039 143.6 22c0 2.892 2.009 5.007 4.795 5.007s4.761-2.117 4.761-5.007m6.815.001c0-5.817 3.984-9.59 10.014-9.59C175.98 12.41 180 16.183 180 22c0 5.854-4.019 9.591-10.015 9.591-6.03-.001-10.014-3.773-10.014-9.59m14.774 0c0-2.997-1.975-5.112-4.761-5.112-2.821 0-4.795 2.115-4.795 5.112s1.974 5.148 4.795 5.148c2.786 0 4.761-2.15 4.761-5.148"/>
-      </svg>
-      <span class="product">MCP</span>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="wrap">
+        <a class="brand" href="https://www.luxalgo.com/" aria-label="LuxAlgo MCP, go to luxalgo.com">
+          <svg viewBox="0 0 180 40" aria-hidden="true" focusable="false">
+            <path d="M36.217 34.646l4.139-7.231L25.868 2.108 11.381 27.415h8.279l6.209-10.845z"/>
+            <path d="M31.042 29.224 8.267 29.22 24.833.3h-8.277L0 29.216l4.137 7.237h31.045z"/>
+            <path d="M46.234 5.729h5.854V26.02h11.459v5.007H46.234zm36.214 25.298H77.23v-2.539h-.352c-1.34 2.046-3.068 3.068-5.254 3.068-4.09 0-6.805-3.173-6.805-7.51V12.974h5.219v10.331c0 2.222 1.27 3.774 3.384 3.774 2.08 0 3.808-1.657 3.808-3.95V12.974h5.22zm41.904 0h6.081L115.941 5.729l-14.48 25.298h6.055l8.425-14.693z"/>
+            <path d="M101.461 12.974H96.52l-3.996 7.012-3.997-7.012h-4.941l5.144 9.027-5.144 9.026h4.879l4.06-7.122 4.057 7.122h4.879l-5.144-9.026zm30.049-8.11h5.219v26.163h-5.219zm7.083 28.491 5.043-.988c.669 1.975 2.328 3.174 4.584 3.174 2.892 0 4.761-1.904 4.761-4.867v-2.01h-.353c-1.445 1.657-3.279 2.61-5.712 2.61-5.006 0-8.533-3.702-8.533-9.273 0-5.817 3.492-9.555 8.498-9.555 2.61 0 4.478 1.059 5.889 2.821h.353v-2.291h5.077v17.84c0 5.57-3.808 8.885-9.838 8.885-5.255 0-8.887-2.291-9.769-6.346M153.156 22c0-2.962-1.975-5.112-4.761-5.112S143.6 19.039 143.6 22c0 2.892 2.009 5.007 4.795 5.007s4.761-2.117 4.761-5.007m6.815.001c0-5.817 3.984-9.59 10.014-9.59C175.98 12.41 180 16.183 180 22c0 5.854-4.019 9.591-10.015 9.591-6.03-.001-10.014-3.773-10.014-9.59m14.774 0c0-2.997-1.975-5.112-4.761-5.112-2.821 0-4.795 2.115-4.795 5.112s1.974 5.148 4.795 5.148c2.786 0 4.761-2.15 4.761-5.148"/>
+          </svg>
+          <span>MCP</span>
+        </a>
+        <nav class="header-links" aria-label="Site">
+          <a class="plain" href="https://github.com/LuxAlgo/luxalgo-mcp-server">GitHub</a>
+          <a class="btn btn-primary btn-sm" href="https://vela.luxalgo.com/chart">Open Vela</a>
+        </nav>
+      </div>
     </header>
-    <p>
-      The LuxAlgo ecosystem as an MCP server: the
-      <a href="https://www.luxalgo.com/library/">Library</a> — the
-      encyclopedia of trading &amp; technical analysis; read-only
-      <a href="https://github.com/LuxAlgo/broker-sdk">broker</a> access to your own
-      accounts (local install only);
-      <a href="https://github.com/LuxAlgo/edge-stats">Edge Stats</a> — hosted session
-      statistics with a sample size on every number;
-      <a href="https://github.com/LuxAlgo/market-trackers">Market Trackers</a> — the
-      public record of US markets (congressional trades, insider filings, lobbying,
-      contracts, patents and more) from CC0 dumps with a primary-source link on every
-      row; the Monte Carlo <a href="https://github.com/LuxAlgo/prop-firm-sim">challenge
-      simulator</a>; and the <a href="https://www.luxalgo.com/prop-firms/">prop-firm
-      directory</a> (firms, challenges, live offers). Free, keyless, read-only.
-    </p>
-    <p>Point any MCP client at <code>https://mcp.luxalgo.com/mcp</code> (streamable HTTP).</p>
-    <section class="vela" id="vela" aria-label="Live chart rendered by Vela&rsquo;s open-source core">
-      <div class="chart" id="vela-chart"></div>
-      <p class="caption">
-        Live BTC, drawn in your browser by
-        <a href="https://velacharts.dev">the open-source core of Vela by LuxAlgo</a>.
-        The server returns text; the chart is
-        what you build with it. Pair <code>library_get_source_code</code> with
-        <code>@luxalgo/vela-pinets</code> to run any Library indicator on one
-        (<a href="https://github.com/LuxAlgo/luxalgo-mcp-server#charts-in-your-browser-with-vela">how</a>).
-      </p>
-    </section>
-    <footer>
-      A <a href="https://www.luxalgo.com/">LuxAlgo</a> open-source project ·
-      <a href="https://github.com/LuxAlgo/luxalgo-mcp-server">GitHub</a> ·
-      <a href="https://www.npmjs.com/package/@luxalgo/mcp">npm</a>
+
+    <main id="main">
+      <div class="hero wrap">
+        <p class="eyebrow">LuxAlgo MCP</p>
+        <h1>Bring LuxAlgo into ChatGPT, Claude and any agent.</h1>
+        <p class="lead">
+          We&rsquo;re the trading technology company that built <strong>Vela, the next-generation charting platform</strong>.
+          Connect LuxAlgo to the AI you already use and it can read the largest indicator library in trading,
+          simulate prop-firm challenges, look up session statistics and work in your Trade Journal.
+          Every indicator it finds opens on a Vela chart.
+        </p>
+        <div class="cta">
+          <a class="btn btn-primary" href="https://vela.luxalgo.com/chart">Open Vela</a>
+          <a class="btn btn-secondary" href="#add">Add LuxAlgo to your AI</a>
+        </div>
+      </div>
+
+      <section id="add" aria-labelledby="add-title">
+        <div class="wrap">
+          <h2 id="add-title">Add it to</h2>
+          <p class="section-intro">One connection, the same tools everywhere. Pick where you work.</p>
+
+          <div class="add-grid">
+            <article class="card" aria-labelledby="chatgpt-title">
+              <div class="card-head">
+                <h3 id="chatgpt-title">ChatGPT</h3>
+                <span class="tag">In ChatGPT&rsquo;s Plugins</span>
+              </div>
+              <ol class="steps">
+                <li>Open <strong>Plugins</strong> in ChatGPT.</li>
+                <li>Search <strong>LuxAlgo</strong>.</li>
+                <li>Add it and start asking.</li>
+              </ol>
+              <div class="copy-row push">
+                <code id="copy-chatgpt">LuxAlgo</code>
+                <button class="copy-btn" type="button" data-copy-target="copy-chatgpt" aria-label="Copy the search term LuxAlgo">Copy</button>
+              </div>
+            </article>
+
+            <article class="card" aria-labelledby="claude-title">
+              <div class="card-head">
+                <h3 id="claude-title">Claude</h3>
+                <span class="tag">Custom connector</span>
+              </div>
+              <ol class="steps">
+                <li>Open <strong>Customize</strong>, then <strong>Connectors</strong>.</li>
+                <li>Select <strong>+</strong>, then <strong>Add custom connector</strong>.</li>
+                <li>Paste this URL and save.</li>
+              </ol>
+              <div class="copy-row push">
+                <code id="copy-claude">https://claude.mcp.luxalgo.com/mcp</code>
+                <button class="copy-btn" type="button" data-copy-target="copy-claude" aria-label="Copy the Claude connector URL">Copy</button>
+              </div>
+            </article>
+
+            <article class="card wide" aria-labelledby="agents-title">
+              <div class="card-head">
+                <h3 id="agents-title">Any agent or IDE</h3>
+                <span class="tag">Streamable HTTP, any MCP client</span>
+              </div>
+              <div class="clients">
+                <div class="client">
+                  <span class="client-label">Server URL <span>for any MCP client</span></span>
+                  <div class="copy-row">
+                    <code id="copy-url">https://mcp.luxalgo.com/mcp</code>
+                    <button class="copy-btn" type="button" data-copy-target="copy-url" aria-label="Copy the server URL">Copy</button>
+                  </div>
+                </div>
+                <div class="client">
+                  <span class="client-label">Claude Code</span>
+                  <div class="copy-row">
+                    <code id="copy-claude-code">claude mcp add --transport http luxalgo https://mcp.luxalgo.com/mcp</code>
+                    <button class="copy-btn" type="button" data-copy-target="copy-claude-code" aria-label="Copy the Claude Code command">Copy</button>
+                  </div>
+                </div>
+                <div class="client">
+                  <span class="client-label">Codex</span>
+                  <div class="copy-row">
+                    <code id="copy-codex">codex mcp add luxalgo --url https://mcp.luxalgo.com/mcp</code>
+                    <button class="copy-btn" type="button" data-copy-target="copy-codex" aria-label="Copy the Codex command">Copy</button>
+                  </div>
+                </div>
+                <div class="client">
+                  <span class="client-label">Cursor <span>in .cursor/mcp.json</span></span>
+                  <div class="copy-row stack">
+<pre id="copy-cursor">{
+  "mcpServers": {
+    "luxalgo": {
+      "url": "https://mcp.luxalgo.com/mcp"
+    }
+  }
+}</pre>
+                    <button class="copy-btn" type="button" data-copy-target="copy-cursor" aria-label="Copy the Cursor configuration">Copy</button>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <p class="note">
+            No account needed to start. The Trade Journal and your account details ask you to sign in with LuxAlgo the
+            first time you use them, and then always act as you, on your own data.
+          </p>
+          <p class="sr-only" aria-live="polite" id="copy-status"></p>
+        </div>
+      </section>
+
+      <section id="tools" aria-labelledby="tools-title">
+        <div class="wrap">
+          <h2 id="tools-title">What it can do</h2>
+          <p class="section-intro">Ask in plain words. Your AI picks the right tool and answers with links you can open.</p>
+
+          <div class="tools-grid">
+            <article class="tool">
+              <h3>The Library</h3>
+              <p>
+                800+ indicators and 800+ concepts from the largest indicator library in trading, each with its write-up:
+                what it measures, the formula and how traders read it. Pine Script&reg; source where it is published.
+                Every indicator links straight to a Vela chart.
+              </p>
+              <p class="ask"><span>Try asking</span><q>Which Library indicators measure volatility? Open the first one on a chart.</q></p>
+            </article>
+
+            <article class="tool">
+              <h3>Prop-firm challenges</h3>
+              <p>
+                Run a challenge thousands of times with your own stats or your real trades: the chance you pass,
+                what it is likely to cost, and the rule that ends most attempts. Compare firms side by side.
+                Simulations, not predictions or financial advice.
+              </p>
+              <p class="ask"><span>Try asking</span><q>With a 45% win rate at 2R, which $50K challenge am I most likely to pass?</q></p>
+            </article>
+
+            <article class="tool">
+              <h3>Edge Stats</h3>
+              <p>
+                Session statistics such as gap fills, opening-range breakouts and day-of-week effects, each with its
+                sample size and a 95% confidence interval, so you can see how often a setup actually worked.
+              </p>
+              <p class="ask"><span>Try asking</span><q>How often does Bitcoin close green on a Monday?</q></p>
+            </article>
+
+            <article class="tool">
+              <h3>Trade Journal <span class="pill">Sign in</span></h3>
+              <p>
+                Your LuxAlgo Trade Journal: performance, the P&amp;L calendar, and breakdowns by weekday, time,
+                symbol or tag. Log trades by hand, tag them and write notes, all from the chat.
+              </p>
+              <p class="ask"><span>Try asking</span><q>Where did I lose money last month? Tag my worst trade &ldquo;chased&rdquo;.</q></p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="vela" id="vela" aria-labelledby="vela-title">
+        <div class="wrap">
+          <h2 id="vela-title">Drawn by Vela</h2>
+          <p class="section-intro">The same engine behind Vela, running live in this page.</p>
+          <div class="chart" id="vela-chart" role="img" aria-label="Live Bitcoin hourly chart"></div>
+          <p class="caption">
+            Live BTC, drawn in your browser by
+            <a href="https://velacharts.dev">the open-source core of Vela by LuxAlgo</a>.
+            Building your own app? Pair <code>library_get_source_code</code> with Vela&rsquo;s open-source core to run
+            any published Library indicator on a chart
+            (<a href="https://github.com/LuxAlgo/luxalgo-mcp-server#charts-in-your-browser-with-vela">how</a>).
+          </p>
+        </div>
+      </section>
+
+      <section id="local" aria-labelledby="local-title">
+        <div class="wrap local">
+          <div>
+            <h2 id="local-title">Run it locally</h2>
+            <p>
+              Prefer your own machine? The npm package runs the same tools over stdio. Locally it can also read your
+              own brokerage accounts, read-only, with keys that stay on your computer.
+            </p>
+            <p><a href="https://github.com/LuxAlgo/luxalgo-mcp-server#local-stdio">Setup and broker keys on GitHub</a></p>
+          </div>
+          <div class="client">
+            <span class="client-label">Run with npx</span>
+            <div class="copy-row">
+              <code id="copy-npx">npx -y @luxalgo/mcp</code>
+              <button class="copy-btn" type="button" data-copy-target="copy-npx" aria-label="Copy the npx command">Copy</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap">
+        <p>
+          <a href="https://www.luxalgo.com/">LuxAlgo</a> is the trading technology company that built Vela, the
+          next-generation charting platform. This server is open source.
+        </p>
+        <nav aria-label="Footer">
+          <ul>
+            <li><a href="https://vela.luxalgo.com/chart">Open Vela</a></li>
+            <li><a href="https://github.com/LuxAlgo/luxalgo-mcp-server">GitHub</a></li>
+            <li><a href="https://www.npmjs.com/package/@luxalgo/mcp">npm</a></li>
+            <li><a href="https://www.luxalgo.com/legal/privacy-policy/">Privacy</a></li>
+            <li><a href="https://www.luxalgo.com/legal/terms-of-service/">Terms</a></li>
+          </ul>
+        </nav>
+      </div>
     </footer>
-    <!-- Vela's self-contained browser build (window.Vela), pinned. Loaded
-         after the content so it never gates the page; the section above only
-         appears once the chart has actually painted. -->
+
+    <script>
+      // Copy buttons: copy the text of the element named by data-copy-target.
+      (function () {
+        var status = document.getElementById("copy-status");
+        function fallbackCopy(text) {
+          var area = document.createElement("textarea");
+          area.value = text;
+          area.setAttribute("readonly", "");
+          area.style.position = "fixed";
+          area.style.opacity = "0";
+          document.body.appendChild(area);
+          area.select();
+          var ok = false;
+          try {
+            ok = document.execCommand("copy");
+          } catch (_) {}
+          document.body.removeChild(area);
+          return ok;
+        }
+        document.querySelectorAll("[data-copy-target]").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            var source = document.getElementById(btn.getAttribute("data-copy-target"));
+            if (!source) return;
+            var text = source.textContent.trim();
+            function done(ok) {
+              btn.textContent = ok ? "Copied" : "Press Ctrl+C";
+              btn.setAttribute("data-state", ok ? "done" : "");
+              if (status) status.textContent = ok ? "Copied to clipboard." : "";
+              if (!ok) {
+                var range = document.createRange();
+                range.selectNodeContents(source);
+                var sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+              }
+              setTimeout(function () {
+                btn.textContent = "Copy";
+                btn.removeAttribute("data-state");
+              }, 1800);
+            }
+            if (navigator.clipboard && window.isSecureContext) {
+              navigator.clipboard.writeText(text).then(
+                function () { done(true); },
+                function () { done(fallbackCopy(text)); }
+              );
+            } else {
+              done(fallbackCopy(text));
+            }
+          });
+        });
+      })();
+    </script>
+    <!-- Vela's self-contained browser build (window.Vela), pinned. Loaded after
+         the content so it never gates the page; the section above only appears
+         once the chart has actually painted. -->
     <script
       src="https://cdn.jsdelivr.net/npm/@luxalgo/vela@0.6.15/dist/vela.global.min.js"
       defer
     ></script>
     <script>
-      window.addEventListener("load", async () => {
-        const section = document.getElementById("vela");
-        const host = document.getElementById("vela-chart");
-        const api = window.Vela;
+      window.addEventListener("load", function () {
+        var section = document.getElementById("vela");
+        var host = document.getElementById("vela-chart");
+        var api = window.Vela;
         if (!api || !host) return;
         try {
-          const dark = matchMedia("(prefers-color-scheme: dark)");
-          const chart = new api.Vela(
-            host,
-            {
-              symbol: "hyperliquid:BTC",
-              timeframe: "60",
-              live: true,
-              theme: dark.matches ? "dark" : "light",
-              drawings: false,
-              volume: false,
-            },
-          );
+          var dark = matchMedia("(prefers-color-scheme: dark)");
+          var chart = new api.Vela(host, {
+            symbol: "hyperliquid:BTC",
+            timeframe: "60",
+            live: true,
+            theme: dark.matches ? "dark" : "light",
+            drawings: false,
+            volume: false,
+          });
           // ready() resolves even when the fetch came back empty, so reveal
           // only once a load actually painted bars.
-          chart.on("load:end", ({ bars }) => {
-            if (bars > 0) section.classList.add("ready");
+          chart.on("load:end", function (e) {
+            if (e && e.bars > 0) section.classList.add("ready");
           });
           chart.data.registerProvider("hyperliquid", new api.HyperliquidProvider());
-          dark.addEventListener("change", (e) => chart.setTheme(e.matches ? "dark" : "light"));
+          dark.addEventListener("change", function (e) {
+            chart.setTheme(e.matches ? "dark" : "light");
+          });
         } catch (_) {
           /* The section stays hidden. */
         }
