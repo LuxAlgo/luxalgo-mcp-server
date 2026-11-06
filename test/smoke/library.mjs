@@ -176,11 +176,25 @@ export async function run({ client, check, callJson, httpUrl }) {
   // library_get_family
   const family = await callJson(client, "library_get_family", { key: "smc-ict" });
   check(
-    "library_get_family('smc-ict') returns markdown + roster",
+    "a family hub is its written page, whose roster links every concept once, without a repeated list",
     !family.isError &&
       typeof family.payload.content_markdown === "string" &&
-      family.payload.concepts?.length > 0,
-    `${family.payload.content_markdown?.length} chars, ${family.payload.concepts?.length} concepts`,
+      family.payload.concept_count > 0 &&
+      !("concepts" in family.payload) &&
+      (family.payload.content_markdown.match(/\/library\/concept\//g) ?? []).length >= family.payload.concept_count,
+    `${JSON.stringify(family.payload).length} B, ${family.payload.concept_count} concepts`,
+  );
+
+  // A repeated indicator query is answered from the in-process cache.
+  const repeatQuery = { text: "supertrend", page_size: 5 };
+  const first = await callJson(client, "library_list_indicators", repeatQuery);
+  const startedAt = performance.now();
+  const again = await callJson(client, "library_list_indicators", repeatQuery);
+  const repeatMs = performance.now() - startedAt;
+  check(
+    "asking the same indicator question twice answers the second time at once, with the same result",
+    !again.isError && JSON.stringify(again.payload) === JSON.stringify(first.payload) && repeatMs < 1_000,
+    `${Math.round(repeatMs)} ms, total=${again.payload.total}`,
   );
 
   // Families and concepts organize the Library; the retired tags never reach agents.

@@ -6,8 +6,9 @@
 */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
-import { AppAuthError, AppPermissionError, fetchMarkdown } from "../../platform/app-client.js";
+import { AppAuthError, AppPermissionError } from "../../platform/app-client.js";
 import { json, toolError } from "../_shared/result.js";
+import { answersFrozen } from "../_shared/surface.js";
 import { velaLinksHere } from "../_shared/vela.js";
 import {
   CONCEPT_FAMILIES,
@@ -15,6 +16,7 @@ import {
   type ConceptFamily,
   getConcepts,
   getIndicatorBySlug,
+  getMarkdown,
   getPineScriptCode,
   queryIndicators,
 } from "./api.js";
@@ -45,6 +47,7 @@ export function registerLibraryTools(server: McpServer) {
   const chartLink = (pineScriptCodeId: string | null | undefined) =>
     links && pineScriptCodeId ? { chart_url: chartUrl(pineScriptCodeId) } : {};
 
+  const frozen = answersFrozen();
   server.registerTool(
     "library_search",
     {
@@ -164,7 +167,7 @@ export function registerLibraryTools(server: McpServer) {
         );
       }
       const [content, implementations] = await Promise.all([
-        fetchMarkdown(`/library/concept/${concept.slug}.md`),
+        getMarkdown(`/library/concept/${concept.slug}.md`),
         links ? conceptImplementations(concept.slug) : Promise.resolve(null),
       ]);
       return json({
@@ -421,19 +424,27 @@ export function registerLibraryTools(server: McpServer) {
       }),
     },
     async ({ key }) => {
-      const [content, concepts] = await Promise.all([
-        fetchMarkdown(`/library/family/${key}.md`),
-        getConcepts(),
-      ]);
+      const [content, concepts] = await Promise.all([getMarkdown(`/library/family/${key}.md`), getConcepts()]);
+      const members = concepts.filter((c) => c.family === key);
+      if (!frozen && content !== null) {
+        // The hub page already lists every concept, with its link (and so its
+        // slug), under its cluster heading: the roster is not repeated.
+        return json({
+          key,
+          name: FAMILY_NAMES[key],
+          url: familyUrl(key),
+          md_url: familyMdUrl(key),
+          concept_count: members.length,
+          content_markdown: content,
+        });
+      }
       return json({
         key,
         name: FAMILY_NAMES[key],
         url: familyUrl(key),
         md_url: familyMdUrl(key),
         content_markdown: content,
-        concepts: concepts
-          .filter((c) => c.family === key)
-          .map((c) => ({ slug: c.slug, name: c.name, cluster: c.cluster })),
+        concepts: members.map((c) => ({ slug: c.slug, name: c.name, cluster: c.cluster })),
       });
     },
   );
