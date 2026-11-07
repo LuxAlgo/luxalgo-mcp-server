@@ -9,6 +9,12 @@
     snapshot   a pending "send what the user sees to the model" request
                (chart_command's read op with image: true) and the view's
                answer to it.
+    polling    when the view last polled and when it said it polls next (or
+               that it stopped: hidden, or out of view), and when the model
+               last used chart_command on this chart. chart_sync answers with
+               `next_poll_ms` from it (fast while the model is at work on the
+               chart), and chart_command waits for the view's next poll only
+               when that poll is near (pollSchedule).
 
   Process-local and short-lived. On a deployment with many instances, a
   chart_command served by another instance than the view's chart_sync does
@@ -18,9 +24,13 @@
   random.
 */
 import type { ChartNumbers } from "./numbers.js";
+import { FAST_AFTER_COMMAND_MS } from "./polling.js";
 
-/** How long reported numbers count as live: the view reports about every second while it is on screen. */
+/** How long reported numbers count as live: the view reports at least every ~14 s while it is on screen. */
 export const NUMBERS_FRESH_MS = 30_000;
+
+/** A poll later than announced by more than this means the schedule is unknown (another instance, a closed view). */
+const POLL_GRACE_MS = 2_000;
 /** A snapshot request the view has not picked up by then is dropped: a chart shown later must not send a picture nobody waits for. */
 const SNAPSHOT_REQUEST_MS = 15_000;
 
@@ -32,6 +42,9 @@ type Local = {
   touchedAt: number;
   numbers?: { values: ChartNumbers; symbol?: string; timeframe?: string; at: number };
   snapshot?: { id: number; at: number; answer?: SnapshotOutcome };
+  /** The view's last poll and the delay it announced for the next one; null: it stopped polling. */
+  poll?: { at: number; nextInMs: number | null };
+  commandAt?: number;
 };
 
 const TTL_MS = 15 * 60 * 1000;
@@ -99,4 +112,35 @@ export async function waitForSnapshot(key: string, id: number, timeoutMs: number
     if (Date.now() >= deadline) return undefined;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
+}
+
+/** Records a poll of the view: when its next one is due (`null`: it stopped polling until it is shown again). */
+export function recordPoll(key: string, nextInMs: number | null): void {
+  entry(key).poll = { at: Date.now(), nextInMs };
+}
+
+/** Records that the model used chart_command on this chart (its view is then asked for fast polls for a while). */
+export function recordCommand(key: string): void {
+  entry(key).commandAt = Date.now();
+}
+
+/** True while the model used chart_command on this chart in the last FAST_AFTER_COMMAND_MS. */
+export function recentCommand(key: string): boolean {
+  const at = entries.get(key)?.commandAt;
+  return at !== undefined && Date.now() - at < FAST_AFTER_COMMAND_MS;
+}
+
+export type PollSchedule = { kind: "unknown" } | { kind: "stopped" } | { kind: "due"; inMs: number };
+
+/**
+ * When this process expects the view's next poll. "unknown" when it has not
+ * seen the view poll, or the announced poll is overdue (it may poll another
+ * instance, or be gone): callers then behave as before polls were adaptive.
+ */
+export function pollSchedule(key: string): PollSchedule {
+  const poll = entries.get(key)?.poll;
+  if (!poll) return { kind: "unknown" };
+  if (poll.nextInMs === null) return { kind: "stopped" };
+  const inMs = poll.at + poll.nextInMs - Date.now();
+  return inMs < -POLL_GRACE_MS ? { kind: "unknown" } : { kind: "due", inMs: Math.max(0, inMs) };
 }
