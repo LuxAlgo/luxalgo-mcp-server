@@ -7,6 +7,14 @@
   (Hyperliquid and Binance). A bare coin ("BTC") goes to Hyperliquid, a bare
   pair with a stablecoin quote ("BTCUSDT") to Binance.
 
+  Hyperliquid also lists the perpetuals of builder-deployed (HIP-3) dexes,
+  named by the dex, a colon and the coin: `hyperliquid:xyz:TSLA` (Vela 0.10.2
+  and later; the first colon names the provider, the rest is the provider's
+  own ticker `xyz:TSLA`). They are Hyperliquid exchange data like any other
+  Hyperliquid market. A bare "TSLA" is never read as one: Vela's provider
+  resolves a bare ticker to the main dex only, and several dexes may list the
+  same coin, so the dex is always written out.
+
   Whether the model may read numbers off a chart (last price, change, the
   visible high and low, indicator values) is decided here and nowhere else,
   from where the provider's candles come from: numbersAllowedFor().
@@ -35,8 +43,10 @@ export function numbersAllowedFor(provider: string): boolean {
 
 export type Market = {
   venue: Venue;
-  /** The provider's own ticker: "BTC" on Hyperliquid, "BTCUSDT" on Binance. */
+  /** The provider's own ticker: "BTC" on Hyperliquid, "BTCUSDT" on Binance, "xyz:TSLA" for a HIP-3 perpetual. */
   ticker: string;
+  /** A Hyperliquid HIP-3 perpetual's dex ("xyz") and coin ("TSLA"); absent for every other market. */
+  hip3?: { dex: string; coin: string };
   /** What Vela's setMarket takes: "hyperliquid:BTC". */
   symbol: string;
   /** Whether the model may receive numbers for this market (numbersAllowedFor its provider). */
@@ -46,7 +56,29 @@ export type Market = {
 const VENUE_NAMES: Record<Venue, string> = { hyperliquid: "Hyperliquid", binance: "Binance" };
 const STABLE_QUOTES = ["USDT", "USDC", "FDUSD", "BUSD"];
 
-export function parseMarket(input: string): Market | { error: string } {
+/** The oldest @luxalgo/vela whose Hyperliquid provider serves HIP-3 perpetuals. */
+export const HIP3_MIN_VELA = "0.10.2";
+
+/** Whether a Vela version (the one the chart view was built with) serves HIP-3 perpetuals. */
+export function velaServesHip3(version: string | undefined): boolean {
+  const parts = (v: string) => v.split("-")[0].split(".").map((n) => Number(n) || 0);
+  if (!version || !/^\d+\.\d+\.\d+/.test(version)) return false;
+  const [a, b] = [parts(version), parts(HIP3_MIN_VELA)];
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i];
+  return true;
+}
+
+/** A HIP-3 dex name and coin as Hyperliquid spells them (lower-case dex, like the provider's parseCoin). */
+const HIP3_DEX = /^[a-z0-9]{1,16}$/;
+const HIP3_COIN = /^[A-Za-z0-9._-]{1,24}$/;
+
+export const HIP3_FORM = "hyperliquid:<dex>:<COIN>, e.g. hyperliquid:xyz:TSLA";
+
+/**
+ * A symbol as the chart takes it. `hip3: false` refuses the HIP-3 form (the
+ * server does, while the chart view is built with a Vela that cannot chart it).
+ */
+export function parseMarket(input: string, { hip3 = true }: { hip3?: boolean } = {}): Market | { error: string } {
   const raw = input.trim();
   if (!raw) return { error: "symbol is empty" };
   const colon = raw.indexOf(":");
@@ -64,13 +96,26 @@ export function parseMarket(input: string): Market | { error: string } {
     const upper = raw.toUpperCase();
     venue = STABLE_QUOTES.some((quote) => upper.endsWith(quote) && upper.length > quote.length) ? "binance" : "hyperliquid";
   }
+  if (venue === "hyperliquid" && ticker.includes(":")) {
+    const [dexWritten, coinWritten, ...rest] = ticker.split(":");
+    const dex = dexWritten.trim().toLowerCase();
+    const coin = (coinWritten ?? "").trim().toUpperCase();
+    if (rest.length || !HIP3_DEX.test(dex) || !HIP3_COIN.test(coin)) {
+      return { error: `"${ticker}" is not a Hyperliquid HIP-3 market: write it as ${HIP3_FORM}` };
+    }
+    if (!hip3) return { error: `Hyperliquid HIP-3 markets such as "hyperliquid:${dex}:${coin}" are not on this chart yet` };
+    const hip3Ticker = `${dex}:${coin}`;
+    return { venue, ticker: hip3Ticker, symbol: `hyperliquid:${hip3Ticker}`, numbersAllowed: numbersAllowedFor(venue), hip3: { dex, coin } };
+  }
   // Hyperliquid tickers are case-sensitive for a few spot names ("PURR/USDC"), but perps are upper-case.
   ticker = venue === "binance" ? ticker.toUpperCase() : ticker.includes("/") ? ticker : ticker.toUpperCase();
   if (!/^[A-Za-z0-9./_-]{1,30}$/.test(ticker)) return { error: `"${ticker}" is not a valid ticker` };
   return { venue, ticker, symbol: `${venue}:${ticker}`, numbersAllowed: numbersAllowedFor(venue) };
 }
 
+/** "BTC on Hyperliquid", "BTCUSDT on Binance", "TSLA perpetual on Hyperliquid (xyz)". */
 export function marketWords(market: Market): string {
+  if (market.hip3) return `${market.hip3.coin} perpetual on ${VENUE_NAMES[market.venue]} (${market.hip3.dex})`;
   return `${market.ticker} on ${VENUE_NAMES[market.venue]}`;
 }
 
@@ -137,7 +182,20 @@ export function rangeWords(range: RangePreset): string {
   return RANGE_WORDS[range];
 }
 
+/** Vela's production origin; the server passes LUXALGO_CHART_ORIGIN when set, the view the origin of chart_open's chart_url. */
+export const DEFAULT_CHART_ORIGIN = "https://vela.luxalgo.com";
+
 /** The same chart on Vela itself. */
-export function velaChartUrl(market: Market, tf: Timeframe): string {
-  return `https://vela.luxalgo.com/chart?symbol=${encodeURIComponent(market.symbol)}&tf=${tf}`;
+export function velaChartUrl(market: Market, tf: Timeframe, origin: string = DEFAULT_CHART_ORIGIN): string {
+  return `${origin}/chart?symbol=${encodeURIComponent(market.symbol)}&tf=${tf}`;
+}
+
+/**
+ * Vela's chart seeded with what someone typed (`?symbol=AAPL`): Vela's chart
+ * reads a bare ticker or a `source:TICKER` id there. Anything that is not
+ * ticker-shaped opens the chart without a symbol.
+ */
+export function velaSymbolUrl(typed: string, origin: string = DEFAULT_CHART_ORIGIN): string {
+  const symbol = typed.trim().toUpperCase();
+  return /^[A-Z0-9][A-Z0-9.!:/_-]{0,39}$/.test(symbol) ? `${origin}/chart?symbol=${encodeURIComponent(symbol)}` : `${origin}/chart`;
 }

@@ -76,7 +76,7 @@
     "zod": "^4.2.0"
   },
   "devDependencies": {
-    "@luxalgo/vela": "0.10.1",
+    "@luxalgo/vela": "0.10.2",
     "@types/node": "^22.10.0",
     "esbuild": "0.28.2",
     "typescript": "^5.7.0"
