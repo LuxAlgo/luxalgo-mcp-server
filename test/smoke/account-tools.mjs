@@ -632,11 +632,10 @@ const freePort = () =>
     });
   });
 
-/** A node-http entry with the account tools on and the chart tools off, so the Claude address is as reviewed. */
+/** A node-http entry with the account tools and the chart tools on: the Claude address stays as reviewed with both. */
 async function startHttpEntry() {
   const port = await freePort();
-  const env = { ...process.env, PORT: String(port), MCP_RESOURCE: `http://localhost:${port}/mcp`, LUXALGO_ACCOUNT_TOOLS: "on" };
-  delete env.LUXALGO_CHART_TOOLS;
+  const env = { ...process.env, PORT: String(port), MCP_RESOURCE: `http://localhost:${port}/mcp`, LUXALGO_ACCOUNT_TOOLS: "on", LUXALGO_CHART_TOOLS: "on" };
   delete env.VERCEL_ENV;
   const child = spawn(process.execPath, ["dist/entries/node-http.js"], { env, stdio: ["ignore", "pipe", "pipe"] });
   await new Promise((resolve, reject) => {

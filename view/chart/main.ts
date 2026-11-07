@@ -8,8 +8,10 @@
     the browser, under the CSP the resource declares.
   - Applies the requested state from the tool input (fast first paint) and the
     tool result (chart_id, normalized state).
-  - Polls chart_sync (~1 s, app-only tool) for chart_command ops, applies them,
-    acknowledges them, and reports its state in words.
+  - Polls chart_sync (app-only tool) for chart_command ops, applies them,
+    acknowledges them, and reports its state in words: about every second
+    while something happens on the chart, every ~6 s when it is idle, not at
+    all while it is hidden or out of view (see the sync loop below).
   - Tells the model what is on screen (updateModelContext, debounced); a
     candle click offers "Ask about this" (sendMessage); "Open in Vela"
     (openLink); fullscreen and picture-in-picture (requestDisplayMode);
@@ -41,6 +43,13 @@ import {
   type RangePreset,
   type Timeframe,
 } from "../../src/tools/chart/market.ts";
+import {
+  FAST_POLL_MS,
+  FAST_WINDOW_MS,
+  OUT_OF_VIEW_STOP_MS,
+  SLOW_POLL_JITTER_MS,
+  SLOW_POLL_MS,
+} from "../../src/tools/chart/polling.ts";
 import {
   describeNumbers,
   indicatorValuesFromReadout,
@@ -493,6 +502,8 @@ async function mount(args: ChartArgs) {
   wireChartEvents();
   scheduleLevelLabels();
   initialApplied = true;
+  // Loaded: the first polls go fast (a chart_command often follows chart_open).
+  goFast(true);
   scheduleModelContext();
   if (market.numbersAllowed) setInterval(scheduleModelContext, NUMBERS_REFRESH_MS);
   mark("ready", true);
@@ -682,14 +693,29 @@ async function applyOp(op: Op) {
 }
 
 // ---------- sync loop ----------
+/*
+  Every chart_sync is a server call, so the poll adapts (../../src/tools/chart/polling.ts):
+    fast (FAST_POLL_MS) for FAST_WINDOW_MS after the chart loads, after it applied changes or answered a
+      snapshot request, after the user touched the chart or moved focus away from it, after it came back
+      into view, and whenever chart_sync's next_poll_ms asks for it (the model used chart_command lately);
+    slow (SLOW_POLL_MS, with jitter) otherwise;
+    stopped while the document is hidden or the chart has been out of view for OUT_OF_VIEW_STOP_MS. Its
+      last poll says so (paused) and the first one when it is shown again goes at once.
+  Each poll announces the delay it plans (next_poll_ms), so chart_command knows whether to wait for the
+  next one or to answer at once that its changes are queued.
+*/
 let syncing = false;
 /** The answer to the last snapshot request, sent with the next chart_sync. */
 let snapshotAnswer: SnapshotAnswer | null = null;
 let answeredSnapshotId = 0;
-async function syncOnce(): Promise<number> {
-  if (!chartId || !initialApplied || syncing) return 0;
+let syncCalls = 0;
+type SyncOutcome = { handled: number; nextPollMs?: number };
+/** One poll. `plannedMs`: the delay announced for the next one; null: this is the last poll before stopping. */
+async function syncOnce(plannedMs: number | null): Promise<SyncOutcome> {
+  if (!chartId || !initialApplied || syncing) return { handled: 0 };
   syncing = true;
   try {
+    mark("syncCalls", ++syncCalls);
     const result = await app.callServerTool({
       name: "chart_sync",
       // `context` is harmless when unused and satisfies analytics wrappers that require it.
@@ -698,12 +724,14 @@ async function syncOnce(): Promise<number> {
         ...(session.sync_key ? { sync_key: session.sync_key } : {}),
         acked_seq: ackedSeq,
         state: viewState(),
+        ...(plannedMs === null ? { paused: true } : { next_poll_ms: plannedMs }),
         ...(snapshotAnswer ? { snapshot_answer: snapshotAnswer } : {}),
         context: "chart view sync",
       },
     });
     snapshotAnswer = null;
-    const data = result.structuredContent as { known?: boolean; ops?: Op[]; snapshot?: number } | undefined;
+    const data = result.structuredContent as { known?: boolean; ops?: Op[]; snapshot?: number; next_poll_ms?: number } | undefined;
+    const nextPollMs = typeof data?.next_poll_ms === "number" && data.next_poll_ms >= 0 ? data.next_poll_ms : undefined;
     const ops = data?.ops ?? [];
     for (const op of ops) {
       if (op.seq <= ackedSeq) continue;
@@ -724,30 +752,147 @@ async function syncOnce(): Promise<number> {
     if (typeof data?.snapshot === "number" && data.snapshot > answeredSnapshotId) {
       answeredSnapshotId = data.snapshot;
       snapshotAnswer = await answerSnapshotRequest(data.snapshot);
-      return ops.length + 1;
+      return { handled: ops.length + 1, nextPollMs };
     }
-    return ops.length;
+    return { handled: ops.length, nextPollMs };
   } catch (error) {
     log("chart_sync failed", String(error));
     mark("syncError", String(error).slice(0, 200));
-    return 0;
+    return { handled: 0 };
   } finally {
     syncing = false;
   }
 }
 
-async function syncLoop() {
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const applied = await syncOnce();
-    // Acknowledge right away after applying, so chart_command returns sooner.
-    if (applied) {
-      await syncOnce();
-      continue;
+let fastUntil = 0;
+let pollTimer: ReturnType<typeof setTimeout> | undefined;
+let pollDueAt = Infinity;
+let ticking = false;
+/** True once the last poll before stopping went out; the next poll goes when the chart is shown again. */
+let stopped = false;
+let pageHidden = document.visibilityState === "hidden";
+let outOfViewSince: number | null = null;
+
+function onScreen(): boolean {
+  return !pageHidden && !(outOfViewSince !== null && performance.now() - outOfViewSince >= OUT_OF_VIEW_STOP_MS);
+}
+
+function plannedDelay(): number {
+  if (performance.now() < fastUntil) return FAST_POLL_MS;
+  return SLOW_POLL_MS - SLOW_POLL_JITTER_MS + Math.round(Math.random() * 2 * SLOW_POLL_JITTER_MS);
+}
+
+function schedulePoll(delayMs: number) {
+  clearTimeout(pollTimer);
+  pollDueAt = performance.now() + delayMs;
+  pollTimer = setTimeout(() => void pollTick(), delayMs);
+}
+
+/** Something happened on the chart: poll fast for a while, the next poll within FAST_POLL_MS (or at once). */
+function goFast(immediately = false) {
+  fastUntil = performance.now() + FAST_WINDOW_MS;
+  // While a poll runs, it schedules the next one itself; a stopped chart restarts only when it is shown again.
+  if (!chartId || ticking || (stopped && !onScreen())) return;
+  const delay = immediately ? 0 : FAST_POLL_MS;
+  if (pollDueAt - performance.now() > delay) schedulePoll(delay);
+}
+
+async function pollTick() {
+  pollTimer = undefined;
+  pollDueAt = Infinity;
+  if (!chartId || ticking) return;
+  ticking = true;
+  let next: number | null = null;
+  try {
+    if (!onScreen()) {
+      if (!stopped) {
+        stopped = true;
+        // The last poll says the chart stops; changes it hands over are applied and acknowledged before stopping.
+        for (let i = 0; i < 3 && (await syncOnce(null)).handled > 0; i++);
+        mark("polling", "stopped");
+      }
+    } else {
+      stopped = false;
+      const planned = plannedDelay();
+      const { handled, nextPollMs } = await syncOnce(planned);
+      if (handled > 0) {
+        // Acknowledge right away, so chart_command returns sooner.
+        fastUntil = performance.now() + FAST_WINDOW_MS;
+        next = 0;
+      } else {
+        next = Math.min(planned, nextPollMs ?? planned);
+      }
     }
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+  } finally {
+    ticking = false;
+  }
+  // Shown again, or touched, while that poll was out; or hidden: the last poll goes now.
+  if (next === null && onScreen()) next = 0;
+  if (next !== null && !onScreen() && !stopped) next = 0;
+  if (next !== null && performance.now() < fastUntil) next = Math.min(next, FAST_POLL_MS);
+  if (next !== null) {
+    mark("polling", next <= FAST_POLL_MS ? "fast" : "slow");
+    schedulePoll(next);
   }
 }
+
+/** The chart is on screen again: poll at once, then fast. */
+function resumePolling() {
+  if (!onScreen()) return;
+  if (stopped) {
+    fastUntil = performance.now() + FAST_WINDOW_MS;
+    if (!ticking) schedulePoll(0);
+  } else {
+    goFast();
+  }
+}
+
+function startPolling() {
+  fastUntil = performance.now() + FAST_WINDOW_MS;
+  schedulePoll(0);
+}
+
+document.addEventListener("visibilitychange", () => {
+  pageHidden = document.visibilityState === "hidden";
+  mark("pageHidden", pageHidden);
+  if (!chartId) return;
+  if (pageHidden) {
+    // The last poll goes now, so chart_command knows the chart stopped.
+    if (!ticking && !stopped) schedulePoll(0);
+  } else {
+    resumePolling();
+  }
+});
+
+if (typeof IntersectionObserver === "function") {
+  new IntersectionObserver((entries) => {
+    const visible = entries[entries.length - 1]?.isIntersecting ?? true;
+    mark("inView", visible);
+    if (visible) {
+      outOfViewSince = null;
+      if (chartId) resumePolling();
+    } else if (outOfViewSince === null) {
+      outOfViewSince = performance.now();
+    }
+  }).observe(chartEl);
+}
+
+// A hand on the chart, or focus leaving it for the chat (a message about it is likely next).
+for (const event of ["pointerdown", "wheel", "keydown", "pointerleave"] as const) {
+  chartEl.addEventListener(event, () => goFast(), { passive: true });
+}
+let lastMoveAt = 0;
+chartEl.addEventListener(
+  "pointermove",
+  () => {
+    const now = performance.now();
+    if (now - lastMoveAt < 1_000) return;
+    lastMoveAt = now;
+    goFast();
+  },
+  { passive: true },
+);
+window.addEventListener("blur", () => goFast());
 
 // ---------- host wiring ----------
 let mountStarted = false;
@@ -775,7 +920,7 @@ app.ontoolresult = (result) => {
   if (meta && typeof meta === "object") session = meta;
   mark("chartId", chartId);
   start(data);
-  void syncLoop();
+  startPolling();
 };
 
 app.onhostcontextchanged = (ctx: Partial<McpUiHostContext>) => {

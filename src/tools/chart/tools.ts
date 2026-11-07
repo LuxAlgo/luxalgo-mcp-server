@@ -10,7 +10,17 @@
                     by the view, acknowledged within ~5 s), or reads it
                     ({op: "read"}, optionally with a snapshot for the model)
     chart_sync      app-only (_meta.ui.visibility ["app"]); the view's poll:
-                    acknowledges ops, reports its state, answers snapshots
+                    acknowledges ops, reports its state, answers snapshots,
+                    and says when to poll next (`next_poll_ms`)
+
+  Never on the Claude address (./index.ts). Polling is adaptive (view/chart/
+  main.ts): about every second while something happens on the chart, every
+  ~6 s when it is idle, not at all while it is hidden or out of view. The
+  view announces its next poll on each chart_sync and chart_sync answers with
+  `next_poll_ms`, fast for 30 s after the model's last chart_command on that
+  chart (./local.ts). chart_command waits for the view only when its next
+  poll is near; when it is far off it answers at once that the change is
+  queued and when the chart applies it.
 
   The view (view/chart/main.ts, bundled by scripts/build-chart-view.mjs into
   one self-contained HTML document) streams candles straight from the
@@ -48,11 +58,16 @@ import {
   answerSnapshot,
   freshNumbers,
   pendingSnapshot,
+  pollSchedule,
+  recentCommand,
+  recordCommand,
+  recordPoll,
   rememberNumbers,
   requestSnapshot,
   waitForSnapshot,
   type SnapshotOutcome,
 } from "./local.js";
+import { FAST_POLL_MS, SLOW_POLL_MS } from "./polling.js";
 
 export const CHART_RESOURCE_URI = "ui://vela/chart";
 
@@ -78,7 +93,8 @@ export const CHART_RESOURCE_DOMAINS = ["https://crypto-icons.ledger.com"];
  * A stable sandbox origin. The format is host-specific (spec: "Servers MUST
  * consult host-specific documentation"):
  *   - Claude: sha256 of the MCP server URL the user connected, as
- *     `<hash>.claudemcpcontent.com`;
+ *     `<hash>.claudemcpcontent.com` (kept for when the chart tools reach the
+ *     Claude address; ./index.ts keeps them off it today);
  *   - ChatGPT: an origin (`https://…`), unique per plugin, required only when
  *     a plugin with UI is submitted; left out here so ChatGPT uses its default
  *     sandbox until the submission sets one;
@@ -283,11 +299,39 @@ function linkFor(view: ViewState): string | undefined {
   return velaChartUrl(market, tf);
 }
 
+/** How long chart_command waits for the view to confirm edits when this process does not know its poll schedule (as before). */
+const ACK_WAIT_MS = 5_000;
+/** chart_command never waits longer than this for the view's next poll; a poll further off is not waited for. */
+const ACK_WAIT_MAX_MS = 8_000;
+/** Time for the view to apply the ops and acknowledge after the poll that hands them over. */
+const ACK_GRACE_MS = 1_500;
+
+/** `pollInMs`: the view polls too far off to wait for, in this many ms. */
+type AckWait = { waitMs: number; pollInMs?: number };
+
+/**
+ * How long chart_command waits for the view: as before when the schedule is
+ * unknown or the view polls fast; until just after its next poll when that is
+ * a few seconds off; not at all when the view stopped polling (hidden or out of
+ * view) or its next poll is further off than ACK_WAIT_MAX_MS.
+ */
+function ackWait(key: string): AckWait {
+  const schedule = pollSchedule(key);
+  if (schedule.kind === "unknown") return { waitMs: ACK_WAIT_MS };
+  if (schedule.kind === "stopped") return { waitMs: 0 };
+  const needed = schedule.inMs + ACK_GRACE_MS;
+  return needed <= ACK_WAIT_MAX_MS ? { waitMs: Math.max(ACK_WAIT_MS, needed) } : { waitMs: 0, pollInMs: schedule.inMs };
+}
+
 /** Asks the view for a picture of the chart (an exchange-fed market only) and waits for its answer. */
 async function takeSnapshot(store: ChartStore, view: ViewState | undefined): Promise<SnapshotOutcome | undefined> {
   if (view && !viewNumbersAllowed(view)) return { outcome: "words_only" };
   const id = requestSnapshot(store.key);
-  return waitForSnapshot(store.key, id, 6_000);
+  // The request reaches the view on its next poll and the answer on the one after (right away).
+  const schedule = pollSchedule(store.key);
+  const waitMs =
+    schedule.kind === "stopped" ? 0 : schedule.kind === "due" ? Math.max(6_000, Math.min(schedule.inMs + 2_500, 9_000)) : 6_000;
+  return waitForSnapshot(store.key, id, waitMs);
 }
 
 /** chart_command with only read ops: the chart's last report, its live numbers and, on request, a picture. */
@@ -417,7 +461,7 @@ export function registerChartTools(server: McpServer) {
     {
       title: "Vela chart change",
       description:
-        "Edits or reads a chart already open in the chat (from chart_open): switch market or timeframe, add or remove a native indicator, draw a level or a zone, clear drawings, or zoom to a date range; {op: \"read\"} changes nothing and returns what the chart shows now. Ops apply in order. Waits up to about 5 seconds for the chart to confirm and returns what it shows, in words, with the numbers the user sees on it: the last price, the change since the day's open (00:00 UTC), the high and low of the visible range and each indicator's latest value (e.g. \"RSI 38.2\"). Quote those as of the moment of the reply; it never returns candles. {op: \"read\", image: true} also sends a picture of the chart as the user sees it into your context, where the chat app accepts images from the chart (it arrives with the next message). If the chart is not on screen, edits stay queued and apply when it is shown again, and a read returns its last report without live numbers. Use chart_open instead to show a new chart.",
+        "Edits or reads a chart already open in the chat (from chart_open): switch market or timeframe, add or remove a native indicator, draw a level or a zone, clear drawings, or zoom to a date range; {op: \"read\"} changes nothing and returns what the chart shows now. Ops apply in order. Usually waits a few seconds for the chart to confirm and returns what it shows, in words, with the numbers the user sees on it: the last price, the change since the day's open (00:00 UTC), the high and low of the visible range and each indicator's latest value (e.g. \"RSI 38.2\"). Quote those as of the moment of the reply; it never returns candles. {op: \"read\", image: true} also sends a picture of the chart as the user sees it into your context, where the chat app accepts images from the chart (it arrives with the next message). If the chart is idle it may answer at once that the edits are queued and when the chart applies them; if it is not on screen, edits stay queued and apply when it is shown again, and a read returns its last report without live numbers. Use chart_open instead to show a new chart.",
       inputSchema: z.object({
         chart_id: z.string().max(200).describe("The chart_id chart_open returned."),
         ops: z.array(opSchema).min(1).max(20),
@@ -456,19 +500,25 @@ export function registerChartTools(server: McpServer) {
       }
       try {
         const started = Date.now();
+        // The model is at work on this chart: its view polls fast for a while (chart_sync's next_poll_ms).
+        recordCommand(store.key);
         if (!normalized.length) return await readChart(store, chart_id, wantsImage, started);
         const pushed = await store.push(normalized);
         if ("gone" in pushed) return textError(`No open chart has the id "${chart_id}". Call chart_open to show a new chart.`);
         if ("refused" in pushed) return textError(`Nothing changed: ${pushed.refused}.`);
         const seq = pushed.version;
-        const acked = await store.waitForAck(seq, 5_000);
+        const wait = ackWait(store.key);
+        const acked = await store.waitForAck(seq, wait.waitMs);
         const applied = acked.applied;
         const view = withLocalNumbers(store, acked.view);
+        const changes = `${normalized.length} change${normalized.length === 1 ? "" : "s"}`;
+        const queued =
+          wait.pollInMs !== undefined
+            ? `Queued ${changes}: the chart is idle and applies them at its next check for changes, within about ${Math.ceil((wait.pollInMs + ACK_GRACE_MS) / 1000)} seconds.`
+            : `Queued ${changes}: the chart has not confirmed yet (it may be closed or off screen), so they apply when it is next shown.`;
         let text = applied
           ? `Done. ${view ? describeView(view) : ""}`.trim()
-          : `Queued ${normalized.length} change${normalized.length === 1 ? "" : "s"}: the chart has not confirmed yet (it may be closed or off screen), so they apply when it is next shown.` +
-            (view ? ` Last report: ${describeView(view)}` : "") +
-            (view && linkFor(view) ? ` The chart on Vela: ${linkFor(view)}` : "");
+          : queued + (view ? ` Last report: ${describeView(view)}` : "") + (view && linkFor(view) ? ` The chart on Vela: ${linkFor(view)}` : "");
         let snapshot: SnapshotOutcome | undefined;
         if (wantsImage) {
           snapshot = applied ? await takeSnapshot(store, view) : undefined;
@@ -501,6 +551,14 @@ export function registerChartTools(server: McpServer) {
         sync_key: z.string().max(200).optional().describe("The view's key for an app chart session (from chart_open's _meta)."),
         acked_seq: z.number().int().min(0),
         state: viewStateSchema.optional(),
+        next_poll_ms: z
+          .number()
+          .int()
+          .min(0)
+          .max(600_000)
+          .optional()
+          .describe("When the view plans to poll next, in ms, unless the answer's next_poll_ms is sooner (a view that leaves it out polls about every second)."),
+        paused: z.boolean().optional().describe("True on the view's last poll before it stops (hidden or out of view) until it is shown again."),
         snapshot_answer: snapshotAnswerSchema.optional().describe("The view's answer to the snapshot request chart_sync last handed it."),
       }),
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
@@ -512,7 +570,7 @@ export function registerChartTools(server: McpServer) {
         "openai/visibility": "private",
       },
     },
-    async ({ chart_id, sync_key, acked_seq, state, snapshot_answer }) => {
+    async ({ chart_id, sync_key, acked_seq, state, next_poll_ms, paused, snapshot_answer }) => {
       const store = storeFor(chart_id, sync_key);
       let synced: Awaited<ReturnType<ChartStore["sync"]>> | undefined;
       try {
@@ -537,7 +595,15 @@ export function registerChartTools(server: McpServer) {
         );
       }
       const snapshot = pendingSnapshot(store.key);
-      return ok(`${synced.ops.length} pending`, { known: true, ops: synced.ops, ...(snapshot ? { snapshot } : {}) });
+      // Fast while there is work for the view or the model used chart_command on this chart lately; slow otherwise.
+      const nextPollMs = synced.ops.length || snapshot || recentCommand(store.key) ? FAST_POLL_MS : SLOW_POLL_MS;
+      recordPoll(store.key, paused ? null : Math.min(next_poll_ms ?? FAST_POLL_MS, nextPollMs));
+      return ok(`${synced.ops.length} pending`, {
+        known: true,
+        ops: synced.ops,
+        ...(snapshot ? { snapshot } : {}),
+        next_poll_ms: nextPollMs,
+      });
     },
   );
 }

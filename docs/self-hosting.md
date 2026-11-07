@@ -18,7 +18,7 @@ How it works:
 
 1. `chart_open` returns an MCP App view (`ui://vela/chart`): one self-contained HTML document that bundles Vela's open-source core.
 2. Candles stream from Hyperliquid or Binance straight into your browser. No tool result carries bars; for these exchange-fed markets the model gets what you see on screen (the last price, the day's change, the visible range's high and low, each indicator's latest value).
-3. `chart_command` queues edits that the view applies within seconds; the view reports back what it now shows.
+3. `chart_command` queues edits that the view applies within seconds; the view reports back what it now shows. The view checks for edits about every second while something happens on the chart (it just loaded, applied an edit, you touched it, or the model is at work on it), about every 6 seconds when it is idle, and not at all while it is hidden or out of view; an edit made while it is idle applies at its next check, and `chart_command` says when.
 4. "Open in Vela" carries the same view into Vela at [vela.luxalgo.com](https://vela.luxalgo.com/chart).
 
 ## Local (stdio)
@@ -90,7 +90,7 @@ Any Node 20+ host works. `npm run build:chart` builds the chart view for `LUXALG
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `LUXALGO_CHART_TOOLS` | off | `on` registers the live chart tools |
+| `LUXALGO_CHART_TOOLS` | off | `on` registers the live chart tools (never on the Claude address) |
 | `LUXALGO_ACCOUNT_TOOLS` | off | `on` registers the watchlist, layout and alert tools (never on the Claude address) |
 | `LUXALGO_CHART_ORIGIN` | `https://vela.luxalgo.com` | Where `chart_url` and "Open in Vela" open the chart |
 | `LUXALGO_CHART_APP_DOMAIN` | per host | Sandbox origin for the chart view; `none` leaves it out |

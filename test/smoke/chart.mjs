@@ -14,12 +14,19 @@
      routes (a local server speaking the app's contract), on a node-http entry
      this suite starts itself: the model gets the write key only, the view the
      read key only (in `_meta`), and creating falls back to memory when the
-     app answers 404 or cannot be reached.
+     app answers 404 or cannot be reached. On that entry, with the chart tools
+     on: the Claude address lists none of them and no chart resource, its tool
+     list byte for byte the one under review; and the poll contract
+     (`next_poll_ms`, src/tools/chart/polling.ts) on an app session and on a
+     chart in memory: fast after the model's chart_command, slow when idle, and
+     chart_command waits for the view's next poll only when it is near.
 */
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createServer as createHttpServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import { CLAUDE_TOOLS_SHA256 } from "./claude-surface.mjs";
 
 const CHART_TOOLS = ["chart_open", "chart_command", "chart_sync"];
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -412,7 +419,9 @@ async function appBackendChecks(check) {
       app.log.filter((call) => call.method === "POST" && call.path === "/api/chart-sessions").every((call) => !call.authorization),
     );
 
+    await claudeAddressChecks(entry.url, check);
     await endToEnd(mcp, check, "on an app session");
+    await pollingChecks(mcp, check, "on an app session");
     const s2 = app.sessions.get("sess2");
     const later = app.log.filter((call) => s2 && call.path.startsWith(`/api/chart-sessions/${s2.id}`));
     check(
@@ -460,6 +469,7 @@ async function appBackendChecks(check) {
     );
     const gone = await mcp.callTool({ name: "chart_command", arguments: { chart_id: chartId, ops: [{ op: "clear_drawings" }] } });
     check("when the app no longer knows a session, chart_command says the chart is gone", gone.isError === true && /No open chart/.test(textOf(gone)));
+    await pollingChecks(mcp, check, "on a chart in memory");
 
     await app.close();
     const unreachable = await mcp.callTool({ name: "chart_open", arguments: { symbol: "SOL" } });
@@ -473,4 +483,149 @@ async function appBackendChecks(check) {
     entry.stop();
     await app.close().catch(() => {});
   }
+}
+
+// ── 4. the Claude address, with the chart tools on ───────────────────────
+
+/** One raw JSON-RPC call on the Claude address of a local entry (its host, as the gate reads it). */
+async function claudeRpc(url, method, params) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+      "mcp-protocol-version": "2025-06-18",
+      "x-forwarded-host": `claude.${new URL(url).host}`,
+    },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  const text = await response.text();
+  return JSON.parse(text.startsWith("{") ? text : (text.match(/^data: (.*)$/m)?.[1] ?? "{}"));
+}
+
+async function claudeAddressChecks(url, check) {
+  const listed = (await claudeRpc(url, "tools/list", {})).result?.tools ?? [];
+  const digest = createHash("sha256").update(JSON.stringify(listed)).digest("hex");
+  check(
+    "with the chart tools on, the Claude address lists none of them and stays byte for byte the tool list under review",
+    listed.length > 0 && listed.every((t) => !CHART_TOOLS.includes(t.name)) && digest === CLAUDE_TOOLS_SHA256,
+    `${listed.length} tools, sha256 ${digest.slice(0, 12)}…`,
+  );
+  const resources = await claudeRpc(url, "resources/list", {});
+  const read = await claudeRpc(url, "resources/read", { uri: "ui://vela/chart" });
+  const called = await claudeRpc(url, "tools/call", { name: "chart_open", arguments: { symbol: "BTC" } });
+  check(
+    "the Claude address offers no chart view resource and opens no chart",
+    !(resources.result?.resources ?? []).some((r) => String(r.uri).startsWith("ui://")) &&
+      !read.result?.contents?.length &&
+      (called.error !== undefined || called.result?.isError === true),
+    `resources/list: ${resources.error ? `error ${resources.error.code}` : `${resources.result?.resources?.length ?? 0} resources`}; resources/read: ${read.error ? `error ${read.error.code}` : "answered"}`,
+  );
+  // Positive control: the standard address of the same entry has them.
+  const standard = new Client({ name: "smoke-chart-standard", version: "0.0.0" });
+  await standard.connect(new StreamableHTTPClientTransport(new URL(url)));
+  try {
+    const { tools } = await standard.listTools();
+    const { resources: standardResources } = await standard.listResources();
+    check(
+      "the standard address of the same server lists the chart tools and the chart view",
+      CHART_TOOLS.every((name) => tools.some((t) => t.name === name)) && standardResources.some((r) => r.uri === "ui://vela/chart"),
+    );
+  } finally {
+    await standard.close().catch(() => {});
+  }
+}
+
+// ── 5. the poll contract ──────────────────────────────────────────────────
+
+const VIEW_STATE = { symbol: "hyperliquid:BTC", timeframe: "4h", indicators: [], levels: [], zones: [], candles_loaded: true };
+
+async function pollingChecks(client, check, where) {
+  const sync = async (chartId, syncKey, acked, extra = {}) =>
+    (
+      await client.callTool({
+        name: "chart_sync",
+        arguments: { chart_id: chartId, ...(syncKey ? { sync_key: syncKey } : {}), acked_seq: acked, state: VIEW_STATE, ...extra },
+      })
+    ).structuredContent ?? {};
+  const open = async () => {
+    const opened = await client.callTool({ name: "chart_open", arguments: { symbol: "BTC", timeframe: "4h" } });
+    return { chartId: opened.structuredContent?.chart_id, syncKey: opened._meta?.["luxalgo/chart"]?.sync_key };
+  };
+  const command = async (chartId, ops) => {
+    const started = Date.now();
+    const result = await client.callTool({ name: "chart_command", arguments: { chart_id: chartId, ops } });
+    return { result, ms: Date.now() - started };
+  };
+
+  // An idle chart: the server asks for slow polls (about every 6 s).
+  const idle = await open();
+  const first = await sync(idle.chartId, idle.syncKey, 0, { next_poll_ms: 6_000 });
+  check(
+    `${where}, an idle chart's view is told to poll slowly (next_poll_ms)`,
+    first.known === true && first.next_poll_ms === 6_000,
+    `next_poll_ms ${first.next_poll_ms}`,
+  );
+
+  // An edit on an idle chart: chart_command waits for the view's next idle check and confirms it.
+  let picked;
+  let after;
+  const idleView = (async () => {
+    await sleep(6_000);
+    picked = await sync(idle.chartId, idle.syncKey, 0, { next_poll_ms: 6_000 });
+    const seq = picked.ops?.at(-1)?.seq ?? 0;
+    after = await sync(idle.chartId, idle.syncKey, seq, { next_poll_ms: 6_000 });
+  })();
+  const slow = await command(idle.chartId, [{ op: "add_level", price: 70000, label: "Idle" }]);
+  await idleView;
+  check(
+    `${where}, an edit on an idle chart is applied at the view's next check and chart_command confirms it`,
+    !slow.result.isError && slow.result.structuredContent?.applied === true && slow.ms < 9_000,
+    `${slow.ms} ms, applied ${slow.result.structuredContent?.applied}`,
+  );
+  check(
+    `${where}, the view's next poll picks the change up and is told to poll fast`,
+    picked?.ops?.some((op) => op.op === "add_level" && op.price === 70000) && picked?.next_poll_ms === 1_000,
+    `${picked?.ops?.length} ops, next_poll_ms ${picked?.next_poll_ms}`,
+  );
+  check(
+    `${where}, for a while after the model's last chart_command the view keeps polling fast, even with nothing pending`,
+    after?.ops?.length === 0 && after?.next_poll_ms === 1_000,
+    `next_poll_ms ${after?.next_poll_ms}`,
+  );
+
+  // The view polls in a few seconds: chart_command waits for that poll and answers with what the chart shows.
+  const near = await open();
+  // 5.5 s: past the 5 s chart_command used to wait, within what it now waits for a poll it knows is coming.
+  await sync(near.chartId, near.syncKey, 0, { next_poll_ms: 5_500 });
+  let acked = 0;
+  const viewPoll = (async () => {
+    await sleep(5_500);
+    for (let i = 0; i < 3; i++) {
+      const got = await sync(near.chartId, near.syncKey, acked, { next_poll_ms: 1_000 });
+      acked = Math.max(acked, ...(got.ops ?? []).map((op) => op.seq));
+      if (got.ops?.length) {
+        await sync(near.chartId, near.syncKey, acked, { next_poll_ms: 1_000 });
+        return;
+      }
+      await sleep(1_000);
+    }
+  })();
+  const waited = await command(near.chartId, [{ op: "zoom", range: "1W" }]);
+  await viewPoll;
+  check(
+    `${where}, when the view's next poll is a few seconds off, chart_command waits for it and confirms the change`,
+    !waited.result.isError && waited.result.structuredContent?.applied === true && waited.ms >= 5_000 && waited.ms < 9_000,
+    `${waited.ms} ms, applied ${waited.result.structuredContent?.applied}`,
+  );
+
+  // The view said it stopped (hidden or out of view): chart_command does not wait for it.
+  const hidden = await open();
+  await sync(hidden.chartId, hidden.syncKey, 0, { paused: true });
+  const paused = await command(hidden.chartId, [{ op: "zoom", range: "1M" }]);
+  check(
+    `${where}, when the view stopped polling (hidden or out of view), chart_command answers at once that the change applies when the chart is shown`,
+    !paused.result.isError && paused.result.structuredContent?.applied === false && /when it is next shown/.test(textOf(paused.result)) && paused.ms < 3_000,
+    `${paused.ms} ms`,
+  );
 }
