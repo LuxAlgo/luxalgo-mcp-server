@@ -20,6 +20,7 @@ Every tool the LuxAlgo MCP server registers, by area. Names are stable; every re
 | "How often does Bitcoin close green on a Monday?" | `edge_report` with the `day-of-week` preset |
 | "With a 45% win rate at 2R, what are my odds on FTMO's 100K two-step?" | `propfirms_search_challenges`, `propfirms_simulate` |
 | "Where did I lose money last month? Tag my worst trade 'chased'." | `journal_breakdown`, `journal_list_trades`, `journal_update_trade` (sign-in) |
+| "Look at my chart in Vela: what do you see?" | `chart_peek` (sign-in, account tools on) |
 | "What are my open positions across Alpaca and Kraken?" | `broker_positions` (local, your own read-only keys) |
 
 ## Live Vela charts
@@ -94,7 +95,7 @@ Simulations are distributions under stated assumptions, deterministic under seed
 
 These act only as you, on your own data, and the app validates every change. How sign-in works: [auth.md](auth.md).
 
-## Watchlists, saved layouts and alerts (sign-in)
+## Watchlists, saved layouts, alerts and your open chart (sign-in)
 
 Self-hosted with `LUXALGO_ACCOUNT_TOOLS=on`; not on the hosted addresses yet, and never on the Claude address while its directory review runs.
 
@@ -109,8 +110,9 @@ Self-hosted with `LUXALGO_ACCOUNT_TOOLS=on`; not on the hosted addresses yet, an
 | `alerts_create_custom` | A Custom Alert from a Vela built-in indicator or a Library indicator, after a history preview ("would have fired 12 times, about 0.4 per day"); `preview_only` creates nothing |
 | `alerts_pause` / `alerts_resume` | Pause an alert, or turn it back on |
 | `alerts_history` | When your alerts fired and whether each notification went out |
+| `chart_peek` | A picture of the chart you have open in Vela, as you see it, with its market, timeframe and indicators in words and its `chart_url`; crypto charts fed by an exchange only (Binance, Binance.US, Coinbase, Hyperliquid), with your Vela tab open and visible |
 
-Markets are named `source:TICKER` (`binance:BTCUSDT`, `hyperliquid:BTC`, `edgx:AAPL`, `fx:EURUSD`, `cme:ES1!`). Alerts notify your in-app channel (Vela on the web and the Vela app on your phone) when you have one, and say so plainly when they notify no one. Your plan sets the limits; nothing here deletes a watchlist, a layout or an alert.
+Markets are named `source:TICKER` (`binance:BTCUSDT`, `hyperliquid:BTC`, `edgx:AAPL`, `fx:EURUSD`, `cme:ES1!`). Alerts notify your in-app channel (Vela on the web and the Vela app on your phone) when you have one, and say so plainly when they notify no one. Your plan sets the limits; nothing here deletes a watchlist, a layout or an alert. `chart_peek` asks your open Vela tab for its picture through the LuxAlgo app, which keeps nothing after the answer; for any market other than exchange-fed crypto it says so and sends no picture, and if no tab answers it asks you to open Vela at https://vela.luxalgo.com/chart, keep it visible and ask again in a minute.
 
 ## Brokers (local stdio only)
 

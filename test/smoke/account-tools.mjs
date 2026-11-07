@@ -1,5 +1,6 @@
 /*
-  The member's watchlists, saved layouts and alerts (opt-in: LUXALGO_ACCOUNT_TOOLS=on
+  The member's watchlists, saved layouts, alerts and the picture of their open
+  Vela chart (chart_peek) (opt-in: LUXALGO_ACCOUNT_TOOLS=on
   or a Vercel preview; the app routes they call are not in production yet).
 
   1. The server under test: when it lists these tools, an anonymous read and an
@@ -13,7 +14,9 @@
      success paths, a watchlist save retried after another device saved first
      (409), plan limits relayed as the app words them (403), an alert created
      for a member with no in-app channel saying it notifies no one, and the
-     prices an alert's history may and may not show. The stand-in also records
+     prices an alert's history may and may not show, and chart_peek's picture
+     of a crypto chart, its words for no open tab and for a licensed market,
+     and its answer while the app has it switched off. The stand-in also records
      any call the app's MCP allowlist would not take (a DELETE, a destination
      list), and the suite fails if there is one.
 */
@@ -32,6 +35,9 @@ import { CLAUDE_TOOLS_SHA256 } from "./claude-surface.mjs";
 const TOKEN = "stand-in-token";
 const READ = "watchlists_list";
 const WRITE = ["alerts_create_price", { symbol: "binance:BTCUSDT", condition: "cross_up", level: 100000 }];
+const PEEK = ["chart_peek", {}];
+/** A 1×1 PNG: what the stand-in's Vela tab "captures". */
+const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
 export async function run({ client, check, httpUrl }) {
   await underTest(client, check, httpUrl);
@@ -47,7 +53,7 @@ async function underTest(client, check, httpUrl) {
     console.log("(account tools are off on the server under test; set LUXALGO_ACCOUNT_TOOLS=on to check them there too)");
     return;
   }
-  for (const [name, args] of [[READ, {}], WRITE]) {
+  for (const [name, args] of [[READ, {}], WRITE, PEEK]) {
     if (httpUrl) {
       const response = await post(httpUrl, { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } });
       const challenge = response.headers.get("www-authenticate") ?? "";
@@ -83,7 +89,7 @@ async function addresses(check) {
     const names = (list) => (list?.tools ?? []).map((t) => t.name);
 
     check(
-      "with the account tools on, the standard address lists all 11 of them, each asking for a LuxAlgo sign-in",
+      `with the account tools on, the standard address lists all ${ACCOUNT_PROTECTED.length} of them, each asking for a LuxAlgo sign-in`,
       ACCOUNT_PROTECTED.every((name) => {
         const tool = standardTools?.tools?.find((t) => t.name === name);
         return tool?.securitySchemes?.some((s) => s.type === "oauth2") && / Requires signing in with a LuxAlgo account \(OAuth\)\.$/.test(tool.description);
@@ -107,18 +113,18 @@ async function addresses(check) {
       ["ChatGPT", openai],
     ]) {
       const statuses = [];
-      for (const [name, args] of [[READ, {}], WRITE]) {
+      for (const [name, args] of [[READ, {}], WRITE, PEEK]) {
         const response = await post(address.url, { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } });
         statuses.push(`${name} ${response.status}`);
       }
-      check(`on the ${where} address, an anonymous read and write are refused with 401`, statuses.every((s) => s.endsWith(" 401")), statuses.join("; "));
+      check(`on the ${where} address, an anonymous read, write and chart picture are refused with 401`, statuses.every((s) => s.endsWith(" 401")), statuses.join("; "));
     }
 
     // Schemas and annotations, as an AI client reads them.
     const tool = (name) => standardTools?.tools?.find((t) => t.name === name) ?? {};
     const props = (name) => Object.keys(tool(name).inputSchema?.properties ?? {});
     const required = (name) => (tool(name).inputSchema?.required ?? []).slice().sort().join();
-    const reads = ["watchlists_list", "layouts_list", "alerts_list", "alerts_history"];
+    const reads = ["watchlists_list", "layouts_list", "alerts_list", "alerts_history", "chart_peek"];
     const writes = ACCOUNT_PROTECTED.filter((n) => !reads.includes(n));
     check(
       "reads are marked read-only; writes are not, and say they reach outside (openWorldHint)",
@@ -146,6 +152,15 @@ async function addresses(check) {
       "alerts_create_custom takes a built-in indicator or a Library indicator, and can preview without creating",
       ["symbol", "timeframe", "indicator", "library", "frequency", "preview_only"].every((p) => props("alerts_create_custom").includes(p)),
       props("alerts_create_custom").join(", "),
+    );
+    check(
+      "chart_peek takes only an optional chart of a layout, and says it shows crypto charts only, with the Vela tab open and visible",
+      props("chart_peek").join() === "chart_index" &&
+        required("chart_peek") === "" &&
+        /crypto charts fed by an exchange only/.test(tool("chart_peek").description) &&
+        /open and visible/.test(tool("chart_peek").description) &&
+        /chart_open/.test(tool("chart_peek").description),
+      props("chart_peek").join(", "),
     );
     const copy = ACCOUNT_PROTECTED.map((n) => `${tool(n).title} ${tool(n).description}`).join(" ");
     const banned = [/indicator alerts?/i, /strategy alerts?/i, /Watchers/, /Alert Agents?/i, /Signal Alerts?/i, /Price alert/, /Custom alert/, /QuantCharts/, /\bpane\b/i, /Quant AI/];
@@ -399,6 +414,59 @@ async function signedIn(check) {
       history.text.slice(0, 220),
     );
 
+    // A picture of the member's open Vela chart.
+    const peekCall = async (args = {}) => {
+      const result = await member.callTool({ name: "chart_peek", arguments: args });
+      return {
+        isError: result.isError === true,
+        image: result.content?.find((c) => c.type === "image"),
+        text: result.content?.find((c) => c.type === "text")?.text ?? "",
+        data: result.structuredContent ?? {},
+      };
+    };
+    state.peek = "ok";
+    const seen = await peekCall();
+    check(
+      "chart_peek shows the member's open crypto chart as a picture, names it in words with its Vela link, and keeps the picture out of structured content",
+      !seen.isError &&
+        seen.image?.data === PIXEL &&
+        seen.image?.mimeType === "image/png" &&
+        /BTCUSDT on Binance, 1 hour candles, with RSI 14/.test(seen.text) &&
+        seen.data.status === "ok" &&
+        seen.data.symbol === "binance:BTCUSDT" &&
+        seen.data.chart_url === "https://vela.luxalgo.com/chart?symbol=binance:BTCUSDT&tf=60" &&
+        !JSON.stringify(seen.data).includes(PIXEL),
+      seen.text.slice(0, 200),
+    );
+    await peekCall({ chart_index: 2 });
+    const peekBodies = state.calls.filter((c) => c.path === "/api/agents/peek").map((c) => JSON.stringify(c.body));
+    check(
+      "chart_peek asks for one chart of a layout only when told which, and otherwise for the chart the member is working on",
+      peekBodies[0] === "{}" && peekBodies[1] === '{"chartIndex":2}',
+      peekBodies.join(" | "),
+    );
+    state.peek = "no_open_chart";
+    const noTab = await peekCall();
+    check(
+      "with no visible Vela tab, chart_peek asks the member to open Vela, keep it visible and ask again in a minute",
+      !noTab.image && noTab.data.status === "no_open_chart" && /vela\.luxalgo\.com\/chart/.test(noTab.text) && /visible/.test(noTab.text) && /in a minute/.test(noTab.text),
+      noTab.text.slice(0, 160),
+    );
+    state.peek = "not_allowed_for_market";
+    const licensed = await peekCall();
+    check(
+      "a chart of a market that is not exchange-fed crypto is never pictured: the tool says only crypto charts can be shared",
+      !licensed.image && licensed.data.status === "not_allowed_for_market" && /only crypto charts/.test(licensed.text) && /AAPL/.test(licensed.text),
+      licensed.text.slice(0, 160),
+    );
+    state.peek = "off";
+    const peekOff = await peekCall();
+    check(
+      "while the app has the chart picture switched off (404), chart_peek says it is not available yet",
+      peekOff.isError && !peekOff.image && /not available yet/.test(peekOff.text),
+      peekOff.text,
+    );
+
     state.alertsOff = true;
     const off = await call("alerts_list");
     check("while the app's alerts are off for the account (404), the tools say so", off.isError && /not open on this account/.test(off.text), off.text);
@@ -432,6 +500,7 @@ const ALLOWED = [
   ["POST", /^\/api\/alert-rules\/preview$/],
   ["GET", /^\/api\/alert-events$/],
   ["GET", /^\/api\/alert-destinations\/in-app$/],
+  ["POST", /^\/api\/agents\/peek$/],
 ];
 const SOURCES = ["binance", "binance.us", "coinbase", "hyperliquid", "edgx", "fx", "commodities", "cme"];
 const CATEGORIES = ["Crypto", "Forex", "Commodities", "Stocks", "ETFs"];
@@ -477,6 +546,7 @@ async function startStandIn() {
     conflicts: 0,
     limit: null,
     alertsOff: false,
+    peek: "ok",
     destinations: [],
     lastCreated: null,
     watchlists: new Map([
@@ -560,6 +630,25 @@ async function startStandIn() {
     }
     if (path === "/api/quant/workspaces") {
       return send(200, { workspaces: [{ id: "ws_1", name: "Morning scan", updatedAt: at(5), shared: false, shareIncludeChart: false, shareIncludeWidgets: false }] });
+    }
+
+    // The chart picture: the app's answers, 404 while its switch is off.
+    if (path === "/api/agents/peek") {
+      if (state.peek === "off") return send(404, { message: "Not available" });
+      const keys = Object.keys(body ?? {});
+      const index = body?.chartIndex;
+      if (body === undefined || keys.some((k) => k !== "chartIndex") || (index !== undefined && !(Number.isInteger(index) && index >= 0 && index <= 15))) {
+        return send(400, { message: "body validation error" });
+      }
+      if (state.peek === "ok") {
+        return send(200, {
+          status: "ok",
+          image: { mime: "image/png", dataBase64: PIXEL, width: 1, height: 1 },
+          chart: { symbol: "BTCUSDT", timeframe: "60", provider: "binance", indicators: ["RSI 14"], visibleRange: { from: "2026-11-01T00:00:00.000Z", to: "2026-11-07T00:00:00.000Z" } },
+        });
+      }
+      if (state.peek === "not_allowed_for_market") return send(200, { status: "not_allowed_for_market", market: "edgx:AAPL", reason: "licensed_market" });
+      return send(200, { status: state.peek });
     }
 
     // Alerts: 404 while the app's alerts are off for the account.
