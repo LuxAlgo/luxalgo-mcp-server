@@ -23,12 +23,25 @@
 */
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { CLAUDE_TOOLS_SHA256 } from "./claude-surface.mjs";
 
 const CHART_TOOLS = ["chart_open", "chart_command", "chart_sync"];
+const CHART_ORIGIN = process.env.LUXALGO_CHART_ORIGIN ?? "https://vela.luxalgo.com";
+/** The sentence every chart result carries so the model never adds a chart picture from the web. */
+const LIVE_CHART_NOTE = /live Vela chart is on screen in this conversation and is the answer.*add no chart images, screenshots or chart links from the web/;
+
+/** The Vela version the built chart view bundles (scripts/build-chart-view.mjs), or null when it is not built. */
+function builtViewVela() {
+  try {
+    return /<meta name="vela-version" content="([^"]+)"/.exec(readFileSync(new URL("../../dist/chart/vela-chart.html", import.meta.url), "utf8"))?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function run({ client, check }) {
@@ -134,6 +147,29 @@ async function numbersPolicyChecks(check) {
   check(
     "the model may read numbers off a chart only when its candles come from an exchange's public feed (Hyperliquid, Binance)",
     exchangeFed.every((p) => numbersAllowedFor(p) === true) && parseMarket("BTC").numbersAllowed === true && parseMarket("binance:ETHUSDT").numbersAllowed === true,
+  );
+  const { marketWords, velaServesHip3 } = await import("../../dist/tools/chart/market.js");
+  const hip3 = parseMarket("hyperliquid:XYZ:tsla");
+  check(
+    "a Hyperliquid HIP-3 market parses as its own market on Hyperliquid",
+    hip3.venue === "hyperliquid" &&
+      hip3.ticker === "xyz:TSLA" &&
+      hip3.symbol === "hyperliquid:xyz:TSLA" &&
+      hip3.hip3?.dex === "xyz" &&
+      marketWords(hip3) === "TSLA perpetual on Hyperliquid (xyz)" &&
+      parseMarket("TSLA").hip3 === undefined &&
+      parseMarket("BTC").symbol === "hyperliquid:BTC" &&
+      "error" in parseMarket("hyperliquid:xyz:TSLA:1") &&
+      "error" in parseMarket("hyperliquid:xyz:TSLA", { hip3: false }),
+    JSON.stringify(hip3),
+  );
+  check(
+    "a HIP-3 perpetual is Hyperliquid exchange data, so its chart may hand the model numbers like any Hyperliquid chart",
+    hip3.numbersAllowed === true && numbersAllowedFor(hip3.venue) === true,
+  );
+  check(
+    "the chart opens HIP-3 markets only when its view is built with Vela 0.10.2 or later",
+    !velaServesHip3("0.10.1") && velaServesHip3("0.10.2") && velaServesHip3("0.11.0") && velaServesHip3("1.0.0") && !velaServesHip3(undefined) && !velaServesHip3("garbage"),
   );
   check(
     "any other provider (a data vendor, futures, stocks, or one the chart does not know) stays words only",
@@ -272,8 +308,93 @@ async function endToEnd(client, check, where) {
     textOf(vendorRead).slice(0, 200),
   );
 
+  check(
+    `${where}, a chart result tells the model the live chart is the answer and to add no chart images from the web`,
+    [opened, commanded, read, pictured].every((result) => LIVE_CHART_NOTE.test(textOf(result))),
+    textOf(read).slice(-200),
+  );
+
+  await elsewhereChecks(client, check, where);
+
   const unknown = await client.callTool({ name: "chart_command", arguments: { chart_id: "ch_doesnotexist", ops: [{ op: "clear_drawings" }] } });
   check(`${where}, chart_command on an unknown chart says so`, unknown.isError === true && /No open chart/.test(textOf(unknown)));
+}
+
+/** Markets the chat chart can't show (stocks, futures, forex) and Hyperliquid's HIP-3 perpetuals. */
+async function elsewhereChecks(client, check, where) {
+  const noPrice = (text) => !/\b\d{1,3}(,\d{3})+(\.\d+)?\b|\$\s?\d/.test(text.replace(/https?:\/\/\S+/g, ""));
+  const stock = await client.callTool({ name: "chart_open", arguments: { symbol: "AAPL", timeframe: "4h" } });
+  const stockText = textOf(stock);
+  check(
+    `${where}, a stock the chat chart can't show answers in words with its Vela link`,
+    stock.isError === true &&
+      /crypto markets from exchanges \(Hyperliquid, Binance\)/.test(stockText) &&
+      /Stocks, futures and forex are on Vela/.test(stockText) &&
+      stock.structuredContent?.chart_url === `${CHART_ORIGIN}/chart?symbol=AAPL&tf=240` &&
+      stockText.includes(stock.structuredContent.chart_url) &&
+      noPrice(stockText) &&
+      !/upgrade|plan|price/i.test(stockText),
+    stockText.slice(0, 240),
+  );
+  const named = await Promise.all(
+    ["edgx:AAPL", "fx:EURUSD", "cme:ES1!", "NASDAQ:AAPL"].map((symbol) => client.callTool({ name: "chart_open", arguments: { symbol, timeframe: "1d" } })),
+  );
+  const urls = named.map((result) => result.structuredContent?.chart_url);
+  check(
+    `${where}, a market named on another source (US stocks, forex, CME futures) gets its own Vela link in words`,
+    named.every((result) => result.isError === true && /on Vela/.test(textOf(result))) &&
+      urls.join(" ") ===
+        [`${CHART_ORIGIN}/chart?symbol=edgx:AAPL&tf=D`, `${CHART_ORIGIN}/chart?symbol=fx:EURUSD&tf=D`, `${CHART_ORIGIN}/chart?symbol=cme:ES1!&tf=D`, `${CHART_ORIGIN}/chart?symbol=edgx:AAPL&tf=D`].join(" "),
+    urls.join(" "),
+  );
+
+  const hip3Ready = (() => {
+    const version = builtViewVela();
+    const [a = 0, b = 0, c = 0] = (version ?? "0.0.0").split("-")[0].split(".").map(Number);
+    return a > 0 || b > 10 || (b === 10 && c >= 2);
+  })();
+  const tsla = await client.callTool({ name: "chart_open", arguments: { symbol: "hyperliquid:xyz:TSLA", timeframe: "1h" } });
+  if (hip3Ready) {
+    check(
+      `${where}, a Hyperliquid HIP-3 perpetual opens as its own market on Hyperliquid`,
+      !tsla.isError &&
+        tsla.structuredContent?.symbol === "hyperliquid:xyz:TSLA" &&
+        tsla.structuredContent?.venue === "hyperliquid" &&
+        /TSLA perpetual on Hyperliquid \(xyz\)/.test(textOf(tsla)),
+      textOf(tsla).slice(0, 200),
+    );
+    const bare = await client.callTool({ name: "chart_open", arguments: { symbol: "TSLA" } });
+    check(
+      `${where}, a bare coin Hyperliquid lists only on HIP-3 dexes asks for the dex written out and names them`,
+      bare.isError === true && (bare.structuredContent?.hip3_symbols ?? []).includes("hyperliquid:xyz:TSLA") && /hyperliquid:xyz:TSLA/.test(textOf(bare)),
+      textOf(bare).slice(0, 240),
+    );
+  } else {
+    check(
+      `${where}, while the view bundles a Vela without HIP-3 markets, the chart says they are not on it yet`,
+      tsla.isError === true && /not on this chart yet/.test(textOf(tsla)),
+      `view built with Vela ${builtViewVela() ?? "(not built)"}: ${textOf(tsla).slice(0, 160)}`,
+    );
+  }
+
+  // The view reports a HIP-3 chart: described in its own words, with the numbers any Hyperliquid chart gets.
+  const opened = await client.callTool({ name: "chart_open", arguments: { symbol: "BTC" } });
+  const chartId = opened.structuredContent?.chart_id;
+  const stopView = startView(client, chartId, opened._meta?.["luxalgo/chart"]?.sync_key, { symbol: "hyperliquid:xyz:TSLA" });
+  await sleep(400);
+  const read = await client.callTool({ name: "chart_command", arguments: { chart_id: chartId, ops: [{ op: "read" }] } });
+  const moved = await client.callTool({ name: "chart_command", arguments: { chart_id: chartId, ops: [{ op: "set_market", symbol: "EURUSD" }] } });
+  await stopView();
+  check(
+    `${where}, a HIP-3 chart is read like any Hyperliquid chart: its market in words and the numbers on screen`,
+    !read.isError && /TSLA perpetual on Hyperliquid \(xyz\)/.test(textOf(read)) && /Last 2,231\.4/.test(textOf(read)),
+    textOf(read).slice(0, 200),
+  );
+  check(
+    `${where}, switching an open chart to a market it can't show changes nothing and gives the Vela link`,
+    moved.isError === true && /^Nothing changed/.test(textOf(moved)) && moved.structuredContent?.chart_url === `${CHART_ORIGIN}/chart?symbol=EURUSD&tf=240`,
+    textOf(moved).slice(0, 200),
+  );
 }
 
 // ── 3. the app-session backend against the app's contract ─────────────────
@@ -471,6 +592,8 @@ async function appBackendChecks(check) {
     check("when the app no longer knows a session, chart_command says the chart is gone", gone.isError === true && /No open chart/.test(textOf(gone)));
     await pollingChecks(mcp, check, "on a chart in memory");
 
+    await chatgptAddressChecks(entry.url, check);
+
     await app.close();
     const unreachable = await mcp.callTool({ name: "chart_open", arguments: { symbol: "SOL" } });
     check(
@@ -482,6 +605,22 @@ async function appBackendChecks(check) {
     await mcp.close().catch(() => {});
     entry.stop();
     await app.close().catch(() => {});
+  }
+}
+
+/** The ChatGPT address serves the same chart tools, and its results carry the same steer. */
+async function chatgptAddressChecks(url, check) {
+  const openai = new Client({ name: "smoke-chart-openai", version: "0.0.0" });
+  await openai.connect(new StreamableHTTPClientTransport(new URL(`${url}/openai`)));
+  try {
+    const opened = await openai.callTool({ name: "chart_open", arguments: { symbol: "BTC", timeframe: "1h" } });
+    check(
+      "on the ChatGPT address, a chart result tells the model the live chart is the answer and to add no chart images from the web",
+      !opened.isError && LIVE_CHART_NOTE.test(textOf(opened)),
+      textOf(opened).slice(-200),
+    );
+  } finally {
+    await openai.close().catch(() => {});
   }
 }
 

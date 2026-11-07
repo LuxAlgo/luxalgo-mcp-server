@@ -36,9 +36,15 @@ const js = result.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
 const template = await readFile(join(root, "view", "chart", "index.html"), "utf8");
 const marker = "/*__BUNDLE__*/";
 if (!template.includes(marker)) throw new Error("view/chart/index.html lost its bundle marker");
-const html = template.replace(marker, () => js);
+// The Vela version the view bundles: the server reads it (tools/chart/tools.ts, chartViewVelaVersion) to
+// know what the view can chart, e.g. Hyperliquid HIP-3 perpetuals from Vela 0.10.2 on.
+const velaVersion = JSON.parse(await readFile(join(root, "node_modules", "@luxalgo", "vela", "package.json"), "utf8")).version;
+if (!/^[0-9A-Za-z.+-]{1,40}$/.test(velaVersion)) throw new Error(`unexpected @luxalgo/vela version "${velaVersion}"`);
+const html = template
+  .replace("<head>", () => `<head>\n    <meta name="vela-version" content="${velaVersion}" />`)
+  .replace(marker, () => js);
 
 await mkdir(dirname(out), { recursive: true });
 await writeFile(out, html);
 const kb = (n) => `${(n / 1024).toFixed(0)} KB`;
-console.log(`chart view: ${out} — ${kb(Buffer.byteLength(html))} raw, ${kb(gzipSync(html).length)} gzipped`);
+console.log(`chart view (Vela ${velaVersion}): ${out} — ${kb(Buffer.byteLength(html))} raw, ${kb(gzipSync(html).length)} gzipped`);

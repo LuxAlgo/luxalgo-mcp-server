@@ -16,6 +16,10 @@
     candle click offers "Ask about this" (sendMessage); "Open in Vela"
     (openLink); fullscreen and picture-in-picture (requestDisplayMode);
     follows the host's light/dark theme.
+  - The symbol search lists the crypto markets the bundled providers serve.
+    A quiet line under its results, and its no-match state, say that stocks,
+    futures and forex are on Vela, with "Open in Vela" carrying what was typed
+    (see "More markets on Vela" below).
   - On request (chart_command's read op with image: true, handed over by
     chart_sync) adds a size-capped picture of the chart to the model context,
     when the host lists images among the content it takes there.
@@ -32,11 +36,13 @@ import { VelaWorkspace } from "@luxalgo/vela/workspace";
 import { HyperliquidProvider } from "@luxalgo/vela/providers/hyperliquid";
 import { BinanceProvider } from "@luxalgo/vela/providers/binance";
 import {
+  DEFAULT_CHART_ORIGIN,
   NATIVE_INDICATORS,
   marketWords,
   parseMarket,
   timeframeWords,
   velaChartUrl,
+  velaSymbolUrl,
   velaTimeframe,
   type Market,
   type NativeIndicator,
@@ -78,6 +84,8 @@ type ChartArgs = {
   zones?: Zone[];
   range?: RangePreset | null;
   chart_id?: string;
+  /** chart_open's Vela link: its origin is where "Open in Vela" goes (the server's LUXALGO_CHART_ORIGIN). */
+  chart_url?: string;
 };
 
 // ---------- diagnostics the spike harness reads (data-* on <body>, console) ----------
@@ -203,7 +211,11 @@ const pipBtn = document.getElementById("pip") as HTMLButtonElement;
 const chartEl = document.getElementById("chart")!;
 const noteEl = document.getElementById("note")!;
 
-function setStatus(text: string) {
+/** Set once chart_open said this chart can't show the market asked for; the status then keeps saying where it is. */
+let statusHeld = false;
+function setStatus(text: string, hold = false) {
+  if (statusHeld && !hold) return;
+  statusHeld ||= hold;
   statusEl.textContent = text;
 }
 
@@ -223,6 +235,10 @@ const indicatorHandles = new Map<NativeIndicator, { remove(): void }>();
 const levels: Array<Level & { id: string }> = [];
 const zones: Array<Zone & { id: string }> = [];
 let clickedTime: number | null = null;
+/** Vela's origin, from chart_open's chart_url once the result arrives. */
+let velaOrigin = DEFAULT_CHART_ORIGIN;
+/** Set when chart_open answered that this chart can't show the market asked for: its Vela link. */
+let elsewhereUrl: string | undefined;
 
 const app = new App({ name: "LuxAlgo Vela chart", version: "0.1.0" }, { availableDisplayModes: ["inline", "fullscreen", "pip"] });
 
@@ -476,6 +492,8 @@ async function mount(args: ChartArgs) {
     theme,
     persist: false,
     autofocus: false,
+    // The search lists this chart's crypto markets only; "More markets on Vela" below adds the way to the rest.
+    messages: { "widget.symbolPicker.noMatch": "No market on this chart matches." },
   });
   mark("mountedMs", Math.round(performance.now() - t0));
   setStatus("Loading candles");
@@ -911,8 +929,20 @@ app.ontoolinput = ({ arguments: args }) => {
 app.ontoolresult = (result) => {
   const data = result.structuredContent as ChartArgs | undefined;
   log("tool result", data?.chart_id);
+  if (data?.chart_url) {
+    try {
+      velaOrigin = new URL(data.chart_url).origin;
+    } catch {
+      /* keep the default */
+    }
+  }
   if (!data?.chart_id) {
-    if (result.isError) setStatus("The chart could not open");
+    if (result.isError && data?.chart_url) {
+      // A market this chart can't show here: say where it is, and "Open in Vela" goes there.
+      elsewhereUrl = data.chart_url;
+      setStatus(`This chart shows crypto markets. ${MORE_MARKETS_TEXT}`, true);
+      mark("elsewhere", data.chart_url);
+    } else if (result.isError) setStatus("The chart could not open");
     return;
   }
   chartId = data.chart_id;
@@ -1028,17 +1058,90 @@ async function requestMode(mode: DisplayMode) {
 fullBtn.addEventListener("click", () => void requestMode("fullscreen"));
 pipBtn.addEventListener("click", () => void requestMode("pip"));
 
-openBtn.addEventListener("click", async () => {
-  if (!market) return;
-  // An app session opens a Vela tab that follows this same chart.
-  const url = session.follow_url ?? velaChartUrl(market, timeframe);
+/** Opens a Vela link through the host (MCP Apps ui/open-link), the one way the view leaves the chat. */
+async function openInVela(url: string) {
   try {
     const result = await app.openLink({ url });
     mark("openLink", result.isError ? "refused" : "ok");
   } catch (error) {
     mark("openLink", `error ${String(error)}`);
   }
+}
+
+openBtn.addEventListener("click", () => {
+  if (elsewhereUrl) return void openInVela(elsewhereUrl);
+  if (!market) return;
+  // An app session opens a Vela tab that follows this same chart.
+  void openInVela(session.follow_url ?? velaChartUrl(market, timeframe, velaOrigin));
 });
+
+// ---------- More markets on Vela (in the symbol search) ----------
+/*
+  The search lists the markets the bundled providers serve: crypto from
+  Hyperliquid and Binance. Someone typing AAPL, ES or EURUSD finds nothing, so
+  the search says where those are: a quiet line under the results, and the
+  same line with a button in place of an empty list. Built on Vela's public
+  surface only: the `messages` option words the no-match line, and the
+  search's stable class names (.vela-sp-list, .vela-sp-empty, .vela-sp-input;
+  docs/user/workspace.md, "Customization") place ours next to it. Nothing is
+  added inside the result rows, so Vela's keyboard and row handling are
+  untouched.
+*/
+const MORE_MARKETS_TEXT = "Stocks, futures and forex are on Vela.";
+
+function typedQuery(list: Element): string {
+  return (list.parentElement?.querySelector<HTMLInputElement>("input.vela-sp-input")?.value ?? "").trim();
+}
+
+function moreMarketsButton(list: Element): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "lux-more-open";
+  button.textContent = "Open in Vela";
+  button.addEventListener("click", () => {
+    const query = typedQuery(list);
+    mark("moreMarketsOpened", query || "(empty)");
+    void openInVela(velaSymbolUrl(query, velaOrigin));
+  });
+  return button;
+}
+
+function moreMarketsLine(list: Element, className: string): HTMLElement {
+  const line = document.createElement("div");
+  line.className = className;
+  const text = document.createElement("span");
+  text.textContent = MORE_MARKETS_TEXT;
+  line.append(text, moreMarketsButton(list));
+  return line;
+}
+
+function decorateSearch() {
+  for (const list of chartEl.querySelectorAll(".vela-sp-list")) {
+    const parent = list.parentElement;
+    if (!parent) continue;
+    let footer = parent.querySelector<HTMLElement>(":scope > .lux-more-footer");
+    if (!footer) {
+      footer = moreMarketsLine(list, "lux-more-footer");
+      list.after(footer);
+    }
+    const empty = list.querySelector(".vela-sp-empty");
+    const noMatch = !!empty && typedQuery(list) !== "";
+    if (noMatch && !empty!.querySelector(".lux-more-empty")) empty!.append(moreMarketsLine(list, "lux-more-empty"));
+    // One line at a time: in place of an empty list, the footer steps aside.
+    footer.hidden = noMatch;
+    mark("moreMarkets", noMatch ? "no-match" : "footer");
+  }
+}
+
+let decorateQueued = false;
+new MutationObserver(() => {
+  if (decorateQueued) return;
+  decorateQueued = true;
+  queueMicrotask(() => {
+    decorateQueued = false;
+    decorateSearch();
+  });
+}).observe(chartEl, { childList: true, subtree: true });
 
 askBtn.addEventListener("click", async () => {
   if (clickedTime == null || !market) return;

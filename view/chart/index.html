@@ -34,6 +34,12 @@
       button:disabled { opacity: 0.45; cursor: default; }
       #ask { background: #2962ff; border-color: #2962ff; color: #fff; }
       #chart { flex: 1; min-height: 0; position: relative; }
+      /* "More markets on Vela" in the symbol search (main.ts): one quiet line, never a banner. */
+      .lux-more-footer, .lux-more-empty { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+      .lux-more-footer { flex: none; padding: 8px 16px 14px; border-top: 1px solid var(--line); }
+      .lux-more-footer[hidden] { display: none; }
+      .lux-more-empty { margin-top: 12px; }
+      .lux-more-open { font-size: 12px; padding: 3px 10px; }
     </style>
   </head>
   <body>

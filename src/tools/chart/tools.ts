@@ -47,9 +47,12 @@ import {
   rangeWords,
   timeframeWords,
   velaChartUrl,
+  velaServesHip3,
   type Market,
   type Timeframe,
 } from "./market.js";
+import { CHART_ORIGIN } from "../_shared/vela.js";
+import { chartMarket, type ChartMarket } from "./elsewhere.js";
 import { AppAuthError, AppPermissionError } from "../../platform/app-client.js";
 import { VIEW_META_KEY, openChart, storeFor } from "./backend.js";
 import type { ChartOp, ChartStore, ViewState } from "./store.js";
@@ -113,7 +116,7 @@ function appDomain(): string | undefined {
 }
 
 /** Where "Open in Vela" may send the user (ChatGPT's link allowlist; the chart link passes through the app host first). */
-const OPEN_LINK_DOMAINS = ["https://vela.luxalgo.com", "https://app.luxalgo.com"];
+const OPEN_LINK_DOMAINS = [...new Set(["https://vela.luxalgo.com", "https://app.luxalgo.com", new URL(CHART_ORIGIN).origin])];
 
 /**
  * The built view (npm run build:chart; Vercel runs it in vercel-build). Two layouts: dist/tools/chart/tools.js
@@ -139,6 +142,32 @@ function viewHtml(): string {
   }
   // Not cached: a later build can still provide it without a restart.
   return "<!doctype html><meta charset=utf-8><p>The chart view is not built. Run <code>npm run build:chart</code>.</p>";
+}
+
+/** The @luxalgo/vela version the built view bundles (scripts/build-chart-view.mjs writes it in a meta tag); undefined when not built. */
+export function chartViewVelaVersion(): string | undefined {
+  return /<meta name="vela-version" content="([0-9A-Za-z.+-]{1,40})"/.exec(viewHtml())?.[1];
+}
+
+/** Whether the chart may open Hyperliquid HIP-3 perpetuals: only when the view is built with a Vela that charts them. */
+export function hip3Ready(): boolean {
+  return velaServesHip3(chartViewVelaVersion());
+}
+
+/**
+ * Said in every chart result the model reads: the chart on screen is the answer. A model once added an
+ * unrelated chart picture found on the web, as if it were the user's chart.
+ */
+export const LIVE_CHART_NOTE =
+  "The live Vela chart is on screen in this conversation and is the answer: describe it in words, and add no chart images, screenshots or chart links from the web; the only chart link to give is this chart's Vela link.";
+
+/** A market the chart can't open, in words, with its Vela link (and HIP-3 names) for the model. */
+function marketRefusal(prefix: string, refused: Exclude<ChartMarket, { market: Market }>) {
+  const extra = { ...(refused.chart_url ? { chart_url: refused.chart_url } : {}), ...(refused.hip3_symbols ? { hip3_symbols: refused.hip3_symbols } : {}) };
+  return {
+    ...textError(`${prefix}: ${refused.error}${/(\.|https?:\/\/\S+)$/.test(refused.error) ? "" : "."}`),
+    ...(Object.keys(extra).length ? { structuredContent: { opened: false, ...extra } } : {}),
+  };
 }
 
 const levelSchema = z.object({
@@ -296,7 +325,7 @@ function linkFor(view: ViewState): string | undefined {
   const market = view.symbol ? parseMarket(view.symbol) : undefined;
   const tf = view.timeframe as Timeframe | undefined;
   if (!market || "error" in market || !tf || !(TIMEFRAME_KEYS as string[]).includes(tf)) return undefined;
-  return velaChartUrl(market, tf);
+  return velaChartUrl(market, tf, CHART_ORIGIN);
 }
 
 /** How long chart_command waits for the view to confirm edits when this process does not know its poll schedule (as before). */
@@ -355,6 +384,7 @@ async function readChart(store: ChartStore, chartId: string, wantsImage: boolean
     text += ` ${describeSnapshot(snapshot)}`;
   }
   if (linkFor(view)) text += ` The chart on Vela: ${linkFor(view)}`;
+  text += ` ${LIVE_CHART_NOTE}`;
   return ok(text, {
     chart_id: chartId,
     applied: true,
@@ -423,8 +453,9 @@ export function registerChartTools(server: McpServer) {
       },
     },
     async ({ symbol, timeframe, indicators, levels, zones, range }) => {
-      const market = parseMarket(symbol);
-      if ("error" in market) return textError(`Cannot open the chart: ${market.error}.`);
+      const resolved = await chartMarket(symbol, timeframe, { hip3: hip3Ready() });
+      if (!("market" in resolved)) return marketRefusal("Cannot open the chart", resolved);
+      const market = resolved.market;
       const badZone = zones?.find((z) => z.low >= z.high);
       if (badZone) return textError(`Cannot open the chart: a zone's low (${badZone.low}) must be below its high (${badZone.high}).`);
       const opened = await openChart();
@@ -438,7 +469,7 @@ export function registerChartTools(server: McpServer) {
       ].filter(Boolean);
       const text =
         `${words.join("; ")}. The candles stream from the exchange in the user's browser; this result carries no prices. ` +
-        `To change this chart, call chart_command with chart_id "${chartId}". The same chart on Vela: ${velaChartUrl(market, timeframe)}`;
+        `To change this chart, call chart_command with chart_id "${chartId}". The same chart on Vela: ${velaChartUrl(market, timeframe, CHART_ORIGIN)} ${LIVE_CHART_NOTE}`;
       const result = ok(text, {
         chart_id: chartId,
         symbol: market.symbol,
@@ -449,7 +480,7 @@ export function registerChartTools(server: McpServer) {
         levels: levels ?? [],
         zones: zones ?? [],
         range: range ?? null,
-        chart_url: velaChartUrl(market, timeframe),
+        chart_url: velaChartUrl(market, timeframe, CHART_ORIGIN),
       });
       // The session's read key and follow link go to the view only (_meta), never to the model.
       return { ...result, _meta: { ui: { resourceUri: CHART_RESOURCE_URI }, ...(opened.view ? { [VIEW_META_KEY]: opened.view } : {}) } };
@@ -486,9 +517,9 @@ export function registerChartTools(server: McpServer) {
         } else if (op.op === "set_market") {
           let market: Market | undefined;
           if (op.symbol) {
-            const parsed = parseMarket(op.symbol);
-            if ("error" in parsed) return textError(`Nothing changed: ${parsed.error}.`);
-            market = parsed;
+            const resolved = await chartMarket(op.symbol, op.timeframe ?? "4h", { hip3: hip3Ready() });
+            if (!("market" in resolved)) return marketRefusal("Nothing changed", resolved);
+            market = resolved.market;
           }
           if (!market && !op.timeframe) return textError("Nothing changed: set_market needs a symbol, a timeframe or both.");
           normalized.push({ op: "set_market", symbol: market?.symbol, timeframe: op.timeframe });
@@ -524,6 +555,7 @@ export function registerChartTools(server: McpServer) {
           snapshot = applied ? await takeSnapshot(store, view) : undefined;
           text += ` ${describeSnapshot(snapshot)}`;
         }
+        text += ` ${LIVE_CHART_NOTE}`;
         return ok(text, {
           chart_id,
           applied,
