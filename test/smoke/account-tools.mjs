@@ -1,14 +1,17 @@
 /*
   The member's watchlists, saved layouts, alerts and the picture of their open
   Vela chart (chart_peek) (opt-in: LUXALGO_ACCOUNT_TOOLS=on
-  or a Vercel preview; the app routes they call are not in production yet).
+  or a Vercel preview; the app routes they call are not in production yet;
+  alerts also need LUXALGO_ALERT_TOOLS=on).
 
   1. The server under test: when it lists these tools, an anonymous read and an
      anonymous write meet the sign-in challenge (401 hosted, in-band on stdio).
-  2. A node-http entry this suite starts with the tools on: the standard and the
-     ChatGPT addresses list them, protected, with their schemas and annotations;
+  2. A node-http entry this suite starts with the tools on (the alerts tools'
+     own switch, LUXALGO_ALERT_TOOLS, too): the standard and the ChatGPT
+     addresses list them, protected, with their schemas and annotations;
      anonymous calls there are refused with 401; the Claude address lists none of
-     them and its tool list is byte for byte the one under review.
+     them and its tool list is byte for byte the one under review. A second
+     entry with the alert switch off lists no alerts tool on any address.
   3. A stdio entry signed in to a stand-in for the app's routes (a local server
      that speaks the app's contracts and refuses anything they refuse): the
      success paths, a watchlist save retried after another device saved first
@@ -29,12 +32,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/client/stdio";
-import { ACCOUNT_PROTECTED } from "./surface.mjs";
+import { ACCOUNT_PROTECTED, ALERTS_PROTECTED, MEMBER_PROTECTED } from "./surface.mjs";
 import { CLAUDE_TOOLS_SHA256 } from "./claude-surface.mjs";
 
 const TOKEN = "stand-in-token";
 const READ = "watchlists_list";
 const WRITE = ["alerts_create_price", { symbol: "binance:BTCUSDT", condition: "cross_up", level: 100000 }];
+/** The write to try when the alerts tools are off (their own switch): it changes nothing anonymously either. */
+const MEMBER_WRITE = ["watchlists_create", { name: "Smoke" }];
 const PEEK = ["chart_peek", {}];
 /** A 1×1 PNG: what the stand-in's Vela tab "captures". */
 const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
@@ -49,11 +54,13 @@ export async function run({ client, check, httpUrl }) {
 
 async function underTest(client, check, httpUrl) {
   const { tools } = await client.listTools();
-  if (!tools.some((t) => ACCOUNT_PROTECTED.includes(t.name))) {
+  if (!tools.some((t) => MEMBER_PROTECTED.includes(t.name))) {
     console.log("(account tools are off on the server under test; set LUXALGO_ACCOUNT_TOOLS=on to check them there too)");
     return;
   }
-  for (const [name, args] of [[READ, {}], WRITE, PEEK]) {
+  const alertsOn = tools.some((t) => ALERTS_PROTECTED.includes(t.name));
+  if (!alertsOn) console.log("(alerts tools are off on the server under test; set LUXALGO_ALERT_TOOLS=on too to check them there)");
+  for (const [name, args] of [[READ, {}], alertsOn ? WRITE : MEMBER_WRITE, PEEK]) {
     if (httpUrl) {
       const response = await post(httpUrl, { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } });
       const challenge = response.headers.get("www-authenticate") ?? "";
@@ -172,6 +179,34 @@ async function addresses(check) {
   } finally {
     entry.stop();
   }
+
+  // The alerts tools' own switch off, the account tools on: no alerts tool anywhere, the rest unchanged.
+  const quiet = await startHttpEntry({ alerts: false });
+  try {
+    const lists = {
+      standard: await rpc({ url: quiet.url }, "tools/list", {}),
+      ChatGPT: await rpc({ url: `${quiet.url}/openai` }, "tools/list", {}),
+      Claude: await rpc({ url: quiet.url, host: `claude.${new URL(quiet.url).host}` }, "tools/list", {}),
+    };
+    const listed = Object.entries(lists).map(([where, list]) => [where, (list?.tools ?? []).map((t) => t.name)]);
+    check(
+      "with the alert switch off, no alerts tool is listed anywhere",
+      listed.every(([, names]) => names.length > 0 && names.every((n) => !n.startsWith("alerts_"))),
+      listed.map(([where, names]) => `${where} ${names.filter((n) => n.startsWith("alerts_")).length} of ${names.length}`).join(", "),
+    );
+    check(
+      "with the alert switch off, the standard and ChatGPT addresses still list the watchlist, layout and chart picture tools",
+      listed.filter(([where]) => where !== "Claude").every(([, names]) => MEMBER_PROTECTED.every((n) => names.includes(n))),
+    );
+    const digest = createHash("sha256").update(JSON.stringify(lists.Claude?.tools ?? [])).digest("hex");
+    check(
+      "with the alert switch off, the Claude address stays byte for byte the tool list under review",
+      digest === CLAUDE_TOOLS_SHA256,
+      `${lists.Claude?.tools?.length} tools, sha256 ${digest.slice(0, 12)}…`,
+    );
+  } finally {
+    quiet.stop();
+  }
 }
 
 // ── 3. signed in, against a stand-in for the app ─────────────────────────────
@@ -201,6 +236,7 @@ async function signedIn(check) {
         LUXALGO_APP_ORIGIN: app.origin,
         LUXALGO_MCP_AUTH_FILE: authFile,
         LUXALGO_ACCOUNT_TOOLS: "on",
+        LUXALGO_ALERT_TOOLS: "on",
         LUXALGO_CHART_TOOLS: "on",
       },
       stderr: "ignore",
@@ -721,10 +757,12 @@ const freePort = () =>
     });
   });
 
-/** A node-http entry with the account tools and the chart tools on: the Claude address stays as reviewed with both. */
-async function startHttpEntry() {
+/** A node-http entry with the account tools and the chart tools on (and the alerts tools unless `alerts` is false): the Claude address stays as reviewed with all of them. */
+async function startHttpEntry({ alerts = true } = {}) {
   const port = await freePort();
   const env = { ...process.env, PORT: String(port), MCP_RESOURCE: `http://localhost:${port}/mcp`, LUXALGO_ACCOUNT_TOOLS: "on", LUXALGO_CHART_TOOLS: "on" };
+  if (alerts) env.LUXALGO_ALERT_TOOLS = "on";
+  else delete env.LUXALGO_ALERT_TOOLS;
   delete env.VERCEL_ENV;
   const child = spawn(process.execPath, ["dist/entries/node-http.js"], { env, stdio: ["ignore", "pipe", "pipe"] });
   await new Promise((resolve, reject) => {

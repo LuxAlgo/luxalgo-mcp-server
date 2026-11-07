@@ -11,7 +11,8 @@
   node-http entry on a free port itself), and
   `answers-surfaces` (the Claude address keeps its reviewed answers), and
   `chart` (the opt-in live charts and their chart-session client), and
-  `account-tools` (the opt-in watchlists, layouts and alerts). Run a subset with
+  `account-tools` (the opt-in watchlists, layouts and alerts; alerts also need
+  LUXALGO_ALERT_TOOLS=on). Run a subset with
   --only <suite>[,<suite>], e.g. `node test/smoke.mjs --only library,edge`.
 */
 import { Client } from "@modelcontextprotocol/client";
@@ -40,6 +41,8 @@ const stdioEnv = {
   ...(process.env.LUXALGO_CHART_TOOLS ? { LUXALGO_CHART_TOOLS: process.env.LUXALGO_CHART_TOOLS } : {}),
   // The opt-in account tools (watchlists, layouts, alerts), when this run asks for them.
   ...(process.env.LUXALGO_ACCOUNT_TOOLS ? { LUXALGO_ACCOUNT_TOOLS: process.env.LUXALGO_ACCOUNT_TOOLS } : {}),
+  // The alerts tools' own switch, on top of the account tools' one, when this run asks for it.
+  ...(process.env.LUXALGO_ALERT_TOOLS ? { LUXALGO_ALERT_TOOLS: process.env.LUXALGO_ALERT_TOOLS } : {}),
 };
 
 /**

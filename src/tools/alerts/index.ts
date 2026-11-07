@@ -3,8 +3,8 @@ import { registerAlertTools } from "./tools.js";
 
 /**
  * The signed-in member's LuxAlgo Alerts (Price Alerts and Custom Alerts). Off
- * unless the account tools are switched on (server/manifest.ts,
- * _shared/member.ts), and never on the Claude address.
+ * unless the account tools and their own switch (LUXALGO_ALERT_TOOLS) are both
+ * on (server/manifest.ts, _shared/member.ts), and never on the Claude address.
  */
 export const alertsModule = memberToolModule(
   "alerts",

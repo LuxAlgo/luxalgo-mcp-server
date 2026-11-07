@@ -15,3 +15,8 @@ import { currentSurface } from "../../auth/surface.js";
 export function answersFrozen(): boolean {
   return currentSurface().kind === "claude";
 }
+
+/** True on the ChatGPT address (/mcp/openai), the only address some modules leave out entirely. */
+export function onChatGptAddress(): boolean {
+  return currentSurface().kind === "openai";
+}

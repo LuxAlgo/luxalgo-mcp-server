@@ -23,7 +23,7 @@ import { accountModule } from "../tools/account/index.js";
 import { journalModule } from "../tools/journal/index.js";
 import { brokerModule } from "../tools/broker/index.js";
 import { chartModule, chartPeekModule, chartToolsEnabled } from "../tools/chart/index.js";
-import { accountToolsEnabled } from "../tools/_shared/member.js";
+import { accountToolsEnabled, alertToolsEnabled } from "../tools/_shared/member.js";
 import { watchlistsModule } from "../tools/watchlists/index.js";
 import { layoutsModule } from "../tools/layouts/index.js";
 import { alertsModule } from "../tools/alerts/index.js";
@@ -41,7 +41,10 @@ export const TOOL_MODULES: readonly ToolModule[] = [
   ...(chartToolsEnabled() ? [chartModule] : []),
   // The member's watchlists, saved layouts, alerts and a picture of their open Vela chart: off unless LUXALGO_ACCOUNT_TOOLS=on or VERCEL_ENV=preview
   // (the app routes they call are not in production yet), and never on the Claude address (_shared/member.ts).
-  ...(accountToolsEnabled() ? [watchlistsModule, layoutsModule, alertsModule, chartPeekModule] : []),
+  // Alerts also need their own switch (LUXALGO_ALERT_TOOLS=on or VERCEL_ENV=preview): LuxAlgo Alerts are not open to every member yet.
+  ...(accountToolsEnabled()
+    ? [watchlistsModule, layoutsModule, ...(alertToolsEnabled() ? [alertsModule] : []), chartPeekModule]
+    : []),
 ];
 
 export const PROTECTED_TOOL_NAMES: ReadonlySet<string> = new Set(
