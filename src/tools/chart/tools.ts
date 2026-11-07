@@ -412,7 +412,7 @@ export function registerChartTools(server: McpServer) {
         zones: z.array(zoneSchema).max(10).optional().describe("Price zones to shade."),
         range: z.enum(RANGE_PRESETS).optional().describe("Visible date range, ending on the newest candle."),
       }),
-      annotations: { title: "Vela chart", readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+      annotations: { title: "Vela chart", readOnlyHint: true, destructiveHint: false, openWorldHint: true },
       _meta: {
         ui: { resourceUri: CHART_RESOURCE_URI },
         // Older ChatGPT clients read the template from here.
@@ -466,7 +466,7 @@ export function registerChartTools(server: McpServer) {
         chart_id: z.string().max(200).describe("The chart_id chart_open returned."),
         ops: z.array(opSchema).min(1).max(20),
       }),
-      annotations: { title: "Vela chart change", readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+      annotations: { title: "Vela chart change", readOnlyHint: true, destructiveHint: false, openWorldHint: true },
       _meta: {
         "openai/toolInvocation/invoking": "Changing the chart",
         "openai/toolInvocation/invoked": "Chart updated",
@@ -561,7 +561,7 @@ export function registerChartTools(server: McpServer) {
         paused: z.boolean().optional().describe("True on the view's last poll before it stops (hidden or out of view) until it is shown again."),
         snapshot_answer: snapshotAnswerSchema.optional().describe("The view's answer to the snapshot request chart_sync last handed it."),
       }),
-      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
       _meta: {
         // No resourceUri: a host must not render a second view for the poll.
         ui: { visibility: ["app"] },

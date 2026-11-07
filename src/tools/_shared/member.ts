@@ -36,6 +36,14 @@ export const alertToolsEnabled = (): boolean =>
   process.env.LUXALGO_ALERT_TOOLS === "on" || process.env.VERCEL_ENV === "preview";
 
 /**
+ * Paper Trading by LuxAlgo for the member's AI assistant (tools/paper): its own
+ * switch, so it can go out after the account tools. Never true on Vercel
+ * production unless LUXALGO_PAPER_TOOLS=on is set there explicitly.
+ */
+export const paperToolsEnabled = (): boolean =>
+  process.env.LUXALGO_PAPER_TOOLS === "on" || process.env.VERCEL_ENV === "preview";
+
+/**
  * A domain of the member's own data: every tool needs a signed-in member
  * (the app routes answer 401 anonymously), so every tool is protected.
  */
