@@ -6,26 +6,27 @@ Every tool the LuxAlgo MCP server registers, by area. Names are stable; every re
 
 | Address | Used by | Notes |
 | --- | --- | --- |
-| `https://mcp.luxalgo.com/mcp` | Any MCP client | Every hosted tool. Standard OAuth discovery. |
-| `https://mcp.luxalgo.com/mcp/openai` | ChatGPT (the LuxAlgo app) | Trimmed to the plugin directory's rules: no prop-firm offers or promo codes, and no Market Trackers. |
-| `https://claude.mcp.luxalgo.com/mcp` | Claude custom connector | Trimmed the same way for prop firms; Market Trackers stay, without the political datasets or name search. Sign-in is requested only when an account tool is called ([why](https://github.com/anthropics/claude-ai-mcp/issues/1013)). Results do not carry `chart_url` yet. |
+| `https://mcp.luxalgo.com/mcp` | Any MCP client | Every hosted tool: the live Vela chart, your Vela (watchlists, saved layouts, `chart_peek`), the Library, Edge Stats, prop firms, the Trade Journal and Market Trackers. Standard OAuth discovery. |
+| `https://mcp.luxalgo.com/mcp/openai` | ChatGPT (the LuxAlgo app) | The same, trimmed to the plugin directory's rules: no prop-firm offers or promo codes, and no Market Trackers. |
+| `https://claude.mcp.luxalgo.com/mcp` | Claude custom connector | Frozen while its directory review runs: the Library, Edge Stats, prop firms (trimmed the same way), the Trade Journal and Market Trackers (without the political datasets or name search). No live chart and no Vela account tools; results do not carry `chart_url`. Sign-in is requested only when an account tool is called ([why](https://github.com/anthropics/claude-ai-mcp/issues/1013)). |
 
 ## What you can ask
 
 | Ask | What answers |
 | --- | --- |
-| "Show BTC on 4 hour candles with RSI and a line at 80,000. Now switch to ETH." | `chart_open`, `chart_command` (self-hosted, charts on) |
+| "Show BTC on 4 hour candles with RSI and a line at 80,000. Now switch to ETH." | `chart_open`, `chart_command` (standard and ChatGPT addresses) |
 | "Which Library indicators measure volatility? Open the first one on a chart." | `library_search`, then the indicator's `chart_url` on Vela |
 | "Explain fair value gaps, then show me the Pine Script® source of the Fair Value Gap indicator." | `library_get_concept`, `library_get_source_code` |
 | "How often does Bitcoin close green on a Monday?" | `edge_report` with the `day-of-week` preset |
 | "With a 45% win rate at 2R, what are my odds on FTMO's 100K two-step?" | `propfirms_search_challenges`, `propfirms_simulate` |
 | "Where did I lose money last month? Tag my worst trade 'chased'." | `journal_breakdown`, `journal_list_trades`, `journal_update_trade` (sign-in) |
-| "Look at my chart in Vela: what do you see?" | `chart_peek` (sign-in, account tools on) |
+| "Add SOL and ETH to my Majors watchlist." | `watchlists_list`, `watchlists_add_symbols` (sign-in; standard and ChatGPT addresses) |
+| "Look at my chart in Vela: what do you see?" | `chart_peek` (sign-in; standard and ChatGPT addresses) |
 | "What are my open positions across Alpaca and Kraken?" | `broker_positions` (local, your own read-only keys) |
 
 ## Live Vela charts
 
-Self-hosted with `LUXALGO_CHART_TOOLS=on`; not on the hosted address yet. See [self-hosting.md](self-hosting.md#live-vela-charts).
+Live on the standard and ChatGPT addresses; never on the Claude address while its directory review runs. The chart shows in clients that display [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) (ChatGPT today); elsewhere the tools answer in words. Self-hosted, they register with `LUXALGO_CHART_TOOLS=on` ([self-hosting.md](self-hosting.md#live-vela-charts)).
 
 | Tool | Returns |
 | --- | --- |
@@ -33,7 +34,7 @@ Self-hosted with `LUXALGO_CHART_TOOLS=on`; not on the hosted address yet. See [s
 | `chart_command` | Edits to the open chart, applied in place; what it now shows, in words, plus the numbers on screen for exchange-fed markets |
 | `chart_sync` | Used by the chart view only, never by the model |
 
-The chart streams crypto markets from exchanges (Hyperliquid, Binance) in the user's browser. Asked for a market it can't show here (a stock, a future, a forex pair: `AAPL`, `edgx:AAPL`, `fx:EURUSD`, `cme:ES1!`), `chart_open` and `chart_command` open nothing and answer in words with that market's Vela link (`chart_url`). In the chart's symbol search, a quiet line says stocks, futures and forex are on Vela, with an "Open in Vela" button that carries what was typed. Hyperliquid's HIP-3 perpetuals are written with their dex, `hyperliquid:<dex>:<COIN>` (`hyperliquid:xyz:TSLA`), and open once the chart view is built with `@luxalgo/vela` 0.10.2 or later; a bare `TSLA` is answered with the HIP-3 markets that list it, because Vela never picks a dex for a bare ticker. Every chart result tells the model that the live chart on screen is the answer, so it adds no chart pictures or links from the web.
+The chart streams crypto markets from exchanges (Hyperliquid, Binance) in the user's browser. Asked for a market it can't show here (a stock, a future, a forex pair: `AAPL`, `edgx:AAPL`, `fx:EURUSD`, `cme:ES1!`), `chart_open` and `chart_command` open nothing and answer in words with that market's Vela link (`chart_url`). In the chart's symbol search, a quiet line says stocks, futures and forex are on Vela, with an "Open in Vela" button that carries what was typed. Hyperliquid's HIP-3 perpetuals, among them its 24/7 stock perpetuals such as TSLA, are written with their dex, `hyperliquid:<dex>:<COIN>` (`hyperliquid:xyz:TSLA`) and open on the chart (the view bundles `@luxalgo/vela` 0.10.2); a bare `TSLA` is answered with the HIP-3 markets that list it, because Vela never picks a dex for a bare ticker. Every chart result tells the model that the live chart on screen is the answer, so it adds no chart pictures or links from the web.
 
 ## Library (public)
 
@@ -99,7 +100,7 @@ These act only as you, on your own data, and the app validates every change. How
 
 ## Watchlists, saved layouts, alerts and your open chart (sign-in)
 
-Self-hosted with `LUXALGO_ACCOUNT_TOOLS=on`; not on the hosted addresses yet, and never on the Claude address while its directory review runs. The `alerts_*` tools also need `LUXALGO_ALERT_TOOLS=on`: LuxAlgo Alerts are not open to every member yet, so they stay off until they are.
+Watchlists, saved layouts and `chart_peek` are live on the standard and ChatGPT addresses, and never on the Claude address while its directory review runs; self-hosted, they register with `LUXALGO_ACCOUNT_TOOLS=on`. The `alerts_*` tools also need `LUXALGO_ALERT_TOOLS=on`, which is off on the hosted addresses: LuxAlgo Alerts are not open to every member yet, so the alerts tools stay off until they are.
 
 | Tool | Returns |
 | --- | --- |
@@ -118,7 +119,7 @@ Markets are named `source:TICKER` (`binance:BTCUSDT`, `hyperliquid:BTC`, `edgx:A
 
 ## Paper trading (sign-in)
 
-Self-hosted with `LUXALGO_PAPER_TOOLS=on`; not on the hosted addresses yet, and never on the Claude address while its directory review runs. Paper Trading by LuxAlgo is LuxAlgo's paper simulator: simulated money, never a broker, never live orders, never real money.
+Self-hosted with `LUXALGO_PAPER_TOOLS=on`; off on the hosted addresses, and never on the Claude address while its directory review runs. Paper Trading by LuxAlgo is LuxAlgo's paper simulator: simulated money, never a broker, never live orders, never real money.
 
 | Tool | Returns |
 | --- | --- |
