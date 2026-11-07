@@ -4,6 +4,9 @@ Notable changes to `@luxalgo/mcp`. The format follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+### Fixed
+- `chart_open`, `chart_command` and `chart_sync` are marked `openWorldHint: true`: the chart streams candles from Hyperliquid and Binance, systems outside LuxAlgo. ChatGPT's automated review held the two model-facing chart tools for saying otherwise.
+
 ### Added
 - Off by default: Paper Trading by LuxAlgo for the signed-in member, LuxAlgo's paper simulator with simulated money (never a broker, never live orders, never real money). Five protected tools, registered only with `LUXALGO_PAPER_TOOLS=on` or on a Vercel preview deployment and never on the Claude address (its 40 tools stay byte for byte the same): `paper_account` reads the member's paper accounts, positions, working orders and newest fills; `paper_propose_order`, `paper_close_position` and `paper_cancel_order` propose a change and return the exact order, its estimated price, value and margin, and a confirmation token, placing nothing; `paper_place_order` carries out a proposal the member approved, with that token and the order restated. The token works once, for that order and that member, for a few minutes; the app refuses anything else. Proposing tools are read-only; `paper_place_order` is marked destructive and closed-world, so hosts ask the user first, and every description tells the model to show the order and wait for the member's explicit yes. A new `paper-tools` smoke suite checks the anonymous refusals, the annotations and copy on the wire, the Claude address without them, and propose then place against a stand-in for the app (no token, a made-up one, a changed order and a second placement are refused).
 
