@@ -94,6 +94,24 @@ Simulations are distributions under stated assumptions, deterministic under seed
 
 These act only as you, on your own data, and the app validates every change. How sign-in works: [auth.md](auth.md).
 
+## Watchlists, saved layouts and alerts (sign-in)
+
+Self-hosted with `LUXALGO_ACCOUNT_TOOLS=on`; not on the hosted addresses yet, and never on the Claude address while its directory review runs.
+
+| Tool | Returns |
+| --- | --- |
+| `watchlists_list` | Your watchlists, as Vela shows them, each symbol with its market and `chart_url` |
+| `watchlists_create` | A new watchlist, optionally with its first symbols |
+| `watchlists_add_symbols` / `watchlists_remove_symbols` | Add markets to a list, or take them out (the list itself stays) |
+| `layouts_list` | Your saved Vela layouts, each with the link that opens it in Vela |
+| `alerts_list` | Your Price Alerts and Custom Alerts in words, with how many are on against your plan |
+| `alerts_create_price` | A Price Alert on a market and a level; draws the level on an open chart when given its `chart_id` |
+| `alerts_create_custom` | A Custom Alert from a Vela built-in indicator or a Library indicator, after a history preview ("would have fired 12 times, about 0.4 per day"); `preview_only` creates nothing |
+| `alerts_pause` / `alerts_resume` | Pause an alert, or turn it back on |
+| `alerts_history` | When your alerts fired and whether each notification went out |
+
+Markets are named `source:TICKER` (`binance:BTCUSDT`, `hyperliquid:BTC`, `edgx:AAPL`, `fx:EURUSD`, `cme:ES1!`). Alerts notify your in-app channel (Vela on the web and the Vela app on your phone) when you have one, and say so plainly when they notify no one. Your plan sets the limits; nothing here deletes a watchlist, a layout or an alert.
+
 ## Brokers (local stdio only)
 
 | Tool | Returns |

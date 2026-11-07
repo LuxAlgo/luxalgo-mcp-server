@@ -91,6 +91,7 @@ Any Node 20+ host works. `npm run build:chart` builds the chart view for `LUXALG
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `LUXALGO_CHART_TOOLS` | off | `on` registers the live chart tools |
+| `LUXALGO_ACCOUNT_TOOLS` | off | `on` registers the watchlist, layout and alert tools (never on the Claude address) |
 | `LUXALGO_CHART_ORIGIN` | `https://vela.luxalgo.com` | Where `chart_url` and "Open in Vela" open the chart |
 | `LUXALGO_CHART_APP_DOMAIN` | per host | Sandbox origin for the chart view; `none` leaves it out |
 | `LUXALGO_APP_ORIGIN` | `https://app.luxalgo.com` | The LuxAlgo app: API and OAuth authorization server (`<origin>/api/auth`) |

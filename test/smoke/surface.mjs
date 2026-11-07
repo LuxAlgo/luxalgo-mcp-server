@@ -20,6 +20,25 @@ export const PROTECTED = [
   "journal_update_note",
 ];
 
+/**
+ * The member's watchlists, saved layouts and alerts: protected, and opt-in
+ * (LUXALGO_ACCOUNT_TOOLS=on or a Vercel preview), so listed all or none.
+ * Never on the Claude address (test/smoke/account-tools.mjs).
+ */
+export const ACCOUNT_PROTECTED = [
+  "watchlists_list",
+  "watchlists_create",
+  "watchlists_add_symbols",
+  "watchlists_remove_symbols",
+  "layouts_list",
+  "alerts_list",
+  "alerts_create_price",
+  "alerts_create_custom",
+  "alerts_pause",
+  "alerts_resume",
+  "alerts_history",
+];
+
 export async function run({ client, check, callJson, callStructured, httpUrl, rawToolsList }) {
   // tools/list
   const { tools } = await client.listTools();
@@ -65,10 +84,17 @@ export async function run({ client, check, callJson, callStructured, httpUrl, ra
   // The live chart tools are opt-in (LUXALGO_CHART_TOOLS=on or a Vercel preview): all three or none.
   const chartExpected = ["chart_open", "chart_command", "chart_sync"];
   const chartOn = tools.some((t) => t.name.startsWith("chart_"));
-  const expectedAll = [...expected, ...(httpUrl ? [] : brokerExpected), ...(chartOn ? chartExpected : [])];
+  const accountOn = tools.some((t) => ACCOUNT_PROTECTED.includes(t.name));
+  const protectedAll = [...PROTECTED, ...(accountOn ? ACCOUNT_PROTECTED : [])];
+  const expectedAll = [
+    ...expected,
+    ...(httpUrl ? [] : brokerExpected),
+    ...(chartOn ? chartExpected : []),
+    ...(accountOn ? ACCOUNT_PROTECTED : []),
+  ];
   const names = tools.map((t) => t.name).sort();
   check(
-    `tools/list exposes exactly the ${expectedAll.length} ${httpUrl ? "hosted" : "stdio"} tools${chartOn ? " (chart tools on)" : ""}`,
+    `tools/list exposes exactly the ${expectedAll.length} ${httpUrl ? "hosted" : "stdio"} tools${chartOn ? " (chart tools on)" : ""}${accountOn ? " (account tools on)" : ""}`,
     names.length === expectedAll.length && expectedAll.slice().sort().every((n, i) => names[i] === n),
     names.join(", "),
   );
@@ -87,7 +113,7 @@ export async function run({ client, check, callJson, callStructured, httpUrl, ra
   // out — checked in the discovery suite.)
   const rawTools = await rawToolsList();
   const schemesOf = (name) => rawTools.find((t) => t.name === name)?.securitySchemes ?? [];
-  const isProtected = new Set(PROTECTED);
+  const isProtected = new Set(protectedAll);
   check(
     "every public tool advertises securitySchemes: [noauth] on the wire",
     rawTools.length === expectedAll.length &&
@@ -99,9 +125,9 @@ export async function run({ client, check, callJson, callStructured, httpUrl, ra
   const oauth = (name) =>
     schemesOf(name).some((s) => s.type === "oauth2" && Array.isArray(s.scopes) && s.scopes.includes("openid"));
   check(
-    `all ${PROTECTED.length} protected tools advertise securitySchemes: [oauth2 + scopes] on the wire`,
-    PROTECTED.every(oauth),
-    PROTECTED.filter((name) => !oauth(name)).join(", ") || `luxalgo_account → ${JSON.stringify(schemesOf("luxalgo_account"))}`,
+    `all ${protectedAll.length} protected tools advertise securitySchemes: [oauth2 + scopes] on the wire`,
+    protectedAll.every(oauth),
+    protectedAll.filter((name) => !oauth(name)).join(", ") || `luxalgo_account → ${JSON.stringify(schemesOf("luxalgo_account"))}`,
   );
 
   // serverInfo — the hardcoded SERVER_VERSION (src/server/version.ts) must track package.json.
