@@ -100,7 +100,7 @@ These act only as you, on your own data, and the app validates every change. How
 
 ## Watchlists, saved layouts, alerts and your open chart (sign-in)
 
-Watchlists, saved layouts and `chart_peek` are live on the standard and ChatGPT addresses, and never on the Claude address while its directory review runs; self-hosted, they register with `LUXALGO_ACCOUNT_TOOLS=on`. The `alerts_*` tools also need `LUXALGO_ALERT_TOOLS=on`, which is off on the hosted addresses: LuxAlgo Alerts are not open to every member yet, so the alerts tools stay off until they are.
+Watchlists, saved layouts and `chart_peek` are live on the standard and ChatGPT addresses, and never on the Claude address while its directory review runs; self-hosted, they register with `LUXALGO_ACCOUNT_TOOLS=on`. The `alerts_*` tools also need `LUXALGO_ALERT_TOOLS=on`; on the hosted standard and ChatGPT addresses it is on.
 
 | Tool | Returns |
 | --- | --- |
