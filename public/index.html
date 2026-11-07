@@ -3,30 +3,33 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MCP for ChatGPT, Claude and any agent | LuxAlgo</title>
-    <meta name="description" content="Add LuxAlgo to ChatGPT, Claude or any MCP client: the Library, prop-firm challenge simulations, session statistics and your Trade Journal. From the trading technology company that built Vela, the next-generation charting platform." />
+    <title>Vela, live in ChatGPT | LuxAlgo</title>
+    <meta name="description" content="Vela by LuxAlgo, live in ChatGPT: open a chart from a sentence and change it by asking. In ChatGPT and Claude: the Library, prop-firm challenge simulations, Edge Stats and your Trade Journal." />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
     <link rel="canonical" href="https://mcp.luxalgo.com/" />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="preconnect" href="https://api.hyperliquid.xyz" crossorigin />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="LuxAlgo" />
     <meta property="og:url" content="https://mcp.luxalgo.com/" />
-    <meta property="og:title" content="MCP for ChatGPT, Claude and any agent | LuxAlgo" />
-    <meta property="og:description" content="Add LuxAlgo to ChatGPT, Claude or any MCP client: the Library, prop-firm challenge simulations, session statistics and your Trade Journal." />
-    <meta property="og:image" content="https://www.luxalgo.com/api/og/page/?title=LuxAlgo+in+ChatGPT%2C+Claude+and+any+agent.&amp;eyebrow=LuxAlgo+MCP&amp;sub=The+Library%2C+prop-firm+simulations%2C+session+stats+and+your+Trade+Journal.&amp;u=%2Fmcp" />
+    <meta property="og:title" content="Vela, live in ChatGPT | LuxAlgo" />
+    <meta property="og:description" content="Vela by LuxAlgo, live in your chat: open a chart from a sentence and change it by asking. Plus the Library, prop-firm simulations, Edge Stats and your Trade Journal." />
+    <meta property="og:image" content="https://www.luxalgo.com/api/og/page/?title=Vela%2C+live+in+your+chat.&amp;eyebrow=LuxAlgo+MCP&amp;sub=Open+a+live+Vela+chart+in+ChatGPT+and+change+it+by+asking.&amp;u=%2Fmcp" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="LuxAlgo in ChatGPT, Claude and any agent." />
+    <meta property="og:image:alt" content="Vela, live in your chat." />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@LuxAlgo" />
-    <meta name="twitter:title" content="MCP for ChatGPT, Claude and any agent | LuxAlgo" />
-    <meta name="twitter:description" content="Add LuxAlgo to ChatGPT, Claude or any MCP client: the Library, prop-firm challenge simulations, session statistics and your Trade Journal." />
-    <meta name="twitter:image" content="https://www.luxalgo.com/api/og/page/?title=LuxAlgo+in+ChatGPT%2C+Claude+and+any+agent.&amp;eyebrow=LuxAlgo+MCP&amp;sub=The+Library%2C+prop-firm+simulations%2C+session+stats+and+your+Trade+Journal.&amp;u=%2Fmcp" />
+    <meta name="twitter:title" content="Vela, live in ChatGPT | LuxAlgo" />
+    <meta name="twitter:description" content="Vela by LuxAlgo, live in your chat: open a chart from a sentence and change it by asking. Plus the Library, prop-firm simulations, Edge Stats and your Trade Journal." />
+    <meta name="twitter:image" content="https://www.luxalgo.com/api/og/page/?title=Vela%2C+live+in+your+chat.&amp;eyebrow=LuxAlgo+MCP&amp;sub=Open+a+live+Vela+chart+in+ChatGPT+and+change+it+by+asking.&amp;u=%2Fmcp" />
     <style>
       :root {
         color-scheme: light dark;
         --bg: #ffffff;
         --surface: #f6f6f7;
+        --surface-2: #ececef;
         --fg: #0b0b0c;
         --muted: #55555c;
         --border: rgba(11, 11, 12, 0.11);
@@ -37,11 +40,13 @@
         --btn-fg: #ffffff;
         --focus: #1d5fd1;
         --ok: #0f7a3e;
+        --accent: #2962ff;
       }
       @media (prefers-color-scheme: dark) {
         :root {
           --bg: #0a0a0a;
           --surface: #131315;
+          --surface-2: #1c1c1f;
           --fg: #ededed;
           --muted: #a3a3aa;
           --border: rgba(255, 255, 255, 0.11);
@@ -52,12 +57,16 @@
           --btn-fg: #0a0a0a;
           --focus: #5db6ea;
           --ok: #4fc483;
+          --accent: #5b8cff;
         }
       }
       *,
       *::before,
       *::after {
         box-sizing: border-box;
+      }
+      [hidden] {
+        display: none !important;
       }
       html {
         -webkit-text-size-adjust: 100%;
@@ -207,7 +216,7 @@
       }
       @media (min-width: 900px) {
         .hero {
-          padding-top: 5rem;
+          padding-top: 4.5rem;
           padding-bottom: 3.5rem;
         }
       }
@@ -222,15 +231,15 @@
       h1 {
         margin: 0;
         max-width: 18ch;
-        font-size: clamp(2.1rem, 7.2vw, 3.9rem);
-        line-height: 1.06;
-        letter-spacing: -0.025em;
+        font-size: clamp(2.3rem, 8vw, 4.2rem);
+        line-height: 1.04;
+        letter-spacing: -0.03em;
         font-weight: 700;
         text-wrap: balance;
       }
       .lead {
         margin: 1.25rem 0 0;
-        max-width: 40rem;
+        max-width: 42rem;
         font-size: clamp(1.05rem, 2.4vw, 1.2rem);
         color: var(--muted);
       }
@@ -243,6 +252,236 @@
         flex-wrap: wrap;
         gap: 0.75rem;
         margin-top: 1.75rem;
+      }
+
+      /* The hero demo: a replica of the in-chat experience, with neutral
+         bubbles and LuxAlgo's own chart frame. Every row's space is reserved
+         from the start, so the animation never moves the page. */
+      .demo {
+        margin: 2.5rem 0 0;
+        min-width: 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        overflow: hidden;
+      }
+      .demo-bar {
+        display: flex;
+        align-items: baseline;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+        padding: 0.7rem 1rem;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+      .demo-tag {
+        flex: none;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 0.1rem 0.5rem;
+        border: 1px solid var(--border-strong);
+        border-radius: 999px;
+        color: var(--fg);
+      }
+      .thread {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        max-width: 54rem;
+        margin: 0 auto;
+        padding: 1rem;
+      }
+      @media (min-width: 640px) {
+        .thread {
+          padding: 1.5rem;
+        }
+      }
+      .msg {
+        align-self: flex-end;
+        max-width: min(85%, 30rem);
+        margin: 0;
+        padding: 0.6rem 0.9rem;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 16px 16px 4px 16px;
+        color: var(--fg);
+        font-size: 0.95rem;
+        line-height: 1.45;
+      }
+      /* A bubble keeps its final size while its words type in. */
+      .msg .ghost {
+        visibility: hidden;
+      }
+      .msg .typed {
+        position: absolute;
+        inset: 0;
+      }
+      .msg-text {
+        position: relative;
+        display: block;
+      }
+      .pending {
+        visibility: hidden;
+      }
+      .shown {
+        animation: rise 0.28s ease-out both;
+      }
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      .tool-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      .tool-status .dot {
+        flex: none;
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 50%;
+        background: var(--muted);
+      }
+      .tool-status.busy .dot {
+        animation: pulse 1s ease-in-out infinite;
+      }
+      .tool-status.done .dot {
+        background: var(--ok);
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.25;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .shown,
+        .tool-status.busy .dot {
+          animation: none;
+        }
+      }
+
+      /* The chart frame: the same header the in-chat chart shows. */
+      .chart-card {
+        min-width: 0;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .chart-head {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        min-height: 2.6rem;
+        padding: 0.4rem 0.6rem 0.4rem 0.75rem;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.82rem;
+      }
+      .chart-title {
+        font-weight: 600;
+        min-width: 0;
+      }
+      .chart-live {
+        margin-inline-end: auto;
+        color: var(--muted);
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 1.9rem;
+        padding: 0 0.7rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        color: var(--fg);
+        font: inherit;
+        font-size: 0.8rem;
+        text-decoration: none;
+        white-space: nowrap;
+        cursor: pointer;
+      }
+      .chip:hover {
+        background: var(--surface-2);
+      }
+      .chip.ask {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .chart-body {
+        position: relative;
+        height: 380px;
+        contain: layout paint;
+      }
+      @media (min-width: 900px) {
+        .chart-body {
+          height: 470px;
+        }
+      }
+      .chart-card:fullscreen {
+        display: flex;
+        flex-direction: column;
+        border-radius: 0;
+      }
+      .chart-card:fullscreen .chart-body {
+        flex: 1;
+        height: auto;
+      }
+      /* The chart's own layers stay inside the mount, under the cover. */
+      .chart-mount {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+      }
+      .chart-cover {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        background: var(--bg);
+        color: var(--muted);
+        font-size: 0.92rem;
+        text-align: center;
+        transition: opacity 0.35s ease;
+      }
+      .chart-cover p {
+        margin: 0;
+      }
+      .chart-card.ready .chart-cover {
+        opacity: 0;
+        pointer-events: none;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .chart-cover {
+          transition: none;
+        }
+      }
+      .demo-foot {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem;
+        min-height: 2.25rem;
+      }
+      .demo-foot .note-inline {
+        font-size: 0.85rem;
+        color: var(--muted);
       }
 
       /* Sections */
@@ -263,13 +502,160 @@
       }
       .section-intro {
         margin: 0 0 1.75rem;
-        max-width: 42rem;
+        max-width: 44rem;
         color: var(--muted);
       }
       h3 {
         margin: 0;
         font-size: 1.08rem;
         line-height: 1.3;
+      }
+
+      /* Feature and tool cards */
+      .tools-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      @media (min-width: 760px) {
+        .tools-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      @media (min-width: 1000px) {
+        .tools-grid.three {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+      .tool {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        padding: 1.25rem;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+      }
+      @media (min-width: 640px) {
+        .tool {
+          padding: 1.5rem;
+        }
+      }
+      .tool h3 {
+        display: flex;
+        align-items: baseline;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+      }
+      .pill {
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        padding: 0.1rem 0.5rem;
+        border: 1px solid var(--border-strong);
+        border-radius: 999px;
+        color: var(--muted);
+      }
+      .tool p {
+        margin: 0.6rem 0 0;
+        color: var(--muted);
+      }
+      .tool .ask {
+        margin-top: auto;
+        padding-top: 0.9rem;
+        font-size: 0.92rem;
+      }
+      .tool .ask::before {
+        content: "";
+        display: block;
+        margin-bottom: 0.9rem;
+        border-top: 1px dashed var(--border);
+      }
+      .tool .ask span {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.2rem;
+      }
+      .tool .ask q {
+        color: var(--fg);
+        quotes: "\201C" "\201D";
+      }
+      .tool .body {
+        margin-bottom: 0.9rem;
+      }
+
+      /* The Library: one wide card */
+      .library {
+        display: grid;
+        gap: 1.25rem;
+        grid-template-columns: minmax(0, 1fr);
+        padding: 1.25rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+      }
+      @media (min-width: 760px) {
+        .library {
+          grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+          align-items: center;
+          gap: 2rem;
+          padding: 1.75rem;
+        }
+      }
+      .library p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .library p + p {
+        margin-top: 0.75rem;
+      }
+      .library strong {
+        color: var(--fg);
+        font-weight: 600;
+      }
+      .stats {
+        display: flex;
+        gap: 2rem;
+        flex-wrap: wrap;
+        margin: 0;
+      }
+      .stats div {
+        min-width: 0;
+      }
+      .stats dt {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      .stats dd {
+        margin: 0;
+        font-size: clamp(1.8rem, 5vw, 2.4rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.1;
+        order: -1;
+      }
+      .stats div {
+        display: flex;
+        flex-direction: column;
+      }
+      .library .ask {
+        font-size: 0.92rem;
+      }
+      .library .ask span {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.2rem;
+      }
+      .library .ask q {
+        color: var(--fg);
+        quotes: "\201C" "\201D";
       }
 
       /* "Add it to" cards */
@@ -328,9 +714,6 @@
         color: var(--fg);
         font-weight: 600;
       }
-      .card .btn {
-        align-self: flex-start;
-      }
       .card .push {
         margin-top: auto;
       }
@@ -355,8 +738,6 @@
         white-space: pre-wrap;
         overflow-wrap: anywhere;
       }
-      /* Multi-line snippets: the button moves under the code so the code
-         gets the full width of the card on a phone. */
       .copy-row.stack {
         flex-direction: column;
       }
@@ -439,128 +820,38 @@
         color: var(--muted);
       }
 
-      /* "What it can do" */
-      .tools-grid {
+      /* Developers */
+      .dev {
         display: grid;
-        gap: 1rem;
-        grid-template-columns: minmax(0, 1fr);
-      }
-      @media (min-width: 760px) {
-        .tools-grid {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-      }
-      .tool {
-        padding: 1.25rem;
-        border: 1px solid var(--border);
-        border-radius: 14px;
-      }
-      @media (min-width: 640px) {
-        .tool {
-          padding: 1.5rem;
-        }
-      }
-      .tool h3 {
-        display: flex;
-        align-items: baseline;
-        gap: 0.6rem;
-        flex-wrap: wrap;
-      }
-      .pill {
-        font-size: 0.72rem;
-        font-weight: 600;
-        letter-spacing: 0.03em;
-        padding: 0.1rem 0.5rem;
-        border: 1px solid var(--border-strong);
-        border-radius: 999px;
-        color: var(--muted);
-      }
-      .tool p {
-        margin: 0.6rem 0 0;
-        color: var(--muted);
-      }
-      .tool .ask {
-        margin-top: 0.9rem;
-        padding-top: 0.9rem;
-        border-top: 1px dashed var(--border);
-        font-size: 0.92rem;
-      }
-      .tool .ask span {
-        display: block;
-        font-size: 0.75rem;
-        font-weight: 600;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: var(--muted);
-        margin-bottom: 0.2rem;
-      }
-      .tool .ask q {
-        color: var(--fg);
-        quotes: "\201C" "\201D";
-      }
-
-      /* The Vela exhibit: the section stays hidden without module scripts, and
-         its chart loads only as it nears the viewport. A blocked CDN or a
-         quiet exchange leaves a plain note with a link, never an empty box. */
-      .vela .chart {
-        position: relative;
-        height: 420px;
-        overflow: hidden;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        contain: layout paint;
-      }
-      @media (min-width: 900px) {
-        .vela .chart {
-          height: 520px;
-        }
-      }
-      .vela .chart-mount {
-        position: absolute;
-        inset: 0;
-      }
-      .vela .chart-note {
-        position: absolute;
-        inset: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 1rem;
-        margin: 0;
-        text-align: center;
-        font-size: 0.92rem;
-        color: var(--muted);
-      }
-      .vela .chart.ready .chart-note {
-        display: none;
-      }
-      .vela .caption {
-        margin: 0.75rem 0 0;
-        max-width: 48rem;
-        font-size: 0.88rem;
-        color: var(--muted);
-      }
-      .vela .caption code {
-        font-size: 0.82rem;
-      }
-
-      /* Run it locally */
-      .local {
-        display: grid;
-        gap: 1rem;
+        gap: 1.5rem;
         grid-template-columns: minmax(0, 1fr);
       }
       @media (min-width: 900px) {
-        .local {
+        .dev {
           grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
           align-items: start;
-          gap: 2rem;
+          gap: 2.5rem;
         }
       }
-      .local p {
+      .dev p {
         margin: 0 0 1rem;
         color: var(--muted);
+      }
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1.25rem;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      @media (min-width: 900px) {
+        .dev h3 {
+          margin-top: 0.55rem;
+        }
+      }
+      .dev .client + .client {
+        margin-top: 1rem;
       }
 
       /* Footer */
@@ -629,19 +920,180 @@
 
     <main id="main">
       <div class="hero wrap">
-        <p class="eyebrow">LuxAlgo MCP</p>
-        <h1>Bring LuxAlgo into ChatGPT, Claude and any agent.</h1>
+        <h1>Vela, live in your chat.</h1>
         <p class="lead">
           We&rsquo;re the trading technology company that built <strong>Vela, the next-generation charting platform</strong>.
-          Connect LuxAlgo to the AI you already use and it can read the largest indicator library in trading,
-          simulate prop-firm challenges, look up session statistics and work in your Trade Journal.
-          Every indicator it finds opens on a Vela chart.
+          Add LuxAlgo to ChatGPT and ask for a chart: a live Vela chart opens right in the conversation,
+          and changes when you ask. In Claude too: the Library, prop-firm simulations and your Trade Journal.
         </p>
         <div class="cta">
-          <a class="btn btn-primary" href="https://vela.luxalgo.com/chart">Open Vela</a>
-          <a class="btn btn-secondary" href="#add">Add LuxAlgo to your AI</a>
+          <a class="btn btn-primary" href="#add">Add LuxAlgo to your AI</a>
+          <a class="btn btn-secondary" href="https://vela.luxalgo.com/chart">Open Vela</a>
         </div>
+
+        <figure class="demo" id="demo" aria-labelledby="demo-caption">
+          <figcaption class="demo-bar">
+            <span class="demo-tag">Demo</span>
+            <span id="demo-caption">
+              A replica of what you see in ChatGPT, not a screenshot: live Hyperliquid candles, drawn here by
+              the open-source core of Vela by LuxAlgo.
+            </span>
+          </figcaption>
+          <div class="thread">
+            <p class="msg pending" id="m1">
+              <span class="msg-text"><span class="ghost">Open a BTC 4h chart with RSI and a level at 80,000</span><span class="typed" aria-hidden="true"></span></span>
+            </p>
+            <p class="tool-status pending" id="s1"><span class="dot" aria-hidden="true"></span><span class="txt">Opening the Vela chart</span></p>
+
+            <div class="chart-card" id="card">
+              <div class="chart-head">
+                <span class="chart-title" id="chart-title">BTC on Hyperliquid &middot; 4 hour candles</span>
+                <span class="chart-live" id="chart-live">Live</span>
+                <button class="chip ask" id="ask" type="button" hidden>Ask about this</button>
+                <a class="chip" id="open" href="https://vela.luxalgo.com/chart?symbol=hyperliquid%3ABTC&amp;tf=4h">Open in Vela</a>
+                <button class="chip" id="full" type="button" hidden>Full screen</button>
+              </div>
+              <div class="chart-body">
+                <div class="chart-mount" id="mount" role="group" aria-label="Live Vela chart"></div>
+                <div class="chart-cover" id="cover"><p id="cover-text">Loading the live chart</p></div>
+              </div>
+            </div>
+
+            <p class="msg pending" id="m2">
+              <span class="msg-text"><span class="ghost">Switch it to ETH 1h and add a demand zone</span><span class="typed" aria-hidden="true"></span></span>
+            </p>
+            <p class="tool-status pending" id="s2"><span class="dot" aria-hidden="true"></span><span class="txt">Changing the chart</span></p>
+            <p class="msg pending" id="m3" hidden><span class="msg-text" id="m3-text"></span></p>
+
+            <div class="demo-foot">
+              <button class="btn btn-secondary btn-sm" id="next" type="button" hidden>Send the second request</button>
+              <button class="btn btn-secondary btn-sm" id="replay" type="button" hidden>Replay the demo</button>
+              <span class="note-inline" id="foot-note"></span>
+            </div>
+          </div>
+        </figure>
       </div>
+
+      <section id="chat" aria-labelledby="chat-title">
+        <div class="wrap">
+          <h2 id="chat-title">Vela in your chat</h2>
+          <p class="section-intro">
+            Ask for a chart in plain words. Your AI opens a live Vela chart in the conversation and edits that same
+            chart each time you ask for a change.
+          </p>
+          <div class="tools-grid three">
+            <article class="tool">
+              <h3>Open a live chart from a sentence</h3>
+              <p class="body">
+                Name a market and a timeframe. The chart opens in the chat, with candles streaming from the exchange
+                straight into your browser.
+              </p>
+              <p class="ask"><span>Try asking</span><q>Show me SOL on the daily with MACD.</q></p>
+            </article>
+            <article class="tool">
+              <h3>Change it by asking</h3>
+              <p class="body">
+                Switch the symbol or timeframe, add or remove built-in indicators (RSI, MACD, moving average,
+                Bollinger Bands, ATR, Stochastic, VWAP, volume profile), draw levels and zones, or zoom to a date range.
+              </p>
+              <p class="ask"><span>Try asking</span><q>Zoom to the last 3 months and mark resistance at 4,200.</q></p>
+            </article>
+            <article class="tool">
+              <h3>Full screen</h3>
+              <p class="body">
+                Expand the chart to full screen for a closer look, with the same pan, zoom and drawing tools, then go
+                back to the conversation.
+              </p>
+            </article>
+            <article class="tool">
+              <h3>&ldquo;Ask about this&rdquo; on any candle</h3>
+              <p class="body">
+                Click a candle and ask about it in one tap. The question goes to your AI with the market, the
+                timeframe and the time that candle opened.
+              </p>
+            </article>
+            <article class="tool">
+              <h3>&ldquo;Open in Vela&rdquo;</h3>
+              <p class="body">
+                Carry the same view into Vela, with the full platform around it: every drawing tool, multi-chart
+                workspaces and Quant, our coding agent, built in.
+              </p>
+            </article>
+            <article class="tool">
+              <h3>Crypto today <span class="pill">No sign-in</span></h3>
+              <p class="body">
+                Hyperliquid perpetuals and Binance spot, on candles from 1 minute to weekly. Opening a chart needs no
+                account and no API key.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!--
+        "Your Vela account" (signed in) goes here when it ships: watchlists,
+        saved layouts, Price Alerts and Custom Alerts, and following the chart
+        in your Vela tab. Left out on purpose until then: never claim it early.
+      -->
+
+      <section id="library" aria-labelledby="library-title">
+        <div class="wrap">
+          <h2 id="library-title">The Library, on Vela</h2>
+          <p class="section-intro">The largest indicator library in trading, readable from your chat.</p>
+          <div class="library">
+            <div>
+              <p>
+                Each indicator and concept comes with its write-up: what it measures, the formula and how traders read
+                it, with the Pine Script&reg; source where it is published.
+              </p>
+              <p><strong>Every indicator opens on Vela.</strong> Your AI answers with a link to it on a Vela chart.</p>
+            </div>
+            <div>
+              <dl class="stats">
+                <div><dt>indicators</dt><dd>800+</dd></div>
+                <div><dt>concepts</dt><dd>800+</dd></div>
+              </dl>
+              <p class="ask" style="margin-top: 1.25rem">
+                <span>Try asking</span><q>Which Library indicators measure volatility? Open the first one on a chart.</q>
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tools" aria-labelledby="tools-title">
+        <div class="wrap">
+          <h2 id="tools-title">Research, and your own trades</h2>
+          <p class="section-intro">The same connection answers with numbers you can check, and links you can open.</p>
+          <div class="tools-grid three">
+            <article class="tool">
+              <h3>Prop-firm challenges</h3>
+              <p class="body">
+                Run a challenge thousands of times with your own stats or your real trades: the chance you pass, what it
+                is likely to cost, and the rule that ends most attempts. Compare firms side by side. Simulations, not
+                predictions or financial advice.
+              </p>
+              <p class="ask"><span>Try asking</span><q>With a 45% win rate at 2R, which $50K challenge am I most likely to pass?</q></p>
+            </article>
+            <article class="tool">
+              <h3>Edge Stats</h3>
+              <p class="body">
+                Session statistics such as gap fills, opening-range breakouts and day-of-week effects, each with its
+                sample size and a 95% confidence interval, so you can see how often a setup actually worked.
+              </p>
+              <p class="ask"><span>Try asking</span><q>How often does Bitcoin close green on a Monday?</q></p>
+            </article>
+            <article class="tool">
+              <h3>Trade Journal <span class="pill">Sign in</span></h3>
+              <p class="body">
+                Your LuxAlgo Trade Journal: performance, the P&amp;L calendar, and breakdowns by weekday, time, symbol
+                or tag. Log trades by hand, tag them and write notes, all from the chat.
+              </p>
+              <p class="ask"><span>Try asking</span><q>Where did I lose money last month? Tag my worst trade &ldquo;chased&rdquo;.</q></p>
+            </article>
+          </div>
+        </div>
+      </section>
 
       <section id="add" aria-labelledby="add-title">
         <div class="wrap">
@@ -733,86 +1185,39 @@
         </div>
       </section>
 
-      <section id="tools" aria-labelledby="tools-title">
-        <div class="wrap">
-          <h2 id="tools-title">What it can do</h2>
-          <p class="section-intro">Ask in plain words. Your AI picks the right tool and answers with links you can open.</p>
-
-          <div class="tools-grid">
-            <article class="tool">
-              <h3>The Library</h3>
-              <p>
-                800+ indicators and 800+ concepts from the largest indicator library in trading, each with its write-up:
-                what it measures, the formula and how traders read it. Pine Script&reg; source where it is published.
-                Every indicator links straight to a Vela chart.
-              </p>
-              <p class="ask"><span>Try asking</span><q>Which Library indicators measure volatility? Open the first one on a chart.</q></p>
-            </article>
-
-            <article class="tool">
-              <h3>Prop-firm challenges</h3>
-              <p>
-                Run a challenge thousands of times with your own stats or your real trades: the chance you pass,
-                what it is likely to cost, and the rule that ends most attempts. Compare firms side by side.
-                Simulations, not predictions or financial advice.
-              </p>
-              <p class="ask"><span>Try asking</span><q>With a 45% win rate at 2R, which $50K challenge am I most likely to pass?</q></p>
-            </article>
-
-            <article class="tool">
-              <h3>Edge Stats</h3>
-              <p>
-                Session statistics such as gap fills, opening-range breakouts and day-of-week effects, each with its
-                sample size and a 95% confidence interval, so you can see how often a setup actually worked.
-              </p>
-              <p class="ask"><span>Try asking</span><q>How often does Bitcoin close green on a Monday?</q></p>
-            </article>
-
-            <article class="tool">
-              <h3>Trade Journal <span class="pill">Sign in</span></h3>
-              <p>
-                Your LuxAlgo Trade Journal: performance, the P&amp;L calendar, and breakdowns by weekday, time,
-                symbol or tag. Log trades by hand, tag them and write notes, all from the chat.
-              </p>
-              <p class="ask"><span>Try asking</span><q>Where did I lose money last month? Tag my worst trade &ldquo;chased&rdquo;.</q></p>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section class="vela" id="vela" aria-labelledby="vela-title" hidden>
-        <div class="wrap">
-          <h2 id="vela-title">Drawn by Vela</h2>
-          <p class="section-intro">The same engine behind Vela, running live in this page. Pan, zoom and draw on it.</p>
-          <div class="chart" id="vela-chart" role="group" aria-label="Live Bitcoin 4 hour chart with RSI">
-            <div class="chart-mount" id="vela-mount"></div>
-            <p class="chart-note" id="vela-note">Loading the live chart</p>
-          </div>
-          <p class="caption">
-            Live BTC on 4 hour candles with RSI, drawn in your browser by
-            <a href="https://velacharts.dev">the open-source core of Vela by LuxAlgo</a>.
-            Building your own app? Pair <code>library_get_source_code</code> with Vela&rsquo;s open-source core to run
-            any published Library indicator on a chart
-            (<a href="https://github.com/LuxAlgo/luxalgo-mcp-server#charts-in-your-browser-with-vela">how</a>).
-          </p>
-        </div>
-      </section>
-
-      <section id="local" aria-labelledby="local-title">
-        <div class="wrap local">
+      <section id="developers" aria-labelledby="dev-title">
+        <div class="wrap dev">
           <div>
-            <h2 id="local-title">Run it locally</h2>
+            <h2 id="dev-title">Build with Vela&rsquo;s open-source core</h2>
             <p>
-              Prefer your own machine? The npm package runs the same tools over stdio. Locally it can also read your
-              own brokerage accounts, read-only, with keys that stay on your computer.
+              The chart at the top of this page, like the one in your chat, is drawn by Vela&rsquo;s open-source core:
+              the charting library behind Vela, with its own WebGL2 renderer, drawing tools and keyless exchange
+              providers. Put it in your own app from <a href="https://velacharts.dev">velacharts.dev</a>.
             </p>
-            <p><a href="https://github.com/LuxAlgo/luxalgo-mcp-server#local-stdio">Setup and broker keys on GitHub</a></p>
+            <p>
+              Pair it with this server: <code>library_get_source_code</code> hands your agent an indicator&rsquo;s
+              Pine Script&reg; source, and Vela&rsquo;s open-source core runs it on a chart through PineTS
+              (<a href="https://github.com/LuxAlgo/luxalgo-mcp-server#charts-in-your-browser-with-vela">how</a>).
+            </p>
+            <ul class="links">
+              <li><a href="https://velacharts.dev">velacharts.dev</a></li>
+              <li><a href="https://github.com/LuxAlgo/Vela">Vela&rsquo;s open-source core on GitHub</a></li>
+              <li><a href="https://www.npmjs.com/package/@luxalgo/vela">@luxalgo/vela on npm</a></li>
+            </ul>
           </div>
-          <div class="client">
-            <span class="client-label">Run with npx</span>
-            <div class="copy-row">
-              <code id="copy-npx">npx -y @luxalgo/mcp</code>
-              <button class="copy-btn" type="button" data-copy-target="copy-npx" aria-label="Copy the npx command">Copy</button>
+          <div>
+            <h3>Run this server locally</h3>
+            <p style="margin-top: 0.5rem">
+              The npm package runs the same tools over stdio. Locally it can also read your own brokerage accounts,
+              read-only, with keys that stay on your computer
+              (<a href="https://github.com/LuxAlgo/luxalgo-mcp-server#local-stdio">setup</a>).
+            </p>
+            <div class="client">
+              <span class="client-label">Run with npx</span>
+              <div class="copy-row">
+                <code id="copy-npx">npx -y @luxalgo/mcp</code>
+                <button class="copy-btn" type="button" data-copy-target="copy-npx" aria-label="Copy the npx command">Copy</button>
+              </div>
             </div>
           </div>
         </div>
@@ -828,6 +1233,7 @@
         <nav aria-label="Footer">
           <ul>
             <li><a href="https://vela.luxalgo.com/chart">Open Vela</a></li>
+            <li><a href="https://velacharts.dev">Vela for Developers</a></li>
             <li><a href="https://github.com/LuxAlgo/luxalgo-mcp-server">GitHub</a></li>
             <li><a href="https://www.npmjs.com/package/@luxalgo/mcp">npm</a></li>
             <li><a href="https://www.luxalgo.com/legal/privacy-policy/">Privacy</a></li>
@@ -889,67 +1295,280 @@
         });
       })();
     </script>
-    <!-- The live chart: Vela's open-source core (@luxalgo/vela, pinned) as the
-         single-chart workspace, with its keyless Hyperliquid provider. Candles
-         stream from the exchange in the visitor's browser. Nothing loads until
-         the section nears the viewport, so the chart never gates the page. -->
+
+    <!-- The hero demo. A scripted replay of what the chart tools do in a chat,
+         run with the real Vela API (@luxalgo/vela 0.10.1, pinned) on live
+         Hyperliquid candles that stream straight into the visitor's browser.
+         The requests are fixed: nothing typed here goes to any AI. -->
     <script type="module">
       const VELA = "https://cdn.jsdelivr.net/npm/@luxalgo/vela@0.10.1";
-      const section = document.getElementById("vela");
-      const box = document.getElementById("vela-chart");
-      const mount = document.getElementById("vela-mount");
-      const note = document.getElementById("vela-note");
-      section.hidden = false;
+      const $ = (id) => document.getElementById(id);
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const dark = matchMedia("(prefers-color-scheme: dark)");
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-      function fallback() {
-        mount.replaceChildren();
-        note.innerHTML = 'The live chart could not load here. <a href="https://vela.luxalgo.com/chart?symbol=hyperliquid%3ABTC&amp;tf=4h">Open it on Vela</a>.';
+      const card = $("card");
+      const MARKETS = {
+        btc: { coin: "BTC", tf: "4h", vela: "240", words: "4 hour" },
+        eth: { coin: "ETH", tf: "1h", vela: "60", words: "1 hour" },
+      };
+      let market = MARKETS.btc;
+      let ws = null;
+      let clickedTime = null;
+      let failed = false;
+
+      // Start fetching the chart right away: it is the hero.
+      const libs = Promise.all([import(`${VELA}/workspace/+esm`), import(`${VELA}/providers/hyperliquid/+esm`)]);
+
+      const chart = () => ws.chart;
+
+      function setHeader() {
+        $("chart-title").textContent = `${market.coin} on Hyperliquid · ${market.words} candles`;
+        $("open").href = `https://vela.luxalgo.com/chart?symbol=${encodeURIComponent(`hyperliquid:${market.coin}`)}&tf=${market.tf}`;
+        $("ask").hidden = true;
       }
 
-      async function start() {
-        try {
-          const [{ VelaWorkspace }, { HyperliquidProvider }] = await Promise.all([
-            import(`${VELA}/workspace/+esm`),
-            import(`${VELA}/providers/hyperliquid/+esm`),
-          ]);
-          const dark = matchMedia("(prefers-color-scheme: dark)");
-          const ws = new VelaWorkspace(mount, {
-            layout: false,
-            symbol: "hyperliquid:BTC",
-            timeframe: "240",
-            providers: { hyperliquid: () => new HyperliquidProvider() },
-            live: true,
-            theme: dark.matches ? "dark" : "light",
-            persist: false,
-            autofocus: false,
-          });
-          dark.addEventListener("change", (e) => ws.setTheme(e.matches ? "dark" : "light"));
-          // Reveal only once candles are on screen.
-          const started = performance.now();
-          while (!ws.chart.getVisibleRange()) {
-            if (performance.now() - started > 20000) return fallback();
-            await new Promise((resolve) => setTimeout(resolve, 80));
-          }
-          ws.chart.addNativeIndicator("rsi");
-          box.classList.add("ready");
-        } catch (_) {
-          fallback();
+      function show(el) {
+        el.hidden = false;
+        el.classList.remove("pending");
+        if (!reduce) el.classList.add("shown");
+      }
+      function hide(el) {
+        el.classList.add("pending");
+        el.classList.remove("shown");
+      }
+      function status(el, text, state) {
+        el.querySelector(".txt").textContent = text;
+        el.classList.toggle("busy", state === "busy");
+        el.classList.toggle("done", state === "done");
+      }
+
+      async function type(bubble) {
+        const ghost = bubble.querySelector(".ghost");
+        const typed = bubble.querySelector(".typed");
+        const text = ghost.textContent;
+        show(bubble);
+        if (reduce) {
+          typed.textContent = text;
+          return;
+        }
+        typed.textContent = "";
+        for (let i = 1; i <= text.length; i++) {
+          typed.textContent = text.slice(0, i);
+          await sleep(26);
         }
       }
 
-      if ("IntersectionObserver" in window) {
-        const io = new IntersectionObserver(
-          (entries) => {
-            if (!entries.some((e) => e.isIntersecting)) return;
-            io.disconnect();
-            start();
-          },
-          { rootMargin: "600px 0px" },
-        );
-        io.observe(section);
-      } else {
-        start();
+      async function waitForCandles(ms) {
+        const started = performance.now();
+        while (!chart().getVisibleRange()) {
+          if (performance.now() - started > ms) return false;
+          await sleep(80);
+        }
+        return true;
       }
+
+      function fail() {
+        failed = true;
+        card.classList.remove("ready");
+        $("cover-text").innerHTML =
+          'The live chart could not load here. <a href="https://vela.luxalgo.com/chart?symbol=hyperliquid%3ABTC&amp;tf=4h">Open it on Vela</a>.';
+        status($("s1"), "The chart could not open", null);
+      }
+
+      // The in-chat chart's own drawing styles (view/chart in this repository).
+      function label(value) {
+        return { value, size: "normal", hAlign: "left", vAlign: "top" };
+      }
+      function addLevel(price, text) {
+        const { from, to } = chart().getVisibleRange();
+        chart().drawings.add("hline", {
+          anchors: [{ time: from + (to - from) * 0.25, price }],
+          text: label(text),
+          style: { lineColor: "#f5a623", lineWidth: 2 },
+        });
+      }
+      function addZone(low, high, text) {
+        const { from, to } = chart().getVisibleRange();
+        chart().drawings.add("box", {
+          anchors: [
+            { time: from + (to - from) * 0.25, price: high },
+            { time: to, price: low },
+          ],
+          text: label(text),
+        });
+      }
+      function clearDrawings() {
+        const ids = chart().drawings.all().map((d) => d.id);
+        if (ids.length) chart().drawings.removeMany(ids);
+      }
+
+      // A demand zone from the last three days of ETH hourly candles: the
+      // base of the lowest candle, from its low to the bottom of its body.
+      async function demandZone() {
+        try {
+          const end = Date.now();
+          const res = await fetch("https://api.hyperliquid.xyz/info", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type: "candleSnapshot", req: { coin: "ETH", interval: "1h", startTime: end - 72 * 3600e3, endTime: end } }),
+          });
+          const bars = await res.json();
+          if (!Array.isArray(bars) || !bars.length) return null;
+          let low = bars[0];
+          for (const bar of bars) if (Number(bar.l) < Number(low.l)) low = bar;
+          const bottom = Number(low.l);
+          let top = Math.min(Number(low.o), Number(low.c));
+          top = Math.min(Math.max(top, bottom * 1.004), bottom * 1.012);
+          return { low: bottom, high: top };
+        } catch (_) {
+          return null;
+        }
+      }
+
+      async function mount() {
+        const [{ VelaWorkspace }, { HyperliquidProvider }] = await libs;
+        ws = new VelaWorkspace($("mount"), {
+          layout: false,
+          symbol: "hyperliquid:BTC",
+          timeframe: "240",
+          providers: { hyperliquid: () => new HyperliquidProvider() },
+          live: true,
+          theme: dark.matches ? "dark" : "light",
+          persist: false,
+          autofocus: false,
+          animations: !reduce,
+        });
+        dark.addEventListener("change", (e) => ws.setTheme(e.matches ? "dark" : "light"));
+        if (!(await waitForCandles(20000))) throw new Error("no candles");
+        chart().addNativeIndicator("rsi");
+        addLevel(80000, "80,000");
+        chart().renderer.onClick(({ time }) => {
+          if (time == null) return;
+          clickedTime = time;
+          const ask = $("ask");
+          ask.textContent = `Ask about the ${when(time)} candle`;
+          ask.hidden = false;
+        });
+      }
+
+      function when(ms) {
+        const d = new Date(ms);
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const hh = String(d.getUTCHours()).padStart(2, "0");
+        const mm = String(d.getUTCMinutes()).padStart(2, "0");
+        return `${d.getUTCDate()} ${months[d.getUTCMonth()]} ${hh}:${mm} UTC`;
+      }
+
+      const mounted = mount().then(
+        () => true,
+        () => false,
+      );
+
+      async function secondRequest() {
+        $("next").hidden = true;
+        await type($("m2"));
+        await sleep(reduce ? 0 : 350);
+        show($("s2"));
+        status($("s2"), "Changing the chart", "busy");
+        const zone = demandZone();
+        // Levels and zones belong to the market they were drawn for.
+        clearDrawings();
+        market = MARKETS.eth;
+        setHeader();
+        await Promise.race([chart().setMarket({ symbol: "hyperliquid:ETH", timeframe: "60" }), sleep(15000)]);
+        await waitForCandles(8000);
+        const z = await zone;
+        if (z) addZone(z.low, z.high, "Demand");
+        status($("s2"), "Chart updated", "done");
+        $("replay").hidden = false;
+      }
+
+      async function firstRequest() {
+        await type($("m1"));
+        await sleep(reduce ? 0 : 300);
+        show($("s1"));
+        status($("s1"), "Opening the Vela chart", "busy");
+        if (!(await mounted)) return fail();
+        await sleep(reduce ? 0 : 400);
+        status($("s1"), "Vela chart ready", "done");
+        card.classList.add("ready");
+        document.body.dataset.demo = "step1";
+      }
+
+      async function play() {
+        await firstRequest();
+        if (failed) return;
+        if (reduce) {
+          $("next").hidden = false;
+          return;
+        }
+        await sleep(3800);
+        await secondRequest();
+        document.body.dataset.demo = "step2";
+      }
+
+      async function replay() {
+        $("replay").hidden = true;
+        $("m3").hidden = true;
+        $("foot-note").textContent = "";
+        hide($("m2"));
+        hide($("s2"));
+        clearDrawings();
+        market = MARKETS.btc;
+        setHeader();
+        await Promise.race([chart().setMarket({ symbol: "hyperliquid:BTC", timeframe: "240" }), sleep(15000)]);
+        await waitForCandles(8000);
+        addLevel(80000, "80,000");
+        if (reduce) {
+          $("next").hidden = false;
+          return;
+        }
+        await sleep(2500);
+        await secondRequest();
+      }
+
+      $("next").addEventListener("click", () => {
+        secondRequest().then(() => (document.body.dataset.demo = "step2"));
+      });
+      $("replay").addEventListener("click", replay);
+
+      // "Ask about this": shows the message the chart would send to your AI.
+      $("ask").addEventListener("click", () => {
+        if (clickedTime == null) return;
+        const text = `Tell me about the ${market.words} candle that opened ${when(clickedTime)} on ${market.coin} on Hyperliquid.`;
+        const m3 = $("m3");
+        $("m3-text").textContent = text;
+        show(m3);
+        $("foot-note").textContent = "In your chat, this goes to your AI as your next message.";
+        $("ask").hidden = true;
+      });
+
+      // Full screen, where the browser offers it.
+      const full = $("full");
+      if (document.fullscreenEnabled && card.requestFullscreen) {
+        full.hidden = false;
+        full.addEventListener("click", () => {
+          if (document.fullscreenElement) document.exitFullscreen();
+          else card.requestFullscreen().catch(() => {});
+        });
+        document.addEventListener("fullscreenchange", () => {
+          full.textContent = document.fullscreenElement === card ? "Exit full screen" : "Full screen";
+        });
+      }
+
+      // Play once the demo is on screen.
+      let started = false;
+      const io = new IntersectionObserver(
+        (entries) => {
+          if (started || !entries.some((e) => e.isIntersecting)) return;
+          started = true;
+          io.disconnect();
+          play();
+        },
+        { threshold: 0.25 },
+      );
+      io.observe($("demo"));
     </script>
   </body>
 </html>

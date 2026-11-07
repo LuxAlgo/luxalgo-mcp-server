@@ -1,6 +1,8 @@
 import type { ToolModule } from "../_shared/module.js";
 import { answersFrozen } from "../_shared/surface.js";
 import { registerChartTools } from "./tools.js";
+import { memberToolModule } from "../_shared/member.js";
+import { registerChartPeekTools } from "./peek.js";
 
 const CHART_TOOLS = ["chart_open", "chart_command", "chart_sync"] as const;
 
@@ -34,3 +36,11 @@ export const chartModule: ToolModule = {
 /** Never true on Vercel production unless LUXALGO_CHART_TOOLS=on is set there explicitly. */
 export const chartToolsEnabled = (): boolean =>
   process.env.LUXALGO_CHART_TOOLS === "on" || process.env.VERCEL_ENV === "preview";
+
+/**
+ * chart_peek: a picture of the chart the signed-in member has open in Vela
+ * (./peek.ts). A member tool, not part of the live chart spike: protected,
+ * on with the account tools (LUXALGO_ACCOUNT_TOOLS=on or a Vercel preview,
+ * server/manifest.ts), and never on the Claude address (_shared/member.ts).
+ */
+export const chartPeekModule = memberToolModule("chart-peek", ["chart_peek"], registerChartPeekTools);

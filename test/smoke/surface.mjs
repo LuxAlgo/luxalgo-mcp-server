@@ -21,7 +21,8 @@ export const PROTECTED = [
 ];
 
 /**
- * The member's watchlists, saved layouts and alerts: protected, and opt-in
+ * The member's watchlists, saved layouts, alerts and the picture of their open
+ * Vela chart (chart_peek): protected, and opt-in
  * (LUXALGO_ACCOUNT_TOOLS=on or a Vercel preview), so listed all or none.
  * Never on the Claude address (test/smoke/account-tools.mjs).
  */
@@ -37,6 +38,7 @@ export const ACCOUNT_PROTECTED = [
   "alerts_pause",
   "alerts_resume",
   "alerts_history",
+  "chart_peek",
 ];
 
 export async function run({ client, check, callJson, callStructured, httpUrl, rawToolsList }) {
@@ -83,7 +85,7 @@ export async function run({ client, check, callJson, callStructured, httpUrl, ra
   ];
   // The live chart tools are opt-in (LUXALGO_CHART_TOOLS=on or a Vercel preview): all three or none.
   const chartExpected = ["chart_open", "chart_command", "chart_sync"];
-  const chartOn = tools.some((t) => t.name.startsWith("chart_"));
+  const chartOn = tools.some((t) => chartExpected.includes(t.name)); // chart_peek is an account tool, not one of these
   const accountOn = tools.some((t) => ACCOUNT_PROTECTED.includes(t.name));
   const protectedAll = [...PROTECTED, ...(accountOn ? ACCOUNT_PROTECTED : [])];
   const expectedAll = [
