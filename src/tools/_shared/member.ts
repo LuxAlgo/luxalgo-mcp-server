@@ -7,7 +7,8 @@
   The switch: the app routes these tools call reach production with the
   app's next release, so they register only with LUXALGO_ACCOUNT_TOOLS=on or
   on a Vercel preview deployment (VERCEL_ENV=preview), like the chart tools.
-  Production is unchanged until the flag is set there.
+  Production is unchanged until the flag is set there. The alerts tools also
+  need their own switch (alertToolsEnabled below).
 
   The Claude address is under directory review with exactly the tools it was
   submitted with (tools/_shared/surface.ts), so these modules register
@@ -24,6 +25,15 @@ import { answersFrozen } from "./surface.js";
 /** Never true on Vercel production unless LUXALGO_ACCOUNT_TOOLS=on is set there explicitly. */
 export const accountToolsEnabled = (): boolean =>
   process.env.LUXALGO_ACCOUNT_TOOLS === "on" || process.env.VERCEL_ENV === "preview";
+
+/**
+ * The alerts tools' own switch, on top of the account tools' one: LuxAlgo
+ * Alerts are not open to every member yet, so the alerts tools stay off in
+ * production until they are. Never true on Vercel production unless
+ * LUXALGO_ALERT_TOOLS=on is set there explicitly.
+ */
+export const alertToolsEnabled = (): boolean =>
+  process.env.LUXALGO_ALERT_TOOLS === "on" || process.env.VERCEL_ENV === "preview";
 
 /**
  * A domain of the member's own data: every tool needs a signed-in member

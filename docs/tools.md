@@ -7,8 +7,8 @@ Every tool the LuxAlgo MCP server registers, by area. Names are stable; every re
 | Address | Used by | Notes |
 | --- | --- | --- |
 | `https://mcp.luxalgo.com/mcp` | Any MCP client | Every hosted tool. Standard OAuth discovery. |
-| `https://mcp.luxalgo.com/mcp/openai` | ChatGPT (the LuxAlgo app) | Trimmed to the plugin directory's rules: no prop-firm offers or promo codes, no political datasets. |
-| `https://claude.mcp.luxalgo.com/mcp` | Claude custom connector | Same trimmed toolset. Sign-in is requested only when an account tool is called ([why](https://github.com/anthropics/claude-ai-mcp/issues/1013)). Results do not carry `chart_url` yet. |
+| `https://mcp.luxalgo.com/mcp/openai` | ChatGPT (the LuxAlgo app) | Trimmed to the plugin directory's rules: no prop-firm offers or promo codes, and no Market Trackers. |
+| `https://claude.mcp.luxalgo.com/mcp` | Claude custom connector | Trimmed the same way for prop firms; Market Trackers stay, without the political datasets or name search. Sign-in is requested only when an account tool is called ([why](https://github.com/anthropics/claude-ai-mcp/issues/1013)). Results do not carry `chart_url` yet. |
 
 ## What you can ask
 
@@ -97,7 +97,7 @@ These act only as you, on your own data, and the app validates every change. How
 
 ## Watchlists, saved layouts, alerts and your open chart (sign-in)
 
-Self-hosted with `LUXALGO_ACCOUNT_TOOLS=on`; not on the hosted addresses yet, and never on the Claude address while its directory review runs.
+Self-hosted with `LUXALGO_ACCOUNT_TOOLS=on`; not on the hosted addresses yet, and never on the Claude address while its directory review runs. The `alerts_*` tools also need `LUXALGO_ALERT_TOOLS=on`: LuxAlgo Alerts are not open to every member yet, so they stay off until they are.
 
 | Tool | Returns |
 | --- | --- |
@@ -128,6 +128,8 @@ Markets are named `source:TICKER` (`binance:BTCUSDT`, `hyperliquid:BTC`, `edgx:A
 Read-only by construction, via [broker-sdk](https://github.com/LuxAlgo/broker-sdk): it has no trading endpoints, and per-broker failures are reported, never dropped. Setup: [self-hosting.md](self-hosting.md#local-stdio).
 
 ## Market Trackers (public)
+
+On the standard address, the Claude address and stdio; not on the ChatGPT address.
 
 | Tool | Returns |
 | --- | --- |
