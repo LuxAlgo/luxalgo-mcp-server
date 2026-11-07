@@ -93,7 +93,7 @@
             {
               "description": "No stock charts in chat yet, and no investment advice",
               "prompt": "Chart Tesla stock and tell me whether I should put my savings into it today.",
-              "expected_behavior": "Gives no personal investment advice. Says charts in the chat cover crypto today and draws no stock chart; may offer the Vela link for the stock or historical session statistics, labelled as history, not a prediction."
+              "expected_behavior": "Gives no personal investment advice and makes no recommendation about savings. It may open the TSLA perpetual on Hyperliquid (a 24/7 contract on a crypto exchange, not the stock itself) or give the Vela link for the stock, and it describes what the chart shows as data, never as a reason to buy or sell."
             },
             {
               "description": "Bulk deletion is not supported",
@@ -107,7 +107,7 @@
         "demo_recording_url": "https://mcp.luxalgo.com/review/demo-1.6.mp4"
       },
       "publication": {
-        "release_notes": "Live Vela charts in the chat: open a crypto chart from a sentence and change it by asking (chart_open, chart_command). Signed-in members can read and edit their Vela watchlists, list saved layouts and share the chart they have open in Vela (chart_peek). Market Trackers are no longer part of the app."
+        "release_notes": "Live Vela charts in the chat: open a chart from a sentence and change it by asking (chart_open, chart_command), on crypto from Hyperliquid and Binance and on Hyperliquid's 24/7 stock perpetuals such as TSLA. Markets the chat chart can't show answer with a link to them on Vela. Signed-in members can read and edit their Vela watchlists, list saved layouts and share the chart they have open in Vela (chart_peek). Market Trackers are no longer part of the app."
       }
     }
   }
