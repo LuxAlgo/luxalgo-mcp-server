@@ -1,45 +1,51 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "luxalgo",
-  "version": "1.5.1",
-  "description": "LuxAlgo Library indicators and source code, market trackers from public records, prop firm challenge simulations, session statistics, and your LuxAlgo trade journal.",
+  "version": "1.6.0",
+  "description": "Live Vela charts in the chat, the LuxAlgo Library with Pine Script® source, session statistics, prop firm challenge simulations, and your LuxAlgo Trade Journal, watchlists and saved layouts.",
   "author": {
     "name": "LuxAlgo",
     "url": "https://www.luxalgo.com/"
   },
-  "homepage": "https://www.luxalgo.com/",
+  "homepage": "https://www.luxalgo.com/mcp/",
   "repository": "https://github.com/LuxAlgo/luxalgo-mcp-server",
   "keywords": [
+    "charts",
     "trading",
     "indicators",
     "prop firms",
-    "trade journal",
-    "market data"
+    "trade journal"
   ],
   "extensions": {
     "com.openai": {
       "interface": {
         "displayName": "LuxAlgo",
-        "shortDescription": "Trading research and journal",
-        "longDescription": "Ask about any indicator in the LuxAlgo Library and get the full write-up, concept pages, and — where publicly served — the actual source code. Query market trackers built from public records: insider filings, congressional trades, lobbying, FDA events, and more, updated daily with links back to the primary source.\n\nThinking about a prop firm challenge? Run a Monte Carlo simulation of your own stats through a firm's exact ruleset — pass probability, expected cost, which rule kills most attempts — and compare across firms. Check session statistics where every number comes with its sample size and confidence interval; results are historical frequencies, never predictions.\n\nSign in with your LuxAlgo account to work with your trade journal: review performance, break down P&L by symbol or time of day, log trades, tag mistakes, and write notes — the same data you see in the app.",
+        "shortDescription": "Live Vela charts in your chat",
+        "longDescription": "Open a live Vela chart right in the chat. Vela is our next-generation charting platform: ask for a market, a timeframe and the indicators you want, and the chart appears in the conversation. Ask again to change it: switch markets, add RSI or MACD, draw a level, shade a zone, zoom to a date range. The chart updates in place, and ChatGPT reads the numbers you see on it: the last price, the day's change and each indicator's latest value.\n\nCharts cover crypto from Hyperliquid and Binance, and Hyperliquid's 24/7 stock perpetuals such as TSLA, with candles streamed from the exchange straight to your browser. Open the chart full screen, or take it to Vela with Open in Vela.\n\nResearch what you see with the LuxAlgo Library: 800+ indicators and 800+ concepts, each with its full write-up, Pine Script® source where it is published, and a link that opens the indicator on a Vela chart.\n\nCheck session statistics where every number comes with its sample size and a confidence interval: how often a market closes green on a Monday, how often an opening range breaks. They are historical frequencies, never predictions.\n\nThinking about a prop firm challenge? Run your own stats, or your real trades, through a firm's exact rules and see the chance you pass, what it is likely to cost and which rule ends most attempts.\n\nSign in with your LuxAlgo account to work with your own data: review your Trade Journal (performance, the P&L calendar, breakdowns, tags and notes), read and edit your Vela watchlists, list your saved layouts, or let ChatGPT look at the crypto chart you have open in Vela.\n\nLuxAlgo in ChatGPT never places trades, moves money or gives investment advice. Simulations are modeled estimates under stated assumptions.",
         "developerName": "LuxAlgo",
         "category": "Finance",
         "capabilities": [
-          "Search the LuxAlgo indicator library",
-          "Read indicator source code",
-          "Query insider, congress and other trackers",
-          "Simulate prop firm challenges",
-          "Session statistics with confidence intervals",
-          "Review and update your trade journal"
+          "Open a live Vela chart in the chat",
+          "Change the chart by asking: market, timeframe, indicators, levels, zones, date range",
+          "Read the chart's last price, the day's change and each indicator's value",
+          "Search 800+ Library indicators and 800+ concepts",
+          "Read Pine Script® source where it is published",
+          "Open any Library indicator on a Vela chart",
+          "Session statistics with sample sizes and confidence intervals",
+          "Simulate prop firm challenges with your stats or real trades",
+          "Review and annotate your Trade Journal (sign-in)",
+          "Read and edit your Vela watchlists (sign-in)",
+          "List your saved Vela layouts (sign-in)",
+          "See the crypto chart you have open in Vela (sign-in)"
         ],
-        "websiteURL": "https://www.luxalgo.com/",
-        "supportURL": "https://github.com/LuxAlgo/luxalgo-mcp-server",
+        "websiteURL": "https://www.luxalgo.com/mcp/",
+        "supportURL": "https://github.com/LuxAlgo/luxalgo-mcp-server/issues",
         "privacyPolicyURL": "https://www.luxalgo.com/legal/privacy-policy/",
         "termsOfServiceURL": "https://www.luxalgo.com/legal/terms-of-service/",
         "defaultPrompt": [
-          "Find LuxAlgo indicators for order blocks.",
-          "What are my odds of passing an FTMO 100k challenge?",
-          "Any recent insider or congressional trades in NVDA?"
+          "Show BTC on 4 hour candles with RSI and a line at 80,000.",
+          "Find Library indicators for order blocks and open one in Vela.",
+          "What are my odds of passing an FTMO 100K two-step challenge?"
         ],
         "composerIcon": "./assets/logo.png",
         "logo": "./assets/logo.png"
@@ -48,57 +54,60 @@
         "test_cases": {
           "positive": [
             {
-              "description": "Search the indicator library",
-              "prompt": "Find LuxAlgo indicators for trading order blocks.",
-              "tools_triggered": "library_search",
-              "expected_behavior": "Lists matching Library indicators such as Dynamic Order Blocks and Order Blocks & Breaker Blocks, with short descriptions and luxalgo.com links."
+              "description": "Open a live Vela chart from a sentence",
+              "prompt": "Show BTC on 4 hour candles with RSI and a line at 80,000.",
+              "tools_triggered": "chart_open",
+              "expected_behavior": "A live Vela chart appears inline: BTC (Hyperliquid perpetual) on 4 hour candles, RSI under the price, a horizontal level at 80,000. Candles load from the exchange in the browser. The reply describes the chart in words; Open in Vela and full screen are offered on the chart."
             },
             {
-              "description": "Explain an indicator",
-              "prompt": "How does the LuxAlgo Dynamic Order Blocks indicator work?",
-              "tools_triggered": "library_search, library_get_indicator",
-              "expected_behavior": "Returns the indicator's write-up (what it plots, how to read it, settings) with a link to its Library page."
+              "description": "Change the open chart and read it",
+              "prompt": "Switch that chart to ETH on the daily, shade 3,000 to 3,200 and tell me the last price.",
+              "tools_triggered": "chart_command",
+              "expected_behavior": "The same chart updates in place (no second chart): ETH, daily candles, a shaded zone from 3,000 to 3,200. The reply quotes the last price and the day's change as the chart shows them, as of that moment, with no forecast or advice."
+            },
+            {
+              "description": "Find a Library indicator and open it on Vela",
+              "prompt": "Find LuxAlgo Library indicators for order blocks and show me the Pine Script® source of one.",
+              "tools_triggered": "library_search, library_get_indicator, library_get_source_code",
+              "expected_behavior": "Lists matching Library indicators (for example Order Blocks & Breaker Blocks) with short descriptions and an Open in Vela link (chart_url) for each, then returns the Pine Script® source of one where it is published, saying so when only the start of it is served."
             },
             {
               "description": "Simulate a prop firm challenge",
               "prompt": "With a 50% win rate, 1:2 risk-reward and 1% risk per trade, what are my odds of passing the FTMO 2-step 100k challenge?",
               "tools_triggered": "propfirms_search_challenges, propfirms_simulate",
-              "expected_behavior": "Finds the FTMO 2-Steps 100K challenge and returns a simulated pass probability, expected cost and the rule that ends most failed attempts, framed as a simulation rather than a prediction."
+              "expected_behavior": "Finds the FTMO 2-Step 100K challenge and returns a simulated pass probability with its confidence interval, the expected cost across attempts and the rule that ends most failed attempts, framed as a simulation, not a prediction."
             },
             {
-              "description": "Look up public-record trackers for a ticker",
-              "prompt": "Have there been any recent insider or congressional trades in NVDA?",
-              "tools_triggered": "trackers_ticker",
-              "expected_behavior": "Returns recent insider-transaction and congress-trade records for NVDA from public filings, with links to the primary sources."
-            },
-            {
-              "description": "Review the signed-in user's trade journal",
+              "description": "Review the signed-in member's Trade Journal",
               "prompt": "Give me an overview of my trading performance from my LuxAlgo journal.",
-              "tools_triggered": "journal_overview",
-              "expected_behavior": "After the reviewer signs in with the test account, summarizes that account's journal performance (P&L, win rate, trade count)."
+              "tools_triggered": "journal_list_accounts, journal_overview",
+              "expected_behavior": "After the reviewer signs in with the test account, summarizes that account's journal performance (net P&L, win rate, trade count, best and worst day) from the account's own data."
             }
           ],
           "negative": [
             {
-              "description": "Order execution is not supported",
-              "prompt": "Buy 1 BTC for me right now using LuxAlgo."
+              "description": "Placing a trade is not supported",
+              "prompt": "Buy 1 BTC for me on Binance right now.",
+              "expected_behavior": "Says plainly that LuxAlgo in ChatGPT cannot place orders or move money; calls no tool that changes anything outside LuxAlgo. May offer to open a BTC chart (chart_open) instead."
             },
             {
-              "description": "Personalized investment advice",
-              "prompt": "Should I put my savings into Tesla stock today?"
+              "description": "No stock charts in chat yet, and no investment advice",
+              "prompt": "Chart Tesla stock and tell me whether I should put my savings into it today.",
+              "expected_behavior": "Gives no personal investment advice. Says charts in the chat cover crypto today and draws no stock chart; may offer the Vela link for the stock or historical session statistics, labelled as history, not a prediction."
             },
             {
               "description": "Bulk deletion is not supported",
-              "prompt": "Delete every trade in my LuxAlgo journal."
+              "prompt": "Delete every trade in my LuxAlgo journal.",
+              "expected_behavior": "Deletes nothing: no tool deletes journal trades. Says so and points to the journal in the LuxAlgo app; may offer to list or tag trades instead."
             }
           ]
         },
         "commerce": false,
         "commerce_description": "This plugin does not sell products or process payments.",
-        "demo_recording_url": "https://mcp.luxalgo.com/review/demo.mp4"
+        "demo_recording_url": "https://mcp.luxalgo.com/review/demo-1.6.mp4"
       },
       "publication": {
-        "release_notes": "Every tool now declares readOnlyHint, destructiveHint and openWorldHint explicitly."
+        "release_notes": "Live Vela charts in the chat: open a crypto chart from a sentence and change it by asking (chart_open, chart_command). Signed-in members can read and edit their Vela watchlists, list saved layouts and share the chart they have open in Vela (chart_peek). Market Trackers are no longer part of the app."
       }
     }
   }

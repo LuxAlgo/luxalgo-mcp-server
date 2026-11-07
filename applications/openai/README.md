@@ -6,7 +6,7 @@ What we upload to OpenAI's plugin portal (platform.openai.com → Plugins → Lu
 - `mcp.json`: the MCP server's ChatGPT address, `https://mcp.luxalgo.com/mcp/openai` (a trimmed toolset; see docs/auth.md).
 - `assets/logo.png`: the listing logo.
 
-The demo walkthrough the reviewers watch is served by this deployment from `public/review/demo.mp4` (https://mcp.luxalgo.com/review/demo.mp4), since it has to be reachable by URL. Its prompts match the test cases in `plugin.json`.
+The demo walkthrough the reviewers watch is served by this deployment from `public/review/` (version 1.6.0: https://mcp.luxalgo.com/review/demo-1.6.mp4; 1.5.1: https://mcp.luxalgo.com/review/demo.mp4, kept until 1.6.0 is approved), since it has to be reachable by URL. It shows the conversation only. Its prompts match the test cases in `plugin.json`.
 
 Build the ZIP from this directory:
 
