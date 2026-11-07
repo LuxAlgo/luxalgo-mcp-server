@@ -16,7 +16,7 @@ import { createHash } from "node:crypto";
 import { createServer } from "node:net";
 
 /** sha256 of JSON.stringify(tools/list `tools`) on the Claude address, as Anthropic is reviewing it (2.1.0). */
-const CLAUDE_TOOLS_SHA256 = "f2233dd025f31f7187f8d85f09f0cf240855182511781ef643bd4bba57996907";
+export const CLAUDE_TOOLS_SHA256 = "f2233dd025f31f7187f8d85f09f0cf240855182511781ef643bd4bba57996907";
 
 const CHART_ORIGIN = process.env.LUXALGO_CHART_ORIGIN ?? "https://vela.luxalgo.com";
 

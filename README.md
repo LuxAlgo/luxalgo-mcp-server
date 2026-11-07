@@ -1,260 +1,59 @@
-<img alt="LuxAlgo MCP" src=".github/assets/banner.svg" width="100%">
-
-<div align="center">
+<a href="https://mcp.luxalgo.com">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/cover-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/cover-light.png">
+    <img alt="Vela, in ChatGPT, Claude and any agent. Vela by LuxAlgo." src=".github/assets/cover-dark.png" width="100%">
+  </picture>
+</a>
 
 # LuxAlgo MCP
 
-<a href="https://cursor.com/en/install-mcp?name=luxalgo&config=eyJ1cmwiOiJodHRwczovL21jcC5sdXhhbGdvLmNvbS9tY3AifQ=="><img src="https://custom-icon-badges.demolab.com/badge/Install_in_Cursor-0a0a0a?style=for-the-badge&logo=cursor-ai-white" alt="Install in Cursor" /></a>&nbsp;<a href="https://vscode.dev/redirect/mcp/install?name=luxalgo&config=%7B%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fmcp.luxalgo.com%2Fmcp%22%7D"><img src="https://custom-icon-badges.demolab.com/badge/Install_in_VS_Code-0a0a0a?style=for-the-badge&logo=vsc" alt="Install in VS Code" /></a>
+Bring [Vela](https://vela.luxalgo.com/chart), the next-generation charting platform by LuxAlgo, into ChatGPT, Claude and any agent.
 
-[![CI](https://img.shields.io/github/actions/workflow/status/LuxAlgo/luxalgo-mcp-server/ci.yml?branch=main&style=flat-square&label=ci&labelColor=0a0a0a)](https://github.com/LuxAlgo/luxalgo-mcp-server/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@luxalgo/mcp?style=flat-square&label=npm&labelColor=0a0a0a&color=35a2de)](https://www.npmjs.com/package/@luxalgo/mcp)
-[![license](https://img.shields.io/npm/l/@luxalgo/mcp?style=flat-square&labelColor=0a0a0a&color=9200ff)](LICENSE)
+[![MCP Registry](https://img.shields.io/badge/MCP_Registry-io.github.LuxAlgo%2Fluxalgo--mcp--server-9200ff?style=flat-square&labelColor=0a0a0a)](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.LuxAlgo/luxalgo-mcp-server)
+[![License: MIT](https://img.shields.io/badge/license-MIT-ededed?style=flat-square&labelColor=0a0a0a)](LICENSE)
 
-[Library](https://www.luxalgo.com/library/) · [Brokers](https://github.com/LuxAlgo/broker-sdk) · [Edge Stats](https://github.com/LuxAlgo/edge-stats) · [Market Trackers](https://github.com/LuxAlgo/market-trackers) · [Challenge Simulator](https://github.com/LuxAlgo/prop-firm-sim) · [Prop Firms](https://www.luxalgo.com/prop-firms/) · [Vela for Developers](#charts-in-your-browser-with-vela) · [npm](https://www.npmjs.com/package/@luxalgo/mcp) · [Endpoint](https://mcp.luxalgo.com/mcp)
+## Vela in your chat
 
-</div>
+<img alt="A live BTC 4 hour Vela chart with RSI and a level at 80,000, opened from one sentence inside a chat" src="docs/images/vela-chart-in-chat.png" width="100%">
 
-**LuxAlgo MCP** is a LuxAlgo open-source project. Overview and setup: [luxalgo.com/mcp](https://www.luxalgo.com/mcp).
+- **Open a live chart from a sentence.** "Show BTC on 4 hour candles with RSI and a line at 80,000."
+- **Change it by asking.** Market, timeframe, indicators, levels, zones, the date range. You can pan, zoom and draw on it too.
+- **The model can read it.** It sees what you see: the last price, the day's change, the visible range and each indicator's value.
 
-It puts the LuxAlgo ecosystem behind a single MCP server: an encyclopedia of trading and technical analysis, your LuxAlgo trade journal, read-only access to your own brokerage accounts, hosted session statistics with a sample size on every number, the public record of US markets (congressional trades, insider filings, lobbying, contracts, patents and more, with a primary-source link on every row), a Monte Carlo challenge simulator, and a live prop-firm directory. No API key for anything hosted: the public tools are free and read-only, the Trade Journal and account tools use your LuxAlgo sign-in, and the local broker tools use your own keys and never send them anywhere.
+Run it yourself today with `LUXALGO_CHART_TOOLS=on` ([three commands](docs/self-hosting.md#live-vela-charts)). The hosted version is next.
 
-```bash
-claude mcp add --transport http luxalgo https://mcp.luxalgo.com/mcp
-```
+## Add it
 
-## What's inside
-
-| Area | What you get |
+| Where | How |
 | --- | --- |
-| **[Library](https://www.luxalgo.com/library/)** | The encyclopedia of trading and technical analysis: hundreds of concept pages with formulas, the full indicator catalog organized by family and concept, and Pine Script® sources where publicly served. |
-| **Trade Journal** (sign-in) | Your own journal in the LuxAlgo app: the dashboard (metrics, Edge Score, equity curve), the P&L calendar, breakdowns by weekday / hold time / symbol / tag and more, every trade with its fills and annotations, day notes — and the writes that keep it alive: log fills by hand, annotate trades (tags, mistakes, rating, stop and target, review), write notes. Always as you, on your data; the app owns the rules. |
-| **Brokers** (local only) | Read-only access to your own accounts across 22 brokers and exchanges via [broker-sdk](https://github.com/LuxAlgo/broker-sdk): balances, positions, trade history, FIFO performance stats. Keys live in your MCP client config as env vars and never leave your machine. The hosted endpoint does not carry these tools, on purpose. |
-| **Edge Stats** | Hosted session statistics from the open-source [edge-stats](https://github.com/LuxAlgo/edge-stats) engine: how often a setup actually worked (gap fills, opening-range breakouts, day-of-week effects, event days) with the sample size and a Wilson 95% confidence interval on every number. A nightly build runs the real engine over free market data and publishes only derived statistics; these tools serve them verbatim. |
-| **[Market Trackers](https://github.com/LuxAlgo/market-trackers)** | The public record of US markets from primary sources only: congressional trades, insider (Forms 3/4/5) transactions, 13F holdings, federal contracts and grants, lobbying filings, FINRA short-sale volume, granted patents, clinical trials, FDA drug events, CFTC positioning, federal bills, FEC campaign finance, hearing transcripts, Federal Reserve communications, committee assignments, Wikipedia pageviews. Read straight from the pipeline's [CC0 dumps](https://github.com/LuxAlgo/market-trackers-data) — live tree plus deep-history archives — with `provenance.sourceUrl` on every row. Data only: no signals, scores, or predictions. |
-| **Challenge Simulator** | The open-source [prop-firm-sim](https://github.com/LuxAlgo/prop-firm-sim) Monte Carlo engine, running locally inside the server. Your stats, or your real R-multiple trade series, through a firm's exact ruleset: pass probability with confidence intervals, expected attempts and cost, EV over the funded horizon, optimal-risk sweeps, cross-challenge comparison. Deterministic under seed, every assumption disclosed. |
-| **Prop Firm Directory** | The live data the simulator draws from: firms, funded-account challenges with their full rulebooks (account sizes, fees, steps, profit splits, drawdown modes, trading restrictions), and current offers. |
-| **Charts** (your browser) | Not a tool: the chart you draw with what the tools return. [The open-source core of Vela by LuxAlgo](https://velacharts.dev) runs the Pine Script® that `library_get_source_code` hands back and paints the fills that `broker_trades` lists, in a browser tab, on your machine. [How the loop works](#charts-in-your-browser-with-vela). |
+| **ChatGPT** | LuxAlgo is an app in ChatGPT's **Plugins** directory. Search **LuxAlgo**, add it. |
+| **Claude** | **Customize** > **Connectors** > **+** > **Add custom connector**: `https://claude.mcp.luxalgo.com/mcp` |
+| **Claude Code** | `claude mcp add --transport http luxalgo https://mcp.luxalgo.com/mcp` |
+| **Codex** | `codex mcp add luxalgo --url https://mcp.luxalgo.com/mcp` |
+| **Cursor, VS Code, any client** | `https://mcp.luxalgo.com/mcp` ([Cursor](https://cursor.com/en/install-mcp?name=luxalgo&config=eyJ1cmwiOiJodHRwczovL21jcC5sdXhhbGdvLmNvbS9tY3AifQ==) · [VS Code](https://vscode.dev/redirect/mcp/install?name=luxalgo&config=%7B%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fmcp.luxalgo.com%2Fmcp%22%7D) one-click) |
+| **Your machine** | `npx -y @luxalgo/mcp` (adds read-only broker accounts; [setup](docs/self-hosting.md#local-stdio)) |
 
-## Install
+No API key. Only the Trade Journal asks you to sign in with LuxAlgo.
 
-The hosted server is one URL:
+## Also in the box
 
-```
-https://mcp.luxalgo.com/mcp
-```
+| What | You get |
+| --- | --- |
+| **The Library** | 800+ indicators and 800+ concepts from the largest indicator library in trading. Every indicator comes with an **Open in Vela** link. |
+| **Session statistics** | Gap fills, opening-range breakouts, weekday effects, each with its sample size and a 95% confidence interval. |
+| **Prop-firm simulations** | Your stats or real trades through a firm's exact rules, FTMO and others: the chance you pass and what it costs. |
+| **Trade Journal** | Your LuxAlgo journal from the chat: performance, the P&L calendar, tags and notes. Sign-in. |
+| **Broker accounts** | Read-only balances, positions and trades across 22 brokers and exchanges. Local only; keys stay on your machine. |
 
-### Claude (web, desktop, mobile)
+## Build your own Vela
 
-Customize → Connectors → **Add custom connector**, URL **`https://claude.mcp.luxalgo.com/mcp`**, and under **Authentication** choose **Required when the server asks**. Claude connects anonymously, every keyless tool works right away, and the sign-in card only appears the first time you call an account tool. This Claude-only address exists because Claude.ai otherwise opens the OAuth window at connect time for any server whose OAuth metadata it can discover ([claude-ai-mcp#1013](https://github.com/anthropics/claude-ai-mcp/issues/1013)); it serves the same tools with that metadata hidden until a sign-in is actually needed. Every other client uses `https://mcp.luxalgo.com/mcp`.
-
-### Claude Code
-
-```bash
-claude mcp add --transport http luxalgo https://mcp.luxalgo.com/mcp
-```
-
-### Cursor
-
-Use the **Install in Cursor** button above, or add this to `.cursor/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "luxalgo": {
-      "url": "https://mcp.luxalgo.com/mcp"
-    }
-  }
-}
-```
-
-### Any other MCP client
-
-Point your client's MCP config at the hosted URL:
-
-```json
-{
-  "mcpServers": {
-    "luxalgo": {
-      "url": "https://mcp.luxalgo.com/mcp"
-    }
-  }
-}
-```
+The chart is Vela's open-source core: [`@luxalgo/vela`](https://www.npmjs.com/package/@luxalgo/vela), a WebGL2 charting library under Apache-2.0. Docs at [velacharts.dev](https://velacharts.dev), code at [github.com/LuxAlgo/Vela](https://github.com/LuxAlgo/Vela). Pair it with `library_get_source_code` to run any published Library indicator on your own chart.
 
 <details>
-<summary><b>Where each client keeps its config</b></summary>
+<summary><b>A Library indicator on your own chart, in two script tags</b></summary>
 <br>
-
-| Client | Where to add it |
-| --- | --- |
-| Cursor | `.cursor/mcp.json`, or the install button above |
-| Claude Desktop | `claude_desktop_config.json` |
-| VS Code | Install button above, or MCP settings |
-| Windsurf | `~/.codeium/windsurf/mcp_config.json` |
-| Zed | `settings.json` under `context_servers` |
-| Warp | Settings → Agents → MCP servers |
-| LM Studio | `mcp.json` |
-| OpenCode | `opencode.json` |
-| Gemini CLI | `~/.gemini/settings.json` |
-
-</details>
-
-### Local (stdio)
-
-Runs every hosted tool locally, and unlocks the broker tools. Set read-only credential env vars for the brokers you use. Any subset works: a broker connects when all of its vars are set, and with no vars at all the broker tools simply stay unconfigured.
-
-```json
-{
-  "mcpServers": {
-    "luxalgo": {
-      "command": "npx",
-      "args": ["-y", "@luxalgo/mcp"],
-      "env": {
-        "BROKERS_ALPACA_API_KEY": "…",
-        "BROKERS_ALPACA_API_SECRET": "…",
-        "BROKERS_KRAKEN_API_KEY": "…",
-        "BROKERS_KRAKEN_API_SECRET": "…",
-        "BROKERS_HYPERLIQUID_WALLET_ADDRESS": "0x…"
-      }
-    }
-  }
-}
-```
-
-Env var names derive from each broker's credential fields: `BROKERS_<BROKER>_<FIELD>` (for example `BROKERS_OKX_PASSPHRASE`, `BROKERS_IBKR_FLEX_FLEX_TOKEN`). The `broker_setup` tool lists every supported broker, its exact variables, and a one-line guide to creating each key with read-only scope, which is all this server ever needs.
-
-### Signing in with LuxAlgo (optional)
-
-Almost everything here is keyless and works without an account. The tools in the **Account** and **Trade Journal** sections below need to know who you are; they use your LuxAlgo account through standard OAuth 2.1, with [app.luxalgo.com](https://app.luxalgo.com) as the authorization server. Nothing is required up front: every client can connect, list tools and use the public ones anonymously, and sign-in is only requested when you first call an account tool.
-
-**Hosted (ChatGPT, Claude, Cursor, any remote connector).** The server advertises its [protected-resource metadata](https://mcp.luxalgo.com/.well-known/oauth-protected-resource/mcp) and answers an unauthenticated account-tool call with a `401` + `WWW-Authenticate` challenge; MCP clients handle the rest (discovery, PKCE, consent screen in your browser) and keep the token for you. Each tool also declares its policy in `tools/list` (`securitySchemes`: `noauth` for public tools, `oauth2` for account tools), so ChatGPT's per-tool linking works as well. Clients may identify themselves via Client ID Metadata Documents or Dynamic Client Registration — the app accepts both. One client-side exception: Claude.ai/Desktop connectors sign in at connect time whenever OAuth metadata is discoverable, regardless of their *Authentication* setting, so they get their own address, `https://claude.mcp.luxalgo.com/mcp`, whose metadata is only reachable from the 401 (see [Install](#claude-web-desktop-mobile)).
-
-**Local (stdio).** The server running on your machine is itself the OAuth client. Sign in once:
-
-```bash
-npx -y @luxalgo/mcp login     # opens your browser; tokens are stored under your user config dir (0600)
-npx -y @luxalgo/mcp status    # who is signed in, token expiry
-npx -y @luxalgo/mcp logout
-```
-
-Tokens live in `~/.config/luxalgo/mcp-auth.json` (`%APPDATA%\luxalgo\mcp-auth.json` on Windows, or `LUXALGO_MCP_AUTH_FILE`), are refreshed automatically, and are only ever sent to the LuxAlgo app. If your MCP client supports URL-mode elicitation (MCP 2026-07-28), you can skip the command: the first account-tool call asks the client to open the sign-in page and continues once you approve. Otherwise the tool answers with the challenge and the `login` hint.
-
-**What the token is for.** This server never decides what you are entitled to — its code is public, so any such check would be decorative. Instead, once you are signed in, every request a tool makes to the LuxAlgo app carries your token, and the app resolves your account and plan from it exactly as it does when you use the web app. Public tools work without it; with it, the app can tailor what they return. When the app declines — no valid sign-in (`401`) or a feature outside your plan (`403`) — the tool reports that, naming the permission involved.
-
-## Tools
-
-### Library
-
-| Tool | Description |
-| --- | --- |
-| `library_search` | One search over concepts (alias-aware) and indicators; indicator hits carry `chart_url` |
-| `library_get_concept` | Full concept page as markdown, plus the concept's indicators, each with `chart_url` |
-| `library_get_indicator` | Indicator detail: body, family, concepts, source code availability, `chart_url` |
-| `library_get_source_code` | Source code, fetched only on demand: in full when publicly served, or the start of it (`complete: false`) for indicators the app previews to signed-out users; `chart_url` opens the indicator on a Vela chart whether the source is complete, partial or not served |
-| `library_list_concepts` | Paginated concept roster, optionally per family |
-| `library_list_indicators` | Filtered, paginated browse (family, concept, platform, tier) with server-side sort; each indicator carries `chart_url` |
-| `library_list_families` | The taxonomy backbone with counts |
-| `library_get_family` | A family hub as markdown, its concept roster included (on the Claude address also as a separate list) |
-
-Library outputs are compact JSON with canonical `url`s for citation. `chart_url` opens an indicator on a Vela chart (`https://vela.luxalgo.com/chart?pineScriptCodeId=…`); the few Library entries with no Vela script get none. Concept and family pages are also directly fetchable as markdown: append `.md` to any concept URL.
-
-### Account (sign-in required)
-
-| Tool | Description |
-| --- | --- |
-| `luxalgo_account` | The signed-in user's plan tier, entitlements (alerts, historical bars, AI credits, …) and profile basics — so an agent can tailor answers to what the plan actually allows |
-
-### Trade Journal (sign-in required)
-
-Your own trade journal in the LuxAlgo app — the same accounts, trades, annotations and notes the app shows — read and written as you. Dates are `YYYY-MM-DD` day keys in your journal timezone (`journal_list_accounts` reports it); account filters take ids from the same call.
-
-| Tool | Description |
-| --- | --- |
-| `journal_list_accounts` | Journal accounts (broker-synced, imported or manual; currency, initial balance, lot method, last sync, archived state) and the journal timezone — the first call, since every `accounts` filter takes these ids |
-| `journal_overview` | The dashboard for a window: performance metrics, Edge Score, per-day P&L, equity curve, open positions, accounts and settings; `compare` adds the previous equal-length window |
-| `journal_calendar` | One month of the P&L calendar: day cells, weekly and monthly totals, trading and winning days |
-| `journal_breakdown` | Closed trades grouped by weekday, time of day, hold time, symbol, side, position size, tag, rating and asset class — where the P&L comes from |
-| `journal_list_trades` | Trade summaries, keyset-paginated; filter by accounts, open-day window, symbol, direction, status, tag; sort by opened/closed time, net or gross P&L, duration, quantity, symbol or rating, either direction |
-| `journal_get_trade` | One trade in full: fills (reported values, corrections, hidden), per-exit P&L, every annotation |
-| `journal_get_day` | A single day's stats, trades and notes |
-| `journal_list_tags` | The user's annotation vocabulary — tags, mistakes, playbooks with usage counts — so new annotations reuse existing words |
-| `journal_search_notes` | Day notes and trade notes as one newest-first stream; text query, day window, symbol and account filters, paginated |
-| `journal_add_trade` | Log a trade by hand: its fills into a manual or import account; returns the resulting trade(s) |
-| `journal_update_trade` | Annotate a trade: notes, tags (replace or add/remove), mistakes, playbook, rating, stop loss, profit target, reviewed |
-| `journal_write_note` | Add a note to a day |
-| `journal_update_note` | Replace a day note's text or move it to another day |
-
-The journal tools and `luxalgo_account` are the only tools that need a LuxAlgo account; see [Signing in with LuxAlgo](#signing-in-with-luxalgo-optional). Without a sign-in they return an OAuth challenge instead of data — never a silent fallback. The write tools act only as the signed-in user and only on that user's journal; the app validates and owns every change.
-
-### Brokers (local stdio only)
-
-| Tool | Description |
-| --- | --- |
-| `broker_setup` | Supported brokers, their env vars (set or unset, never values), read-only key guides |
-| `broker_accounts` | Connected accounts: broker, currency, equity, cash |
-| `broker_positions` | Open positions with market values, asset class, entry price; negative quantity means short |
-| `broker_trades` | Trade history, newest first; filter by broker or symbol |
-| `broker_stats` | Total equity, equity by broker, top positions, FIFO win rate and realized PnL |
-| `broker_refresh` | Bypass the 5-minute cache and re-fetch now |
-
-Read-only by construction: the SDK's root export has no trading endpoints, the server never writes secrets anywhere, and per-broker failures are reported alongside results, never silently dropped.
-
-### Edge Stats
-
-Hosted session statistics from the open-source [edge-stats](https://github.com/LuxAlgo/edge-stats) engine, precomputed nightly:
-
-| Tool | Description |
-| --- | --- |
-| `edge_symbols` | What the hosted store covers: symbols, session calendars, coverage windows, last build; each symbol carries `chart_url` |
-| `edge_presets` | The catalog of precomputed questions, each stating in plain language what its number means; gap presets name the round-the-clock symbols they do not apply to |
-| `edge_report` | One result in the engine's full honesty envelope: estimate, N, Wilson 95% CI, minimum-sample guards, stability split, per-year counts, distribution, disclaimer; `chart_url` opens the symbol on a Vela chart (`?symbol=binance:BTCUSDT`, 15-minute bars for intraday presets, daily for the rest). Opening-gap presets on markets that trade around the clock (crypto) are refused with the reason, since their "gaps" are a minute of price movement at the calendar-day boundary |
-
-Every number arrives with its sample size — the engine has no code path that returns a percentage without one. Results are historical conditional frequencies, never predictions. For arbitrary composed queries or your own market data, run edge-stats locally; its own MCP server exposes the full engine over your local store.
-
-### Market Trackers
-
-| Tool | Description |
-| --- | --- |
-| `trackers_datasets` | The catalog: every dataset's row count, freshness, years with data (live vs deep-history archive), ticker-searchability; pass `dataset` for its field roster, filterable paths, caveats, per-year coverage, source health and dump URLs |
-| `trackers_query` | Search one dataset by ticker, free text, exact field values (`where`, dot paths) and event-date range, choosing which years to read; newest/oldest ordering with paging |
-| `trackers_latest` | The newest daily delta of a dataset (today's insider filings, this week's congressional disclosures), optionally narrowed by ticker or text |
-| `trackers_ticker` | One ticker across every ticker-bearing dataset for a year: per-dataset counts with the newest rows — a public-record dossier |
-
-The data is the CC0 output of [LuxAlgo/market-trackers](https://github.com/LuxAlgo/market-trackers), published daily to [LuxAlgo/market-trackers-data](https://github.com/LuxAlgo/market-trackers-data): year-sharded gzipped JSON in the repository's live tree, plus deep-history shards attached to the data repo's GitHub Releases and indexed in its `archives.json`. The server streams shards row by row (never loading a whole file) under a per-call budget of compressed bytes, so a deep-history year (often 30–60 MB compressed) is read one at a time. Amounts disclosed as ranges stay ranges; ticker mappings for contracts, lobbying, trials, FDA events and patents are best-effort against a curated map of public companies; every row keeps its primary-source deep link.
-
-### Challenge Simulator
-
-Runs locally inside the server:
-
-| Tool | Description |
-| --- | --- |
-| `propfirms_list_simulatable` | The simulatable firms in the live directory, one line each; `firmId` lists one firm's challenges with ids, provenance-disclosed |
-| `propfirms_challenge_rules` | One challenge's full encoded ruleset (drawdown modes, consistency, payout gating, citations), editable and re-simulatable inline |
-| `propfirms_simulate` | Monte Carlo of your stats (win rate, avg win, trades/day, risk sizing) through a firm's exact ruleset and funded horizon: pass probability with CI, which rule kills attempts, expected attempts and cost, EV, payout probability |
-| `propfirms_simulate_trades` | Same, from your real R-multiple trade series; block bootstrap preserves your streaks |
-| `propfirms_optimal_risk` | Risk sweep: pass-optimal vs EV-optimal risk per trade (they differ) |
-| `propfirms_compare` | Same trader across up to 12 challenges, EV-sorted (not a ranking) |
-| `propfirms_pass_rates` | The site's reference-archetype odds, recomputed live (seed 42, 10k paths); without `challengeId`, a firm overview with one account size per rules program (up to three) |
-| `propfirms_validate_strategy` | Screen one strategy across every simulatable challenge against an explicit pass bar |
-
-Every simulation result carries its assumptions, unsimulated-rule flags, seed, and engine version. Results are distributions under stated assumptions, never promises. The engine runs locally; firm rules adapt live from the directory, and inline specs simulate fully offline.
-
-### Prop Firm Directory
-
-The live directory the simulator draws from, queryable directly:
-
-| Tool | Description |
-| --- | --- |
-| `propfirms_search` | Search firms; firm filters (platforms, markets, payments, Trustpilot, country availability) compose with nested challenge and offer filters, and `include` nests matching children |
-| `propfirms_get` | One firm's dossier: profile, every challenge, live offers, written overview (its FAQ through `propfirms_search` with `include: ['overview']`), page link |
-| `propfirms_search_challenges` | Search challenges by rules (size, fee, steps, profit split, drawdown, trading restrictions) and parent firm; natural queries such as "FTMO 2-step 100k" work; can attach applicable live offers |
-| `propfirms_search_offers` | Current discounts and promo codes, resolvable per firm or per challenge |
-
-## Charts, in your browser, with Vela
-
-Every tool above returns text and JSON. When the answer wants a chart, draw it with **[the open-source core of Vela by LuxAlgo](https://velacharts.dev)** (`@luxalgo/vela`, Apache-2.0, [GitHub](https://github.com/LuxAlgo/Vela)), the charting library behind Vela: a headless chart with its own WebGL2 renderer that takes bars you already have, or fetches them from keyless public providers, and runs indicator scripts through pluggable engines. Pine Script® lives in the [`@luxalgo/vela-pinets`](https://github.com/LuxAlgo/Vela-pinets) addon, which is what closes the loop with the Library: `library_get_source_code` hands an agent an indicator's exact Pine source, and Vela's open-source core executes that source on a chart.
-
-To open an indicator or a market on Vela, LuxAlgo's next-generation charting platform at [vela.luxalgo.com/chart](https://vela.luxalgo.com/chart), give the user the `chart_url` the Library and Edge Stats results carry. The Claude connector's address (`claude.mcp.luxalgo.com`) does not carry these links yet; `library_get_source_code` there still returns one when the indicator's code runs only on LuxAlgo.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset=".github/assets/vela-supertrend-dark.png">
@@ -262,9 +61,9 @@ To open an indicator or a market on Vela, LuxAlgo's next-generation charting pla
   <img alt="The Library's SuperTrend indicator, fetched through library_get_source_code, running on a Vela chart" src=".github/assets/vela-supertrend-dark.png" width="100%">
 </picture>
 
-<sub>Not a mockup: the Library's <a href="https://www.luxalgo.com/library/indicator/supertrend/">SuperTrend</a> source as returned by <code>library_get_source_code</code>, executed by <code>@luxalgo/vela-pinets</code> on a <code>@luxalgo/vela</code> 0.6 chart and screenshotted in headless Chromium. The bars are a labelled synthetic sample; point <code>data</code> at your own or register a provider for live ones.</sub>
+<sub>The Library's <a href="https://www.luxalgo.com/library/indicator/supertrend/">SuperTrend</a> source as returned by <code>library_get_source_code</code>, executed by <code>@luxalgo/vela-pinets</code> on a <code>@luxalgo/vela</code> 0.6 chart in headless Chromium. The bars are a labelled synthetic sample.</sub>
 
-The whole demo is two script tags and five lines. `source` is the `source` field of a `library_get_source_code` result:
+`source` is the `source` field of a `library_get_source_code` result:
 
 ```html
 <div id="chart" style="height: 480px"></div>
@@ -277,61 +76,40 @@ The whole demo is two script tags and five lines. `source` is the `source` field
 </script>
 ```
 
-With a bundler it is the same three calls over `import { Vela } from '@luxalgo/vela'` and `import { PineEngine } from '@luxalgo/vela-pinets'`; see Vela's [quickstart](https://github.com/LuxAlgo/Vela/blob/main/docs/user/quickstart.md). The same chart paints your own trades: [Trade Journal](https://github.com/LuxAlgo/trade-journal) takes the shape `broker_trades` returns and draws entries, exits and P&L labels through Vela's native-indicator API, engine-free, in [one component](https://github.com/LuxAlgo/trade-journal/blob/main/apps/web/src/components/trade-chart.tsx) you can lift as is.
+With a bundler: `import { Vela } from '@luxalgo/vela'` and `import { PineEngine } from '@luxalgo/vela-pinets'`; see the [quickstart](https://github.com/LuxAlgo/Vela/blob/main/docs/user/quickstart.md). Pine Script® runs through [PineTS](https://github.com/LuxAlgo/PineTS), our open-source runtime (AGPL-3.0, licensed separately). Vela's attribution mark stays on unless you show equivalent attribution next to the chart; see its [NOTICE](https://github.com/LuxAlgo/Vela/blob/main/NOTICE).
 
-**Where each piece runs.** This matters because it is the opposite of how the rest of this server works:
+</details>
 
-| Piece | Where | Notes |
-| --- | --- | --- |
-| Vela | A browser tab on your machine (Canvas 2D or WebGL2). | Never inside this server, hosted or stdio, and never in an MCP response. An agent gets the Pine source and the trades as text; the chart is what you build with them. |
-| Bars | Yours, via `data`, or Vela's keyless Binance, Coinbase and Hyperliquid providers, fetched by the browser. | This server serves no market data, so a chart needs no LuxAlgo key and makes no LuxAlgo request. |
-| Pine Script® | `@luxalgo/vela-pinets`, which executes the [PineTS](https://github.com/LuxAlgo/PineTS) runtime. | AGPL-3.0, licensed separately from Vela's Apache-2.0 and this server's MIT. Vela itself ships no engine and carries no Pine code. |
-| Attribution | Vela's mark, bottom-left of every chart. | Stays on unless you show equivalent attribution next to the chart; see Vela's [NOTICE](https://github.com/LuxAlgo/Vela/blob/main/NOTICE). |
+## Reference
 
-Vela already draws the charts in [Trade Journal](https://github.com/LuxAlgo/trade-journal) and on the hosted [Market Trackers](https://www.luxalgo.com/market-trackers), and [velacharts.dev](https://velacharts.dev) runs a live one.
+- **[Every tool](docs/tools.md)**, by area, with example asks and which address serves what.
+- **[Run it yourself](docs/self-hosting.md)**: the live charts, stdio with broker keys, Docker, HTTP, environment variables, architecture.
+- **[Sign-in and privacy](docs/auth.md)**: OAuth 2.1 with the LuxAlgo app. This server holds no plan checks; the app decides what your account can see, exactly as on the web.
+- **[Changelog](CHANGELOG.md)** · **[Security](SECURITY.md)**
 
-## Development
+<details>
+<summary><b>Contributing</b></summary>
+<br>
 
 ```bash
 npm install
-npm run build
-npm start            # stdio
-npm run start:http   # streamable HTTP on :3333/mcp
-npm test               # smoke suite over stdio (hits live endpoints); --only library,edge for a subset
-npm run test:http      # the same suite against a running HTTP entry on :3333
-npm run test:parity    # simulator tools vs upstream package + raw engine
-npm run test:trackers  # offline checks of the Market Trackers streaming engine
+npm run typecheck && npm run build
+npm test                 # smoke suite over stdio (live endpoints); --only library,edge for a subset
+npm run test:http        # the same suite against a running HTTP entry
+npm run test:parity      # simulator tools against the upstream engine
+npm run test:trackers    # offline checks of the Market Trackers engine
 ```
 
-Layout — one directory per concern, one directory per tool domain:
+Adding a tool: read [AGENTS.md](AGENTS.md) and [docs/auth.md](docs/auth.md) first. Pull requests target `dev`; commits are signed off (`git commit -s`, checked by CI).
 
-```
-src/
-  index.ts            the `luxalgo-mcp` binary → entries/stdio.ts
-  entries/            stdio.ts (local), node-http.ts (plain Node), hosted.ts (shared by node-http and api/server.ts)
-  server/             manifest.ts (the list of tool modules; protected / local-only derived from it),
-                      create-server.ts (registration shared by every entry), version.ts (serverInfo)
-  tools/<domain>/     index.ts exports a ToolModule (name, tool names, protected, localOnly, register);
-                      api.ts wraps the domain's endpoints; the rest is the domain's own
-  tools/_shared/      result/format helpers and the ToolModule contract
-  auth/               OAuth: config, gate, verify, metadata, challenge, runtime, protected-tool, local/ (stdio client)
-  platform/           app-client.ts (the one HTTP client for the LuxAlgo app), analytics.ts
-api/server.ts         the Vercel function
-test/                 smoke.mjs runner + smoke/<domain>.mjs suites, parity.mjs, trackers-check.mjs
-```
-
-Adding a tool domain: create `src/tools/<domain>/index.ts` exporting a `ToolModule` and list it in `src/server/manifest.ts`; registration asserts the module registers exactly the tools it declares. Mark tools that need a signed-in user in `protectedTools` (and register them with `registerProtectedTool`), and modules that read local credentials with `localOnly`.
-
-Optional env: `LUXALGO_APP_ORIGIN` and `LUXALGO_SITE_ORIGIN` point the server at non-production environments; `LUXALGO_CHART_ORIGIN` (default `https://vela.luxalgo.com`) is where `chart_url` opens the chart; `MARKET_TRACKERS_DUMPS_ORIGIN` (default `https://raw.githubusercontent.com/LuxAlgo/market-trackers-data/main`) and `MARKET_TRACKERS_DATA_REPO` point the Market Trackers tools at another dumps tree.
-
-OAuth env (see `src/auth/config.ts`): the authorization server is always `LUXALGO_APP_ORIGIN` + `/api/auth`; `MCP_RESOURCE` (default `https://mcp.luxalgo.com/mcp`) is this server's resource identifier and token audience — it must equal the app's `LUXALGO_MCP_SERVER_RESOURCE`. For local end-to-end work: `LUXALGO_APP_ORIGIN=http://localhost:3001 MCP_RESOURCE=http://localhost:3333/mcp npm run start:http`, with the app running on 3001 and the same `MCP_RESOURCE` exported for `npx -y @luxalgo/mcp login` / the stdio server. `LUXALGO_AUTH_CHALLENGE=result` makes the hosted entries let an anonymous protected call reach the tool (which answers the in-band `_meta["mcp/www_authenticate"]` challenge) instead of short-circuiting with HTTP 401 — the default; invalid tokens are always a 401. The Claude-only host is `MCP_RESOURCE`'s host with `claude.` in front (`http://claude.localhost:3333/mcp` locally, where the smoke suite reaches it through `X-Forwarded-Host`); it must match the app's `getLuxalgoClaudeMcpServerResource()`. `npm test` covers the anonymous paths and the advertised `securitySchemes` on both transports; `npm run test:http` adds OAuth discovery on both hosts.
-
-## Disclaimer
-
-Nothing this server returns is investment advice. Simulation outputs are modeled estimates under stated assumptions, not predictions or guarantees. Verify balances and performance numbers against your broker's own statements, and a prop firm's own page is authoritative for its current rules.
+</details>
 
 ## License
 
-Code is [MIT](LICENSE) © LuxAlgo Global, LLC. Library content and Pine Script® sources served by this server keep their own licenses; see [NOTICE](NOTICE).
+Code is [MIT](LICENSE) © LuxAlgo Global, LLC. Library content and Pine Script® sources keep their own licenses; see [NOTICE](NOTICE). LuxAlgo and Vela are trademarks of LuxAlgo Global, LLC; see [TRADEMARKS.md](TRADEMARKS.md). Nothing this server returns is investment advice: simulations are modeled estimates and statistics are historical frequencies, and a prop firm's own page is authoritative for its current rules.
 
-The LuxAlgo name and logo are trademarks of LuxAlgo Global, LLC; see [TRADEMARKS.md](TRADEMARKS.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).
+<div align="center">
+<br>
+<b>LuxAlgo, makers of Vela.</b><br>
+<a href="https://www.luxalgo.com">luxalgo.com</a> · <a href="https://vela.luxalgo.com/chart">Open Vela</a> · <a href="https://github.com/LuxAlgo">GitHub</a>
+</div>

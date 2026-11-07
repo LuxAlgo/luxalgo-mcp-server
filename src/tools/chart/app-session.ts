@@ -13,8 +13,9 @@
   token, authorises everything after the create. Keys are never logged.
 
   The app's state schema is strict and words-only, so the view's report is
-  mapped onto it field by field and anything else (theme, display mode) is
-  dropped here.
+  mapped onto it field by field and anything else (theme, display mode, and
+  the numbers an exchange-fed chart reports, which ./local.ts keeps in this
+  process instead) is dropped here.
 */
 import { z } from "zod";
 import {
@@ -155,6 +156,7 @@ export function appStore(id: string, keys: { writeKey?: string; readKey?: string
 
   return {
     backend: "app",
+    key: `app:${id}`,
 
     async push(ops) {
       if (!keys.writeKey) return { gone: true };
