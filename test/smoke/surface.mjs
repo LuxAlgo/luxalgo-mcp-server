@@ -54,6 +54,19 @@ export const ACCOUNT_PROTECTED = [...MEMBER_PROTECTED.slice(0, 5), ...ALERTS_PRO
 /** Market Trackers: public, on the standard address, stdio and the Claude address; never on the ChatGPT address. */
 export const TRACKERS = ["trackers_datasets", "trackers_query", "trackers_latest", "trackers_ticker"];
 
+/**
+ * Paper Trading by LuxAlgo (simulated money; every order on the member's yes):
+ * protected, and opt-in (LUXALGO_PAPER_TOOLS=on or a Vercel preview), so listed
+ * all or none. Never on the Claude address (test/smoke/paper-tools.mjs).
+ */
+export const PAPER = [
+  "paper_account",
+  "paper_propose_order",
+  "paper_close_position",
+  "paper_cancel_order",
+  "paper_place_order",
+];
+
 export async function run({ client, check, callJson, callStructured, httpUrl, rawToolsList }) {
   // tools/list
   const { tools } = await client.listTools();
@@ -99,12 +112,19 @@ export async function run({ client, check, callJson, callStructured, httpUrl, ra
   // Over stdio this run's switches decide (the runner passes them through); over HTTP the deployment's, read from its list.
   const accountOn = httpUrl ? tools.some((t) => MEMBER_PROTECTED.includes(t.name)) : process.env.LUXALGO_ACCOUNT_TOOLS === "on";
   const alertsOn = accountOn && (httpUrl ? tools.some((t) => ALERTS_PROTECTED.includes(t.name)) : process.env.LUXALGO_ALERT_TOOLS === "on");
+  const paperOn = httpUrl ? tools.some((t) => PAPER.includes(t.name)) : process.env.LUXALGO_PAPER_TOOLS === "on";
   const accountExpected = [...(accountOn ? MEMBER_PROTECTED : []), ...(alertsOn ? ALERTS_PROTECTED : [])];
-  const protectedAll = [...PROTECTED, ...accountExpected];
-  const expectedAll = [...expected, ...(httpUrl ? [] : brokerExpected), ...(chartOn ? chartExpected : []), ...accountExpected];
+  const protectedAll = [...PROTECTED, ...accountExpected, ...(paperOn ? PAPER : [])];
+  const expectedAll = [
+    ...expected,
+    ...(httpUrl ? [] : brokerExpected),
+    ...(chartOn ? chartExpected : []),
+    ...accountExpected,
+    ...(paperOn ? PAPER : []),
+  ];
   const names = tools.map((t) => t.name).sort();
   check(
-    `tools/list exposes exactly the ${expectedAll.length} ${httpUrl ? "hosted" : "stdio"} tools${chartOn ? " (chart tools on)" : ""}${accountOn ? " (account tools on)" : ""}${alertsOn ? " (alerts on)" : ""}`,
+    `tools/list exposes exactly the ${expectedAll.length} ${httpUrl ? "hosted" : "stdio"} tools${chartOn ? " (chart tools on)" : ""}${accountOn ? " (account tools on)" : ""}${alertsOn ? " (alerts on)" : ""}${paperOn ? " (paper tools on)" : ""}`,
     names.length === expectedAll.length && expectedAll.slice().sort().every((n, i) => names[i] === n),
     names.join(", "),
   );

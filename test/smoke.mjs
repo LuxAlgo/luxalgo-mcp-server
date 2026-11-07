@@ -12,7 +12,8 @@
   `answers-surfaces` (the Claude address keeps its reviewed answers), and
   `chart` (the opt-in live charts and their chart-session client), and
   `account-tools` (the opt-in watchlists, layouts and alerts; alerts also need
-  LUXALGO_ALERT_TOOLS=on). Run a subset with
+  LUXALGO_ALERT_TOOLS=on), and
+  `paper-tools` (the opt-in Paper Trading by LuxAlgo tools). Run a subset with
   --only <suite>[,<suite>], e.g. `node test/smoke.mjs --only library,edge`.
 */
 import { Client } from "@modelcontextprotocol/client";
@@ -43,6 +44,8 @@ const stdioEnv = {
   ...(process.env.LUXALGO_ACCOUNT_TOOLS ? { LUXALGO_ACCOUNT_TOOLS: process.env.LUXALGO_ACCOUNT_TOOLS } : {}),
   // The alerts tools' own switch, on top of the account tools' one, when this run asks for it.
   ...(process.env.LUXALGO_ALERT_TOOLS ? { LUXALGO_ALERT_TOOLS: process.env.LUXALGO_ALERT_TOOLS } : {}),
+  // The opt-in paper trading tools, when this run asks for them.
+  ...(process.env.LUXALGO_PAPER_TOOLS ? { LUXALGO_PAPER_TOOLS: process.env.LUXALGO_PAPER_TOOLS } : {}),
 };
 
 /**
@@ -165,6 +168,9 @@ const suites = [
   // Opt-in watchlists, layouts and alerts: anonymous refusals, schemas, the Claude address without them,
   // and the success paths against a stand-in for the app's routes (a stdio entry signed in to the stand-in).
   ["account-tools", () => import("./smoke/account-tools.mjs")],
+  // Opt-in Paper Trading by LuxAlgo: anonymous refusals, annotations, the Claude address without them, and
+  // propose then place against a stand-in for the app's routes (no token, a used token, a changed order: refused).
+  ["paper-tools", () => import("./smoke/paper-tools.mjs")],
 ];
 
 const context = { client, check, callJson, callStructured, httpUrl, rawToolsList };

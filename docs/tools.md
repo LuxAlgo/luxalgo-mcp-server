@@ -114,6 +114,20 @@ Self-hosted with `LUXALGO_ACCOUNT_TOOLS=on`; not on the hosted addresses yet, an
 
 Markets are named `source:TICKER` (`binance:BTCUSDT`, `hyperliquid:BTC`, `edgx:AAPL`, `fx:EURUSD`, `cme:ES1!`). Alerts notify your in-app channel (Vela on the web and the Vela app on your phone) when you have one, and say so plainly when they notify no one. Your plan sets the limits; nothing here deletes a watchlist, a layout or an alert. `chart_peek` asks your open Vela tab for its picture through the LuxAlgo app, which keeps nothing after the answer; for any market other than exchange-fed crypto it says so and sends no picture, and if no tab answers it asks you to open Vela at https://vela.luxalgo.com/chart, keep it visible and ask again in a minute.
 
+## Paper trading (sign-in)
+
+Self-hosted with `LUXALGO_PAPER_TOOLS=on`; not on the hosted addresses yet, and never on the Claude address while its directory review runs. Paper Trading by LuxAlgo is LuxAlgo's paper simulator: simulated money, never a broker, never live orders, never real money.
+
+| Tool | Returns |
+| --- | --- |
+| `paper_account` | Your paper accounts: balance, equity, P&L and margin, open positions, working orders (with their ids) and the newest fills |
+| `paper_propose_order` | A proposed market, limit or stop order with an exact quantity (optionally a stop loss and a take profit), checked and priced: estimated price, value and margin, plus a confirmation token. Places nothing |
+| `paper_close_position` | A proposed close of a position at market, all of it or a percent, with a confirmation token. Places nothing |
+| `paper_cancel_order` | A proposed cancel of a working order, with a confirmation token. Cancels nothing |
+| `paper_place_order` | Carries out a proposal you approved, with its confirmation token and the order restated |
+
+Every change is two steps and you decide in between: the assistant proposes, shows you the exact order and waits for your yes; only then does it call `paper_place_order`. The confirmation token works once, for that order and your account, for a few minutes; another order, a used or expired token, or none is refused and nothing is placed. `paper_place_order` is marked destructive, so chat apps that honour tool annotations ask you before it runs. The LuxAlgo app checks every account is one of your own paper accounts, and your risk limits and kill switch decide again when the order is placed. These tools never recommend trades.
+
 ## Brokers (local stdio only)
 
 | Tool | Returns |
