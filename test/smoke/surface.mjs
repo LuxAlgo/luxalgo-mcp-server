@@ -21,25 +21,38 @@ export const PROTECTED = [
 ];
 
 /**
- * The member's watchlists, saved layouts, alerts and the picture of their open
- * Vela chart (chart_peek): protected, and opt-in
- * (LUXALGO_ACCOUNT_TOOLS=on or a Vercel preview), so listed all or none.
- * Never on the Claude address (test/smoke/account-tools.mjs).
+ * The member's watchlists, saved layouts and the picture of their open Vela
+ * chart (chart_peek): protected, and opt-in (LUXALGO_ACCOUNT_TOOLS=on or a
+ * Vercel preview), so listed all or none. Never on the Claude address
+ * (test/smoke/account-tools.mjs).
  */
-export const ACCOUNT_PROTECTED = [
+export const MEMBER_PROTECTED = [
   "watchlists_list",
   "watchlists_create",
   "watchlists_add_symbols",
   "watchlists_remove_symbols",
   "layouts_list",
+  "chart_peek",
+];
+
+/**
+ * The member's alerts: protected, and listed only when the account tools are
+ * on AND their own switch is (LUXALGO_ALERT_TOOLS=on or a Vercel preview).
+ */
+export const ALERTS_PROTECTED = [
   "alerts_list",
   "alerts_create_price",
   "alerts_create_custom",
   "alerts_pause",
   "alerts_resume",
   "alerts_history",
-  "chart_peek",
 ];
+
+/** Every account tool with both switches on, in tools/list order. */
+export const ACCOUNT_PROTECTED = [...MEMBER_PROTECTED.slice(0, 5), ...ALERTS_PROTECTED, "chart_peek"];
+
+/** Market Trackers: public, on the standard address, stdio and the Claude address; never on the ChatGPT address. */
+export const TRACKERS = ["trackers_datasets", "trackers_query", "trackers_latest", "trackers_ticker"];
 
 export async function run({ client, check, callJson, callStructured, httpUrl, rawToolsList }) {
   // tools/list
@@ -65,10 +78,7 @@ export async function run({ client, check, callJson, callStructured, httpUrl, ra
     "propfirms_simulate_trades",
     "propfirms_pass_rates",
     "propfirms_validate_strategy",
-    "trackers_datasets",
-    "trackers_query",
-    "trackers_latest",
-    "trackers_ticker",
+    ...TRACKERS,
     "edge_symbols",
     "edge_presets",
     "edge_report",
@@ -86,20 +96,25 @@ export async function run({ client, check, callJson, callStructured, httpUrl, ra
   // The live chart tools are opt-in (LUXALGO_CHART_TOOLS=on or a Vercel preview): all three or none.
   const chartExpected = ["chart_open", "chart_command", "chart_sync"];
   const chartOn = tools.some((t) => chartExpected.includes(t.name)); // chart_peek is an account tool, not one of these
-  const accountOn = tools.some((t) => ACCOUNT_PROTECTED.includes(t.name));
-  const protectedAll = [...PROTECTED, ...(accountOn ? ACCOUNT_PROTECTED : [])];
-  const expectedAll = [
-    ...expected,
-    ...(httpUrl ? [] : brokerExpected),
-    ...(chartOn ? chartExpected : []),
-    ...(accountOn ? ACCOUNT_PROTECTED : []),
-  ];
+  // Over stdio this run's switches decide (the runner passes them through); over HTTP the deployment's, read from its list.
+  const accountOn = httpUrl ? tools.some((t) => MEMBER_PROTECTED.includes(t.name)) : process.env.LUXALGO_ACCOUNT_TOOLS === "on";
+  const alertsOn = accountOn && (httpUrl ? tools.some((t) => ALERTS_PROTECTED.includes(t.name)) : process.env.LUXALGO_ALERT_TOOLS === "on");
+  const accountExpected = [...(accountOn ? MEMBER_PROTECTED : []), ...(alertsOn ? ALERTS_PROTECTED : [])];
+  const protectedAll = [...PROTECTED, ...accountExpected];
+  const expectedAll = [...expected, ...(httpUrl ? [] : brokerExpected), ...(chartOn ? chartExpected : []), ...accountExpected];
   const names = tools.map((t) => t.name).sort();
   check(
-    `tools/list exposes exactly the ${expectedAll.length} ${httpUrl ? "hosted" : "stdio"} tools${chartOn ? " (chart tools on)" : ""}${accountOn ? " (account tools on)" : ""}`,
+    `tools/list exposes exactly the ${expectedAll.length} ${httpUrl ? "hosted" : "stdio"} tools${chartOn ? " (chart tools on)" : ""}${accountOn ? " (account tools on)" : ""}${alertsOn ? " (alerts on)" : ""}`,
     names.length === expectedAll.length && expectedAll.slice().sort().every((n, i) => names[i] === n),
     names.join(", "),
   );
+  if (!alertsOn) {
+    check(
+      `with the alert switch off${accountOn ? " (account tools on)" : ""}, no alerts tool is listed`,
+      names.every((n) => !n.startsWith("alerts_")),
+      names.filter((n) => n.startsWith("alerts_")).join(", ") || "none",
+    );
+  }
   check(
     httpUrl ? "hosted entry exposes no broker tools" : "stdio entry exposes all 6 broker tools",
     httpUrl

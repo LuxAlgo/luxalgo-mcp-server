@@ -2,7 +2,8 @@
   The Claude address (claude.mcp.luxalgo.com) is frozen while Anthropic reviews it:
   every tool definition and every result there stays byte for byte what it was. The
   ChatGPT address (/mcp/openai) and the standard one carry Vela chart links
-  (`chart_url`); the Claude address does not, until the review is done.
+  (`chart_url`); the Claude address does not, until the review is done. Market
+  Trackers are on the standard and Claude addresses, never on the ChatGPT one.
 
   Runs over HTTP in both modes. With --http it uses that server (the Claude host is
   reached the way the discovery suite reaches it); over stdio it starts the built
@@ -14,6 +15,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createServer } from "node:net";
+import { TRACKERS } from "./surface.mjs";
 
 /** sha256 of JSON.stringify(tools/list `tools`) on the Claude address, as Anthropic is reviewing it (2.1.0). */
 export const CLAUDE_TOOLS_SHA256 = "f2233dd025f31f7187f8d85f09f0cf240855182511781ef643bd4bba57996907";
@@ -114,6 +116,17 @@ export async function run({ check, httpUrl }) {
       "the Claude address lists every tool exactly as Anthropic is reviewing it",
       digest === CLAUDE_TOOLS_SHA256,
       `${listed?.tools?.length} tools, sha256 ${digest.slice(0, 12)}…`,
+    );
+
+    // ── Market Trackers: off the ChatGPT address only ──────────────────────
+    const standardNames = ((await rpc({ url: new URL(httpUrl ?? server.url) }, "tools/list", {}))?.tools ?? []).map((t) => t.name);
+    const openaiNames = ((await rpc(openai, "tools/list", {}))?.tools ?? []).map((t) => t.name);
+    const claudeNames = (listed?.tools ?? []).map((t) => t.name);
+    const hasAll = (names) => TRACKERS.every((n) => names.includes(n));
+    check(
+      "the ChatGPT address lists no Market Trackers tools; the standard and Claude addresses still do",
+      openaiNames.length > 0 && openaiNames.every((n) => !n.startsWith("trackers_")) && hasAll(standardNames) && hasAll(claudeNames),
+      `trackers tools: standard ${standardNames.filter((n) => n.startsWith("trackers_")).length}, ChatGPT ${openaiNames.filter((n) => n.startsWith("trackers_")).length}, Claude ${claudeNames.filter((n) => n.startsWith("trackers_")).length}; tools: standard ${standardNames.length}, ChatGPT ${openaiNames.length}, Claude ${claudeNames.length}`,
     );
 
     const calls = {
