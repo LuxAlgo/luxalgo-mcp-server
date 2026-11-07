@@ -8,44 +8,49 @@
 
 # LuxAlgo MCP
 
-Bring [Vela](https://vela.luxalgo.com/chart), the next-generation charting platform by LuxAlgo, into ChatGPT, Claude and any agent.
+**Vela, live in your chat.** Ask for a chart and it opens right in the conversation: a live chart from [Vela](https://vela.luxalgo.com/chart), the next-generation charting platform by LuxAlgo, that changes when you ask. Sign in with LuxAlgo and your AI works inside your own Vela too.
 
 [![npm](https://img.shields.io/npm/v/@luxalgo/mcp?style=flat-square&label=npm&labelColor=0a0a0a&color=35a2de)](https://www.npmjs.com/package/@luxalgo/mcp)
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-io.github.LuxAlgo%2Fluxalgo--mcp--server-9200ff?style=flat-square&labelColor=0a0a0a)](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.LuxAlgo/luxalgo-mcp-server)
 [![License: MIT](https://img.shields.io/badge/license-MIT-ededed?style=flat-square&labelColor=0a0a0a)](LICENSE)
 
-## Vela in your chat
+## Right here in your chat
 
 <img alt="A live BTC 4 hour Vela chart with RSI and a level at 80,000, opened from one sentence inside a chat" src="docs/images/vela-chart-in-chat.png" width="100%">
 
-- **Open a live chart from a sentence.** "Show BTC on 4 hour candles with RSI and a line at 80,000."
-- **Change it by asking.** Market, timeframe, indicators, levels, zones, the date range. You can pan, zoom and draw on it too.
-- **The model can read it.** It sees what you see: the last price, the day's change, the visible range and each indicator's value.
+- **Open a live chart from a sentence.** "Show BTC on 4 hour candles with RSI and a line at 80,000." It runs on the open-source core of Vela by LuxAlgo.
+- **Change it by asking.** Switch markets, add RSI or MACD, draw a level, shade a zone, zoom to a date range. The chart updates in place.
+- **Your AI reads it.** The last price, the day's change and each indicator's latest value, as you see them.
+- **Crypto and 24/7 stocks.** Crypto from Hyperliquid and Binance, and Hyperliquid's 24/7 stock perpetuals such as TSLA. **Open in Vela** takes the chart to the full platform.
+- **The Library.** 800+ indicators and 800+ concepts, with Pine Script® source where it is published and a link that opens each indicator on a Vela chart.
+- **Session statistics.** Gap fills, opening-range breakouts, weekday effects, each with its sample size and a 95% confidence interval: historical frequencies, never predictions.
+- **Prop firm simulations.** Your stats or real trades through a firm's exact rules: the chance you pass, the likely cost and the rule that ends most attempts.
 
-Run it yourself today with `LUXALGO_CHART_TOOLS=on` ([three commands](docs/self-hosting.md#live-vela-charts)). The hosted version is next.
+The chart shows in clients that display MCP Apps (ChatGPT today).
+
+## Inside your Vela
+
+Sign in with LuxAlgo and your AI works in your own Vela:
+
+- builds and edits your **watchlists**;
+- pulls up your **saved layouts**;
+- looks at **the chart you have open**;
+- reviews, logs and tags **your trades** in your Trade Journal.
+
+It never places trades, moves money or gives investment advice.
 
 ## Add it
 
-| Where | How |
-| --- | --- |
-| **ChatGPT** | LuxAlgo is an app in ChatGPT's **Plugins** directory. Search **LuxAlgo**, add it. |
-| **Claude** | **Customize** > **Connectors** > **+** > **Add custom connector**: `https://claude.mcp.luxalgo.com/mcp` |
-| **Claude Code** | `claude mcp add --transport http luxalgo https://mcp.luxalgo.com/mcp` |
-| **Codex** | `codex mcp add luxalgo --url https://mcp.luxalgo.com/mcp` |
-| **Cursor, VS Code, any client** | `https://mcp.luxalgo.com/mcp` ([Cursor](https://cursor.com/en/install-mcp?name=luxalgo&config=eyJ1cmwiOiJodHRwczovL21jcC5sdXhhbGdvLmNvbS9tY3AifQ==) · [VS Code](https://vscode.dev/redirect/mcp/install?name=luxalgo&config=%7B%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fmcp.luxalgo.com%2Fmcp%22%7D) one-click) |
-| **Your machine** | `npx -y @luxalgo/mcp` (adds read-only broker accounts; [setup](docs/self-hosting.md#local-stdio)) |
+| Where | How | What you get |
+| --- | --- | --- |
+| **ChatGPT** | The approved LuxAlgo app: open **Plugins** in ChatGPT, search **LuxAlgo**, add it. | Everything above |
+| **Claude** | **Customize** > **Connectors** > **+** > **Add custom connector**: `https://claude.mcp.luxalgo.com/mcp` | The Library, prop firm simulations, session statistics and your Trade Journal; no chart or Vela account tools on this address yet |
+| **Claude Code** | `claude mcp add --transport http luxalgo https://mcp.luxalgo.com/mcp` | Everything above |
+| **Codex** | `codex mcp add luxalgo --url https://mcp.luxalgo.com/mcp` | Everything above |
+| **Cursor, VS Code, any client** | `https://mcp.luxalgo.com/mcp` ([Cursor](https://cursor.com/en/install-mcp?name=luxalgo&config=eyJ1cmwiOiJodHRwczovL21jcC5sdXhhbGdvLmNvbS9tY3AifQ==) · [VS Code](https://vscode.dev/redirect/mcp/install?name=luxalgo&config=%7B%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fmcp.luxalgo.com%2Fmcp%22%7D) one-click) | Everything above; the chart where the client shows MCP Apps |
+| **Your machine** | `npx -y @luxalgo/mcp` ([setup](docs/self-hosting.md#local-stdio)) | The Library, session statistics, prop firm simulations and your Trade Journal, plus read-only broker accounts; keys stay on your machine |
 
-No API key. Only the Trade Journal asks you to sign in with LuxAlgo.
-
-## Also in the box
-
-| What | You get |
-| --- | --- |
-| **The Library** | 800+ indicators and 800+ concepts from the largest indicator library in trading. Every indicator comes with an **Open in Vela** link. |
-| **Session statistics** | Gap fills, opening-range breakouts, weekday effects, each with its sample size and a 95% confidence interval. |
-| **Prop-firm simulations** | Your stats or real trades through a firm's exact rules, FTMO and others: the chance you pass and what it costs. |
-| **Trade Journal** | Your LuxAlgo journal from the chat: performance, the P&L calendar, tags and notes. Sign-in. |
-| **Broker accounts** | Read-only balances, positions and trades across 22 brokers and exchanges. Local only; keys stay on your machine. |
+No API key. Signing in with LuxAlgo is asked only for your own data: your Vela and your Trade Journal.
 
 ## Build your own Vela
 
