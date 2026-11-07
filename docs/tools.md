@@ -33,6 +33,8 @@ Self-hosted with `LUXALGO_CHART_TOOLS=on`; not on the hosted address yet. See [s
 | `chart_command` | Edits to the open chart, applied in place; what it now shows, in words, plus the numbers on screen for exchange-fed markets |
 | `chart_sync` | Used by the chart view only, never by the model |
 
+The chart streams crypto markets from exchanges (Hyperliquid, Binance) in the user's browser. Asked for a market it can't show here (a stock, a future, a forex pair: `AAPL`, `edgx:AAPL`, `fx:EURUSD`, `cme:ES1!`), `chart_open` and `chart_command` open nothing and answer in words with that market's Vela link (`chart_url`). In the chart's symbol search, a quiet line says stocks, futures and forex are on Vela, with an "Open in Vela" button that carries what was typed. Hyperliquid's HIP-3 perpetuals are written with their dex, `hyperliquid:<dex>:<COIN>` (`hyperliquid:xyz:TSLA`), and open once the chart view is built with `@luxalgo/vela` 0.10.2 or later; a bare `TSLA` is answered with the HIP-3 markets that list it, because Vela never picks a dex for a bare ticker. Every chart result tells the model that the live chart on screen is the answer, so it adds no chart pictures or links from the web.
+
 ## Library (public)
 
 | Tool | Returns |
