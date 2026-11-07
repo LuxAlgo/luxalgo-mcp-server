@@ -558,37 +558,40 @@ async function pollingChecks(client, check, where) {
     return { result, ms: Date.now() - started };
   };
 
-  // An idle chart: the server asks for slow polls.
+  // An idle chart: the server asks for slow polls (about every 6 s).
   const idle = await open();
-  const first = await sync(idle.chartId, idle.syncKey, 0, { next_poll_ms: 12_000 });
+  const first = await sync(idle.chartId, idle.syncKey, 0, { next_poll_ms: 6_000 });
   check(
     `${where}, an idle chart's view is told to poll slowly (next_poll_ms)`,
-    first.known === true && first.next_poll_ms === 12_000,
+    first.known === true && first.next_poll_ms === 6_000,
     `next_poll_ms ${first.next_poll_ms}`,
   );
 
-  // The view announced a slow poll: chart_command does not wait 12 s, it answers at once that the change is queued.
-  const slow = await command(idle.chartId, [{ op: "add_level", price: 70000, label: "Slow" }]);
+  // An edit on an idle chart: chart_command waits for the view's next idle check and confirms it.
+  let picked;
+  let after;
+  const idleView = (async () => {
+    await sleep(6_000);
+    picked = await sync(idle.chartId, idle.syncKey, 0, { next_poll_ms: 6_000 });
+    const seq = picked.ops?.at(-1)?.seq ?? 0;
+    after = await sync(idle.chartId, idle.syncKey, seq, { next_poll_ms: 6_000 });
+  })();
+  const slow = await command(idle.chartId, [{ op: "add_level", price: 70000, label: "Idle" }]);
+  await idleView;
   check(
-    `${where}, when the view's next poll is far off, chart_command answers at once that the change is queued and when it applies`,
-    !slow.result.isError &&
-      slow.result.structuredContent?.applied === false &&
-      /within about \d+ seconds/.test(textOf(slow.result)) &&
-      slow.ms < 3_000,
-    `${slow.ms} ms: ${textOf(slow.result).slice(0, 120)}`,
+    `${where}, an edit on an idle chart is applied at the view's next check and chart_command confirms it`,
+    !slow.result.isError && slow.result.structuredContent?.applied === true && slow.ms < 9_000,
+    `${slow.ms} ms, applied ${slow.result.structuredContent?.applied}`,
   );
-  const picked = await sync(idle.chartId, idle.syncKey, 0, { next_poll_ms: 12_000 });
-  const seq = picked.ops?.at(-1)?.seq ?? 0;
   check(
-    `${where}, the view's next poll picks the queued change up and is told to poll fast`,
-    picked.ops?.some((op) => op.op === "add_level" && op.price === 70000) && picked.next_poll_ms === 1_000,
-    `${picked.ops?.length} ops, next_poll_ms ${picked.next_poll_ms}`,
+    `${where}, the view's next poll picks the change up and is told to poll fast`,
+    picked?.ops?.some((op) => op.op === "add_level" && op.price === 70000) && picked?.next_poll_ms === 1_000,
+    `${picked?.ops?.length} ops, next_poll_ms ${picked?.next_poll_ms}`,
   );
-  const after = await sync(idle.chartId, idle.syncKey, seq, { next_poll_ms: 12_000 });
   check(
     `${where}, for a while after the model's last chart_command the view keeps polling fast, even with nothing pending`,
-    after.ops?.length === 0 && after.next_poll_ms === 1_000,
-    `next_poll_ms ${after.next_poll_ms}`,
+    after?.ops?.length === 0 && after?.next_poll_ms === 1_000,
+    `next_poll_ms ${after?.next_poll_ms}`,
   );
 
   // The view polls in a few seconds: chart_command waits for that poll and answers with what the chart shows.

@@ -10,7 +10,7 @@
     tool result (chart_id, normalized state).
   - Polls chart_sync (app-only tool) for chart_command ops, applies them,
     acknowledges them, and reports its state in words: about every second
-    while something happens on the chart, every ~12 s when it is idle, not at
+    while something happens on the chart, every ~6 s when it is idle, not at
     all while it is hidden or out of view (see the sync loop below).
   - Tells the model what is on screen (updateModelContext, debounced); a
     candle click offers "Ask about this" (sendMessage); "Open in Vela"

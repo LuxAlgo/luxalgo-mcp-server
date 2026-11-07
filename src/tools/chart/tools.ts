@@ -15,7 +15,7 @@
 
   Never on the Claude address (./index.ts). Polling is adaptive (view/chart/
   main.ts): about every second while something happens on the chart, every
-  ~12 s when it is idle, not at all while it is hidden or out of view. The
+  ~6 s when it is idle, not at all while it is hidden or out of view. The
   view announces its next poll on each chart_sync and chart_sync answers with
   `next_poll_ms`, fast for 30 s after the model's last chart_command on that
   chart (./local.ts). chart_command waits for the view only when its next

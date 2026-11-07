@@ -13,8 +13,8 @@
 /** While something happens: after the chart loads, applies changes, is touched or shown again, or the model is at work on it. */
 export const FAST_POLL_MS = 1_000;
 /** When the chart is idle. The view adds up to SLOW_POLL_JITTER_MS either way, so idle charts do not poll in step. */
-export const SLOW_POLL_MS = 12_000;
-export const SLOW_POLL_JITTER_MS = 1_500;
+export const SLOW_POLL_MS = 6_000;
+export const SLOW_POLL_JITTER_MS = 1_000;
 /** How long the view stays fast after each of those events. */
 export const FAST_WINDOW_MS = 30_000;
 /** After the model's last chart_command on a chart, chart_sync asks its view for fast polls this long. */

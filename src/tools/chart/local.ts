@@ -26,7 +26,7 @@
 import type { ChartNumbers } from "./numbers.js";
 import { FAST_AFTER_COMMAND_MS } from "./polling.js";
 
-/** How long reported numbers count as live: the view reports at least every ~14 s while it is on screen. */
+/** How long reported numbers count as live: the view reports at least every ~7 s while it is on screen. */
 export const NUMBERS_FRESH_MS = 30_000;
 
 /** A poll later than announced by more than this means the schedule is unknown (another instance, a closed view). */
