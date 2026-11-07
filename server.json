@@ -1,13 +1,20 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.LuxAlgo/luxalgo-mcp-server",
-  "title": "LuxAlgo MCP",
-  "description": "LuxAlgo for AI agents: the Library, prop firms, Market Trackers, Edge Stats, and your Trade Journal",
+  "title": "LuxAlgo",
+  "description": "Live Vela charts in your chat, plus the LuxAlgo Library, prop firm simulations and your own Vela",
   "repository": {
     "url": "https://github.com/LuxAlgo/luxalgo-mcp-server",
     "source": "github"
   },
-  "websiteUrl": "https://www.luxalgo.com/mcp",
+  "websiteUrl": "https://www.luxalgo.com/mcp/",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/LuxAlgo/luxalgo-mcp-server/main/applications/openai/assets/logo.png",
+      "mimeType": "image/png",
+      "sizes": ["512x512"]
+    }
+  ],
   "version": "2.1.0",
   "packages": [
     {

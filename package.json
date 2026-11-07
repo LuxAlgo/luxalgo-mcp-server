@@ -1,7 +1,7 @@
 {
   "name": "@luxalgo/mcp",
   "version": "2.1.0",
-  "description": "LuxAlgo MCP server: the LuxAlgo ecosystem for AI agents. The Library encyclopedia of trading & technical analysis; prop-firm analysis (firms, challenges, live offers) and the open-source Monte Carlo challenge simulator; Market Trackers, the public record of US markets (congressional trades, insider filings, lobbying, contracts, patents and more, from CC0 dumps); Edge Stats session statistics; your LuxAlgo Trade Journal; and local read-only broker portfolio access through @luxalgo/broker-sdk. Public tools are free and keyless; the Trade Journal and account tools need a LuxAlgo sign-in (OAuth 2.1).",
+  "description": "Live Vela charts in your chat: open a chart from a sentence and change it by asking, on crypto and Hyperliquid's 24/7 stock perpetuals. Plus the LuxAlgo Library, session statistics and prop firm simulations, and, signed in, your own Vela (watchlists, saved layouts, the chart you have open) and Trade Journal. Local runs add read-only broker accounts. Never places trades.",
   "mcpName": "io.github.LuxAlgo/luxalgo-mcp-server",
   "homepage": "https://www.luxalgo.com/mcp",
   "license": "MIT",

@@ -1,6 +1,6 @@
 # Run it yourself
 
-Everything the hosted server does runs on your own machine too, plus the live Vela charts (until they reach the hosted address) and read-only broker accounts. Back to the [README](../README.md).
+Everything the hosted server does runs on your own machine too, plus read-only broker accounts. The live Vela charts and the Vela account tools are off by default when you run it yourself; switch them on with the variables below. Back to the [README](../README.md).
 
 ## Live Vela charts
 
