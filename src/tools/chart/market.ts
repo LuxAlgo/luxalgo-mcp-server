@@ -99,6 +99,12 @@ export function velaTimeframe(tf: Timeframe): string {
   return TIMEFRAMES[tf].vela;
 }
 
+/** Words for a timeframe as Vela names it ("60", "D") or by its short key ("1h"); null for one not listed here. */
+export function anyTimeframeWords(tf: string): string | null {
+  const entry = Object.entries(TIMEFRAMES).find(([key, value]) => key === tf || value.vela === tf);
+  return entry ? `${entry[1].words} candles` : null;
+}
+
 /** Native (core-computed) indicators the view may add; names are Vela's registered types. */
 export const NATIVE_INDICATORS = {
   rsi: "RSI",

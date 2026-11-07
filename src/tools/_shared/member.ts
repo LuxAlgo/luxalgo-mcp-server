@@ -1,5 +1,6 @@
 /*
-  What the member-account tool domains (watchlists, layouts, alerts) share:
+  What the member-account tool domains (watchlists, layouts, alerts, and the
+  picture of the member's open Vela chart, chart_peek) share:
   the switch that turns them on, and the module shape that keeps them off the
   Claude address.
 
