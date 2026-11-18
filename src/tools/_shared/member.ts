@@ -44,6 +44,16 @@ export const paperToolsEnabled = (): boolean =>
   process.env.LUXALGO_PAPER_TOOLS === "on" || process.env.VERCEL_ENV === "preview";
 
 /**
+ * Quant for the member's AI assistant (tools/quant): Pine Script® generation
+ * and linting, the member's scripts and their backtest loops. Its own switch:
+ * three of its tools spend the member's Quant usage, and the app routes they
+ * call ship dark. Never true on Vercel production unless LUXALGO_QUANT_TOOLS=on
+ * is set there explicitly.
+ */
+export const quantToolsEnabled = (): boolean =>
+  process.env.LUXALGO_QUANT_TOOLS === "on" || process.env.VERCEL_ENV === "preview";
+
+/**
  * A domain of the member's own data: every tool needs a signed-in member
  * (the app routes answer 401 anonymously), so every tool is protected.
  */

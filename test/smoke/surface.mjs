@@ -67,6 +67,24 @@ export const PAPER = [
   "paper_place_order",
 ];
 
+/**
+ * Quant, our coding agent, for the member's AI assistant (Pine Script®
+ * generation and linting, the member's scripts, backtest loops): protected,
+ * and opt-in (LUXALGO_QUANT_TOOLS=on or a Vercel preview), so listed all or
+ * none. Never on the Claude address (test/smoke/quant-tools.mjs).
+ */
+export const QUANT = [
+  "quant_generate_pine_script",
+  "quant_validate_pine_script",
+  "quant_search_user_scripts",
+  "get_user_script",
+  "quant_plan_backtest_loop",
+  "quant_start_backtest_loop",
+  "quant_stop_backtest_loop",
+  "quant_list_backtest_loops",
+  "quant_get_backtest_loop_info",
+];
+
 export async function run({ client, check, callJson, callStructured, httpUrl, rawToolsList }) {
   // tools/list
   const { tools } = await client.listTools();
@@ -113,18 +131,20 @@ export async function run({ client, check, callJson, callStructured, httpUrl, ra
   const accountOn = httpUrl ? tools.some((t) => MEMBER_PROTECTED.includes(t.name)) : process.env.LUXALGO_ACCOUNT_TOOLS === "on";
   const alertsOn = accountOn && (httpUrl ? tools.some((t) => ALERTS_PROTECTED.includes(t.name)) : process.env.LUXALGO_ALERT_TOOLS === "on");
   const paperOn = httpUrl ? tools.some((t) => PAPER.includes(t.name)) : process.env.LUXALGO_PAPER_TOOLS === "on";
+  const quantOn = httpUrl ? tools.some((t) => QUANT.includes(t.name)) : process.env.LUXALGO_QUANT_TOOLS === "on";
   const accountExpected = [...(accountOn ? MEMBER_PROTECTED : []), ...(alertsOn ? ALERTS_PROTECTED : [])];
-  const protectedAll = [...PROTECTED, ...accountExpected, ...(paperOn ? PAPER : [])];
+  const protectedAll = [...PROTECTED, ...accountExpected, ...(paperOn ? PAPER : []), ...(quantOn ? QUANT : [])];
   const expectedAll = [
     ...expected,
     ...(httpUrl ? [] : brokerExpected),
     ...(chartOn ? chartExpected : []),
     ...accountExpected,
     ...(paperOn ? PAPER : []),
+    ...(quantOn ? QUANT : []),
   ];
   const names = tools.map((t) => t.name).sort();
   check(
-    `tools/list exposes exactly the ${expectedAll.length} ${httpUrl ? "hosted" : "stdio"} tools${chartOn ? " (chart tools on)" : ""}${accountOn ? " (account tools on)" : ""}${alertsOn ? " (alerts on)" : ""}${paperOn ? " (paper tools on)" : ""}`,
+    `tools/list exposes exactly the ${expectedAll.length} ${httpUrl ? "hosted" : "stdio"} tools${chartOn ? " (chart tools on)" : ""}${accountOn ? " (account tools on)" : ""}${alertsOn ? " (alerts on)" : ""}${paperOn ? " (paper tools on)" : ""}${quantOn ? " (Quant tools on)" : ""}`,
     names.length === expectedAll.length && expectedAll.slice().sort().every((n, i) => names[i] === n),
     names.join(", "),
   );
