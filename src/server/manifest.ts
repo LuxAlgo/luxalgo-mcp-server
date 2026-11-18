@@ -23,11 +23,17 @@ import { accountModule } from "../tools/account/index.js";
 import { journalModule } from "../tools/journal/index.js";
 import { brokerModule } from "../tools/broker/index.js";
 import { chartModule, chartPeekModule, chartToolsEnabled } from "../tools/chart/index.js";
-import { accountToolsEnabled, alertToolsEnabled, paperToolsEnabled } from "../tools/_shared/member.js";
+import {
+  accountToolsEnabled,
+  alertToolsEnabled,
+  paperToolsEnabled,
+  quantToolsEnabled,
+} from "../tools/_shared/member.js";
 import { watchlistsModule } from "../tools/watchlists/index.js";
 import { layoutsModule } from "../tools/layouts/index.js";
 import { alertsModule } from "../tools/alerts/index.js";
 import { paperModule } from "../tools/paper/index.js";
+import { quantModule } from "../tools/quant/index.js";
 
 /** Registration order is tools/list order. */
 export const TOOL_MODULES: readonly ToolModule[] = [
@@ -49,6 +55,10 @@ export const TOOL_MODULES: readonly ToolModule[] = [
   // Paper Trading by LuxAlgo (simulated money, every order on the member's yes): off unless LUXALGO_PAPER_TOOLS=on or
   // VERCEL_ENV=preview, and never on the Claude address (_shared/member.ts).
   ...(paperToolsEnabled() ? [paperModule] : []),
+  // Quant, our coding agent, for the member's AI assistant (Pine Script® generation and linting, the member's scripts,
+  // backtest loops; three of its tools spend the member's Quant usage): off unless LUXALGO_QUANT_TOOLS=on or
+  // VERCEL_ENV=preview, and never on the Claude address (_shared/member.ts).
+  ...(quantToolsEnabled() ? [quantModule] : []),
 ];
 
 export const PROTECTED_TOOL_NAMES: ReadonlySet<string> = new Set(
