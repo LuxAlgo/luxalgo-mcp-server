@@ -22,6 +22,7 @@ Every tool the LuxAlgo MCP server registers, by area. Names are stable; every re
 | "Where did I lose money last month? Tag my worst trade 'chased'." | `journal_breakdown`, `journal_list_trades`, `journal_update_trade` (sign-in) |
 | "Add SOL and ETH to my Majors watchlist." | `watchlists_list`, `watchlists_add_symbols` (sign-in; standard and ChatGPT addresses) |
 | "Look at my chart in Vela: what do you see?" | `chart_peek` (sign-in; standard and ChatGPT addresses) |
+| "Have Quant write an RSI divergence indicator and save it to my scripts." | `quant_generate_pine_script` (sign-in; self-hosted with `LUXALGO_QUANT_TOOLS=on`) |
 | "What are my open positions across Alpaca and Kraken?" | `broker_positions` (local, your own read-only keys) |
 
 ## Live Vela charts
@@ -131,6 +132,25 @@ Self-hosted with `LUXALGO_PAPER_TOOLS=on`; off on the hosted addresses, and neve
 
 Every change is two steps and you decide in between: the assistant proposes, shows you the exact order and waits for your yes; only then does it call `paper_place_order`. The confirmation token works once, for that order and your account, for a few minutes; another order, a used or expired token, or none is refused and nothing is placed. `paper_place_order` is marked destructive, so chat apps that honour tool annotations ask you before it runs. The LuxAlgo app checks every account is one of your own paper accounts, and your risk limits and kill switch decide again when the order is placed. These tools never recommend trades.
 
+## Quant: Pine Script® and backtest loops (sign-in)
+
+Self-hosted with `LUXALGO_QUANT_TOOLS=on`; off on the hosted addresses, and never on the Claude address while its directory review runs. Quant is our coding agent, built into Vela; these tools let your AI assistant ask it for work on your account.
+
+| Tool | Returns |
+| --- | --- |
+| `quant_generate_pine_script` | A Pine Script® v6 indicator or strategy written from a prompt, or a script changed in place (one you pass, or one of your saved scripts by its id), with a diff. Quant checks every attempt with LuxAlgo's linter and fixes what fails; the result says whether it passes and what is still flagged. A script that passes is saved to your account as one of your Quant scripts. Uses your Quant usage |
+| `quant_validate_pine_script` | Whether a script is valid for LuxAlgo's linter, every error and warning with its position, and what the script declares. Uses no Quant usage |
+| `quant_search_user_scripts` | Your own scripts, the ones Quant wrote for you (in Vela or through these tools) and the ones you saved from the code editor: id, name, kind, origin, dates. No source |
+| `get_user_script` | One of your scripts in full, by its id |
+| `quant_plan_backtest_loop` | A backtest loop's plan from a prompt (markets, range, criteria, capital, time limit, Quant's estimate of the odds) and a `plan_id`. Starts nothing; the planning call uses a little Quant usage |
+| `quant_start_backtest_loop` | Starts the loop of a plan you approved, by its `plan_id`, and returns its loop id and its link in Vela |
+| `quant_stop_backtest_loop` | Stops a loop: it ends after the attempt it is on and keeps what it found |
+| `quant_list_backtest_loops` | Your loops with their ids, status and whether each is active |
+| `quant_get_backtest_loop_info` | Where a loop stands: its status, why it stopped, how many strategies it found against how many the plan asked for, attempts and time used |
+
+A script Quant writes for your assistant is Quant's script like any other: once it passes the linter it is in your account, in a Quant chat that holds the request, and you find it in Vela with your other scripts. One that does not pass yet is returned with what is still flagged, to be passed in again, and is not saved.
+
+A backtest loop is an autonomous run in which Quant writes and backtests strategy versions until enough of them meet the plan's criteria. It runs on LuxAlgo's servers for up to the plan's time limit, whether or not your chat stays open, and every attempt uses your Quant usage until it ends or you stop it; that is why starting one is two steps (plan, then start on your yes) and why `quant_start_backtest_loop` is marked destructive, so chat apps that honour tool annotations ask you before it runs. These tools set a loop going and say where it stands. They do not return the strategies it finds: you read those in Vela, in the loop's Loop Report (the `report_url` in each result), where you can put them on a chart and resume a stopped loop. Backtest loops run on the Ultimate and Ultra plans; the LuxAlgo app decides, and meters all usage. On the hosted addresses one generation or planning call has about 45 seconds (`LUXALGO_QUANT_SECONDS`). Backtests are history under the plan's assumptions, never predictions or financial advice.
 ## Brokers (local stdio only)
 
 | Tool | Returns |
