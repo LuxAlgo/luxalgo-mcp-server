@@ -24,6 +24,14 @@
   the one tool marked destructive, so MCP hosts ask the member before it runs.
 
   Results are plain words plus compact structured content.
+
+  quant_generate_pine_script can also put the script it wrote on the chart
+  the member has open in Vela (add_to_chart, off by default). That is the
+  chart tools' own add (tools/vela): once the script passes and is saved, the
+  app is asked to add that saved script by its id, so no source goes to the
+  chart route and every rule of an add holds (the member's own script, their
+  plan's tools per chart, a change queued while Vela is not on screen). The
+  option is offered only where the chart tools are listed.
 */
 import { z } from "zod";
 import type { CallToolResult, McpServer } from "@modelcontextprotocol/server";
@@ -31,6 +39,8 @@ import { registerProtectedTool } from "../../auth/protected-tool.js";
 import type { AuthRuntime } from "../../auth/runtime.js";
 import { AppApiError, AppAuthError, AppPermissionError } from "../../platform/app-client.js";
 import { errorMessage, ok, textError } from "../_shared/result.js";
+import { velaChartListedHere } from "../vela/index.js";
+import { OPEN_VELA, sendChartCommand } from "../vela/tools.js";
 import {
   generatePineScript,
   getBacktestLoop,
@@ -84,6 +94,72 @@ const CODE_CHARS = 200_000;
 function timeBudgetSeconds(): number {
   const asked = Number(process.env.LUXALGO_QUANT_SECONDS);
   return Number.isFinite(asked) && asked > 0 ? Math.min(240, Math.max(15, Math.round(asked))) : 45;
+}
+
+/** A hosted call answers inside its function's 60 s limit; what is left of it after Quant wrote the script is the chart's. */
+const HOSTED_ANSWER_MS = 56_000;
+/** The longest the chart is waited for: what its own tools take at most (a tab that starts listening, then the add). */
+const CHART_WAIT_MS = 45_000;
+/** With less than this left, the add is not started: it would be cut off before it could answer. */
+const CHART_MIN_MS = 6_000;
+
+type OnChart = {
+  /** added, updated (a new version of a script that was on the chart), queued, not_added, unknown or skipped. */
+  status: "added" | "updated" | "queued" | "not_added" | "unknown" | "skipped";
+  words: string;
+  name?: string;
+};
+
+/**
+ * Put the saved script on the chart the member has open in Vela, through the chart
+ * tools' own add: by its id, never its source. `startedAt` is when the tool call began.
+ */
+async function putOnChart(scriptId: string, startedAt: number): Promise<OnChart> {
+  const byHand = `call vela_add_indicator with script_id ${scriptId}`;
+  const left = process.env.VERCEL_ENV ? HOSTED_ANSWER_MS - (Date.now() - startedAt) : CHART_WAIT_MS;
+  if (left < CHART_MIN_MS) {
+    return { status: "skipped", words: `There was no time left in this call to put it on the member's Vela chart: ${byHand}.` };
+  }
+  const sending = sendChartCommand({ op: "add_indicator", indicator: { script: scriptId, update: true } });
+  // Still running when this stops waiting: its outcome is then nobody's to read.
+  sending.catch(() => undefined);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<"late">((resolve) => {
+    timer = setTimeout(() => resolve("late"), Math.min(left, CHART_WAIT_MS));
+  });
+  const unknown: OnChart = {
+    status: "unknown",
+    words: `Putting it on the member's Vela chart did not finish in time, so it is not known whether it is there: read the chart with vela_read_chart, and if it is not, ${byHand}.`,
+  };
+  try {
+    const answer = await Promise.race([sending, late]);
+    if (answer === "late") return unknown;
+    switch (answer.status) {
+      case "ok": {
+        const name = answer.indicatorAdded?.name;
+        return answer.indicatorAdded?.updated
+          ? { status: "updated", words: "It was on the member's Vela chart already, which now runs this version.", ...(name ? { name } : {}) }
+          : { status: "added", words: `It is on the member's open Vela chart now${name ? `, as ${name}` : ""}; they saw it appear.`, ...(name ? { name } : {}) };
+      }
+      case "queued":
+        return {
+          status: "queued",
+          words: `It is queued for the member's Vela chart, not on it yet: no Vela tab of theirs is on screen right now, and it is added the moment they look at Vela again, within 10 minutes. Tell them to open Vela at ${OPEN_VELA}.`,
+        };
+      case "failed":
+        return { status: "not_added", words: `It was not put on the member's Vela chart: ${answer.error}` };
+      default:
+        return unknown;
+    }
+  } catch (error) {
+    if (error instanceof AppAuthError || error instanceof AppPermissionError) throw error;
+    if (error instanceof AppApiError && error.status === 404) {
+      return { status: "not_added", words: "Putting a script on the member's Vela chart is not available on this account yet; it is saved, and they can add it from their scripts in Vela." };
+    }
+    return { status: "not_added", words: `It could not be put on the member's Vela chart (${errorMessage(error)}). To try again, ${byHand}.` };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 const loopIdInput = z
@@ -339,13 +415,18 @@ function failure(error: unknown, what: string): CallToolResult {
 // ── registration ────────────────────────────────────────────────────────────
 
 export function registerQuantTools(server: McpServer, runtime: AuthRuntime) {
+  // Offered only where the chart tools are listed, so every other address keeps this tool's definition as it is.
+  const withChart = velaChartListedHere();
+  const onChartWords = withChart
+    ? " With `add_to_chart` (off by default), a script that passes is also put on the chart the member has open right now in Vela, the one they used last, where they see it appear and run; a changed script that was on that chart already runs its new version in place. Set it only when the member asked to see it on their chart."
+    : "";
   registerProtectedTool(
     server,
     runtime,
     "quant_generate_pine_script",
     {
       title: "Write Pine Script® with Quant",
-      description: `Has Quant, our coding agent, write a Pine Script® v6 indicator or strategy from a prompt, or change one in place: the script passed as \`code\`, or one of the member's saved scripts by its \`script_id\` (the result then has a unified diff). Quant works in the background with the Pine Script® reference, checks every attempt with LuxAlgo's linter and fixes what fails, until the script passes or its time runs out. Returns the script, whether it passes the linter and what is still flagged. A script that passes is saved to the member's LuxAlgo account as one of their Quant scripts, where they find it in Vela: a new script, or with \`script_id\` a new version of that script; the result says which, with its script_id. One that does not pass yet is saved nowhere: call again with it as \`code\` (and the same \`script_id\`, if any) and what is left to fix as the prompt. ${USAGE} To only check a script the member already has, use quant_validate_pine_script, which uses no usage. It writes code; it never runs or backtests it, and it is not trading advice.`,
+      description: `Has Quant, our coding agent, write a Pine Script® v6 indicator or strategy from a prompt, or change one in place: the script passed as \`code\`, or one of the member's saved scripts by its \`script_id\` (the result then has a unified diff). Quant works in the background with the Pine Script® reference, checks every attempt with LuxAlgo's linter and fixes what fails, until the script passes or its time runs out. Returns the script, whether it passes the linter and what is still flagged. A script that passes is saved to the member's LuxAlgo account as one of their Quant scripts, where they find it in Vela: a new script, or with \`script_id\` a new version of that script; the result says which, with its script_id. One that does not pass yet is saved nowhere: call again with it as \`code\` (and the same \`script_id\`, if any) and what is left to fix as the prompt.${onChartWords} ${USAGE} To only check a script the member already has, use quant_validate_pine_script, which uses no usage. It writes code; it never runs or backtests it, and it is not trading advice.`,
       inputSchema: z.object({
         prompt: z
           .string()
@@ -368,10 +449,24 @@ export function registerQuantTools(server: McpServer, runtime: AuthRuntime) {
           .describe(
             "One of the member's saved scripts to change, by its id from quant_search_user_scripts. Its saved source is what Quant changes unless `code` is passed too, and a result that passes is saved as its new version.",
           ),
+        ...(withChart
+          ? {
+              add_to_chart: z
+                .boolean()
+                .optional()
+                .describe(
+                  "Also put the script on the chart the member has open right now in Vela, the one they used last, once it passes and is saved. False by default: set it only when the member asked to see it on their chart.",
+                ),
+            }
+          : {}),
       }),
-      annotations: SPENDS,
+      // With the option, the call can reach outside: the member's browser.
+      annotations: { ...SPENDS, openWorldHint: withChart },
     },
-    async ({ prompt, code, script_id }) => {
+    async (input) => {
+      const { prompt, code, script_id } = input;
+      const addToChart = withChart && (input as { add_to_chart?: boolean }).add_to_chart === true;
+      const startedAt = Date.now();
       try {
         const generation = await generatePineScript({
           prompt,
@@ -380,6 +475,12 @@ export function registerQuantTools(server: McpServer, runtime: AuthRuntime) {
           timeoutSeconds: timeBudgetSeconds(),
         });
         const saved = generation.savedScript;
+        // Only a script that passes and is saved goes on the chart: by its saved id, as the chart tools add one.
+        const onChart: OnChart | null = !addToChart
+          ? null
+          : generation.lint.valid === true && saved && generation.code !== null
+            ? await putOnChart(saved.id, startedAt)
+            : { status: "not_added", words: "It was not put on the member's Vela chart: only a script that passes and is saved goes there." };
         const structured = {
           id: generation.id,
           status: generation.status,
@@ -396,6 +497,7 @@ export function registerQuantTools(server: McpServer, runtime: AuthRuntime) {
           saved: saved !== null,
           script_id: saved?.id ?? null,
           ...(saved ? { saved_as: saved.created ? "new_script" : "new_version" } : {}),
+          ...(onChart ? { on_chart: onChart.status, ...(onChart.name ? { on_chart_as: onChart.name } : {}) } : {}),
         };
         if (generation.status === "failed" || generation.code === null) {
           const why =
@@ -418,7 +520,7 @@ export function registerQuantTools(server: McpServer, runtime: AuthRuntime) {
             ? `It passes LuxAlgo's linter. ${kept}`
             : `It does not pass LuxAlgo's linter yet (${plural(generation.lint.errors.length, "error")}), so it was not saved:\n${diagnosticLines(generation.lint.errors)}\nCall quant_generate_pine_script again with this script as \`code\`${script_id ? " and the same script_id" : ""} to fix them.`;
         const text =
-          `${code || script_id ? "Changed" : "Written"} by Quant in ${plural(generation.attempts, "attempt")}. ${verdict}` +
+          `${code || script_id ? "Changed" : "Written"} by Quant in ${plural(generation.attempts, "attempt")}. ${verdict}${onChart ? ` ${onChart.words}` : ""}` +
           `${generation.comment ? `\n\n${generation.comment}` : ""}\n\n\`\`\`pine\n${generation.code.replace(/\s+$/, "")}\n\`\`\``;
         return ok(text, structured);
       } catch (error) {

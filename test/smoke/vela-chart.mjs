@@ -117,16 +117,35 @@ async function addresses(check) {
     const props = (name) => Object.keys(tool(name).inputSchema?.properties ?? {});
     const changing = VELA_CHART.filter((n) => n !== "vela_read_chart");
     check(
-      "reading is read-only; changing, marking up, drawing and removing are not, and all five reach outside (the member's browser)",
+      "reading is read-only; changing, marking up, drawing, removing and the two indicator tools are not, and all seven reach outside (the member's browser)",
       a("vela_read_chart").readOnlyHint === true &&
-        changing.length === 4 &&
+        changing.length === 6 &&
         changing.every((n) => a(n).readOnlyHint === false) &&
         VELA_CHART.every((n) => a(n).openWorldHint === true),
       VELA_CHART.map((n) => `${n} ${JSON.stringify(a(n))}`).join("; "),
     );
     check(
-      "only removing drawings is marked destructive",
-      VELA_CHART.every((n) => a(n).destructiveHint === (n === "vela_remove_drawings")),
+      "only removing drawings and removing indicators are marked destructive",
+      VELA_CHART.every((n) => a(n).destructiveHint === (n === "vela_remove_drawings" || n === "vela_remove_indicators")),
+    );
+    const addProps = tool("vela_add_indicator").inputSchema?.properties ?? {};
+    check(
+      "vela_add_indicator takes a Library slug or a saved script's id and nothing that could hold source code; it says it writes no indicator and returns no source",
+      Object.keys(addProps).join() === "slot,library_slug,script_id" &&
+        Object.keys(addProps).every((p) => !/code|source|script$|pine/i.test(p)) &&
+        addProps.script_id?.maxLength === 64 &&
+        /does not take Pine Script® and does not write an indicator/.test(tool("vela_add_indicator").description) &&
+        /never returns source code/.test(tool("vela_add_indicator").description) &&
+        /library_search/.test(tool("vela_add_indicator").description) &&
+        /quant_search_user_scripts/.test(tool("vela_add_indicator").description),
+      Object.keys(addProps).join(", "),
+    );
+    check(
+      "vela_remove_indicators needs the names and says it removes the member's own indicators too, never drawings or a saved script",
+      (tool("vela_remove_indicators").inputSchema?.required ?? []).join() === "names" &&
+        /remove only what they asked for/.test(tool("vela_remove_indicators").description) &&
+        /never touches drawings/.test(tool("vela_remove_indicators").description) &&
+        /does not delete a saved script/.test(tool("vela_remove_indicators").description),
     );
     check("every one of them has a title", VELA_CHART.every((n) => typeof tool(n).title === "string" && a(n).title === tool(n).title));
     const chartProps = Object.keys(tool("vela_set_chart").inputSchema?.properties?.charts?.items?.properties ?? {});
@@ -406,6 +425,66 @@ async function signedIn(check) {
     const none = await call("vela_remove_drawings", { all: true, all_charts: true });
     check("with nothing of an assistant's on the chart, it says so and that the member's own drawings are never touched", !none.isError && /nothing was removed/.test(none.text) && /never touched/.test(none.text), none.text.slice(0, 120));
 
+    const library = await call("vela_add_indicator", { library_slug: "smart-money-concepts" });
+    check(
+      "vela_add_indicator sends a Library indicator's slug and says the name it goes by on the chart",
+      !library.isError &&
+        JSON.stringify(sent()) === '{"op":"add_indicator","indicator":{"library":"smart-money-concepts"}}' &&
+        /^Added Smart Money Concepts \[LuxAlgo\] from the LuxAlgo Library to the member's chart\./.test(library.text) &&
+        /vela_remove_indicators takes it/.test(library.text) &&
+        /Indicators: Volume and Smart Money Concepts \[LuxAlgo\]/.test(library.text) &&
+        library.data.indicator_added?.from === "library" &&
+        library.data.indicator_added?.name === "Smart Money Concepts [LuxAlgo]",
+      library.text.slice(0, 200),
+    );
+    const saved = await call("vela_add_indicator", { slot: 1, script_id: "scr_my_strategy" });
+    check(
+      "it sends one of the member's saved scripts by its id, to the chart asked for, and says when it is a strategy",
+      !saved.isError &&
+        JSON.stringify(sent()) === '{"op":"add_indicator","indicator":{"slot":1,"script":"scr_my_strategy"}}' &&
+        /^Added My Breakout from the member's saved scripts to the member's chart, a strategy: its backtest runs on the chart\./.test(saved.text) &&
+        saved.data.indicator_added?.kind === "strategy",
+      saved.text.slice(0, 200),
+    );
+    const callsBefore = state.calls.length;
+    const both = await call("vela_add_indicator", { library_slug: "smart-money-concepts", script_id: "scr_my_strategy" });
+    const neither = await call("vela_add_indicator", {});
+    check(
+      "asked for both, or for neither, it adds nothing and never calls the app",
+      both.isError && neither.isError && /one of the two/.test(both.text) && /one of the two/.test(neither.text) && state.calls.length === callsBefore,
+      both.text,
+    );
+    const noCode = await call("vela_add_indicator", { library_slug: "smart-money-concepts", code: 'indicator("x")' }).catch((error) => ({ isError: true, text: String(error?.message ?? error) }));
+    check(
+      "source code handed to it never reaches the app",
+      state.calls.slice(callsBefore).every((c) => !JSON.stringify(c.body).includes('indicator(\\"x')),
+      noCode.text.slice(0, 120),
+    );
+    const paid = await call("vela_add_indicator", { library_slug: "paid-toolkit" });
+    check(
+      "a paid Library indicator the member's plan does not include is not added, and the result says so in the app's words",
+      paid.isError && paid.data.status === "failed" && /The chart could not do that: "paid-toolkit" is a paid LuxAlgo Library indicator the member's plan does not include/.test(paid.text),
+      paid.text.slice(0, 200),
+    );
+    const unknown = await call("vela_add_indicator", { library_slug: "no-such-indicator" });
+    check("a slug the Library does not have changes nothing and says to search for the right one", unknown.isError && /^Nothing changed: No Library indicator has the slug "no-such-indicator"/.test(unknown.text), unknown.text.slice(0, 160));
+
+    const tookOff = await call("vela_remove_indicators", { names: ["Smart Money Concepts [LuxAlgo]", "RSI"] });
+    check(
+      "vela_remove_indicators sends the names, says what came off and what was not on the chart, and what the chart shows now",
+      !tookOff.isError &&
+        JSON.stringify(sent()) === '{"op":"remove_indicator","indicators":{"names":["Smart Money Concepts [LuxAlgo]","RSI"]}}' &&
+        /^Removed Smart Money Concepts \[LuxAlgo\] from the member's chart\. Not on the chart, so left alone: RSI\./.test(tookOff.text) &&
+        /Indicators: Volume\./.test(tookOff.text) &&
+        tookOff.data.indicators_removed?.names?.join() === "Smart Money Concepts [LuxAlgo]" &&
+        tookOff.data.indicators_removed?.not_on_chart?.join() === "RSI",
+      tookOff.text.slice(0, 220),
+    );
+    state.mode = "queued";
+    const later = await call("vela_add_indicator", { library_slug: "smart-money-concepts" });
+    check("an indicator asked for while the member's Vela is not on screen is queued, and the result says so", !later.isError && later.data.status === "queued" && /^Queued, not applied yet/.test(later.text), later.text.slice(0, 80));
+    state.mode = "ok";
+
     state.mode = "off";
     const off = await call("vela_read_chart");
     check("while the app has chart control switched off (404), the tools say it is not available yet", off.isError && /not available yet/.test(off.text), off.text);
@@ -440,8 +519,17 @@ const TIMEFRAME = /^(\d+)?\s*(m|h|d|w|M)?$/i;
 
 /** Why the app would refuse this body's shape (its contract), or null. */
 function bodyProblem(body) {
-  if (!body || typeof body !== "object" || !["read", "set", "markup", "draw", "remove"].includes(body.op)) return "op";
-  if (Object.keys(body).some((key) => !["op", "state", "markup", "drawing", "removal"].includes(key))) return "unknown field";
+  if (!body || typeof body !== "object" || !["read", "set", "markup", "draw", "remove", "add_indicator", "remove_indicator"].includes(body.op)) return "op";
+  if (Object.keys(body).some((key) => !["op", "state", "markup", "drawing", "removal", "indicator", "indicators"].includes(key))) return "unknown field";
+  if (body.op === "add_indicator") {
+    const indicator = body.indicator;
+    if (!indicator || Object.keys(indicator).some((key) => !["slot", "library", "script"].includes(key))) return "indicator";
+    if ((indicator.library === undefined) === (indicator.script === undefined)) return "indicator names one thing";
+  }
+  if (body.op === "remove_indicator") {
+    const indicators = body.indicators;
+    if (!indicators || !Array.isArray(indicators.names) || indicators.names.length < 1 || Object.keys(indicators).some((key) => !["slot", "names"].includes(key))) return "indicators";
+  }
   if (body.op === "markup") {
     const markup = body.markup;
     if (!markup || !Array.isArray(markup.concepts) || markup.concepts.length < 1 || markup.concepts.length > 6) return "markup";
@@ -565,6 +653,28 @@ async function startStandIn() {
       const explained = body.markup.concepts.filter((c) => c.teach).length;
       const { explained: _explained, ...marked } = found(state.market === "crypto", explained);
       return send(200, { status: "ok", state: shows({ quantDrawings: 9 }), marked, ...(explained ? { walkthrough: explained } : {}) });
+    }
+    if (body.op === "add_indicator") {
+      const { slot = 0, library, script } = body.indicator;
+      if (library === "no-such-indicator") return send(400, { message: 'No Library indicator has the slug "no-such-indicator". Search the Library for the right one.' });
+      if (library === "paid-toolkit") {
+        return send(200, { status: "failed", error: '"paid-toolkit" is a paid LuxAlgo Library indicator the member\'s plan does not include, so it was not added.' });
+      }
+      const indicatorAdded = library
+        ? { slot, name: "Smart Money Concepts [LuxAlgo]", from: "library", kind: "indicator" }
+        : { slot, name: "My Breakout", from: "saved", kind: script === "scr_my_strategy" ? "strategy" : "indicator" };
+      return send(200, { status: "ok", state: shows(), indicatorAdded });
+    }
+    if (body.op === "remove_indicator") {
+      const on = chartNow().indicators;
+      const names = body.indicators.names.filter((name) => on.includes(name));
+      const notOnChart = body.indicators.names.filter((name) => !on.includes(name));
+      if (names.length === 0) return send(200, { status: "failed", error: `None of those is on this chart, so nothing was removed. On it: ${on.join(", ")}.`, state: shows() });
+      return send(200, {
+        status: "ok",
+        state: shows({ indicators: on.filter((name) => !names.includes(name)) }),
+        indicatorsRemoved: { slot: body.indicators.slot ?? 0, names, ...(notOnChart.length ? { notOnChart } : {}) },
+      });
     }
     if (body.op === "draw") {
       const count = body.drawing.drawings.length;
