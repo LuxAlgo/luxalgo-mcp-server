@@ -3,8 +3,10 @@
   LUXALGO_QUANT_TOOLS=on or a Vercel preview): Pine Script® generation and
   linting, the member's scripts, and backtest loops. Generating, planning and
   a running loop use the member's Quant usage, which the LuxAlgo app meters. A
-  script that passes is kept in the member's account; a loop is started,
-  stopped and followed, and no tool returns the strategies it finds.
+  script that passes is kept in the member's account; a loop is planned,
+  started, stopped and followed, and what it found is read by id: its info
+  names its strategies, best first, and a strategy's id reads its code and
+  backtests.
 
   1. The server under test: when it lists these tools, an anonymous read, an
      anonymous generation and an anonymous start meet the sign-in challenge
@@ -16,7 +18,8 @@
      them and its tool list is byte for byte the one under review.
   3. A stdio entry signed in to a stand-in for the app's Quant routes: a script
      is checked, written, changed, found and read; a loop is planned (nothing
-     starts), started once from its plan id, read, and stopped; the app's
+     starts), started once from its plan id, read, its best strategy read
+     with its backtests, and stopped; the app's
      refusals (out of usage, a plan that cannot run loops, an unknown plan,
      the routes switched off) come back in words and start nothing. The
      stand-in records any call outside the app's MCP allowlist for these
@@ -137,12 +140,25 @@ async function addresses(check) {
       /wait for their yes before calling quant_start_backtest_loop/.test(tool("quant_plan_backtest_loop").description) &&
         /only after you showed the member that plan and they said yes/.test(tool("quant_start_backtest_loop").description),
     );
+    check(
+      "the tools say how to answer \"what was the best strategy of my latest loop?\": the list is newest first, the info names the best strategy, the strategy tool reads it",
+      /newest first/.test(tool("quant_list_backtest_loops").description) &&
+        /best_strategy_id/.test(tool("quant_get_backtest_loop_info").description) &&
+        /quant_get_backtest_loop_strategy/.test(tool("quant_get_backtest_loop_info").description) &&
+        /quant_list_backtest_loops \(newest first\), then quant_get_backtest_loop_info, then this/.test(tool("quant_get_backtest_loop_strategy").description),
+    );
+    check(
+      "reading a strategy says its numbers are backtests, not predictions, and that it uses no Quant usage",
+      /never a prediction or trading advice/.test(tool("quant_get_backtest_loop_strategy").description) &&
+        /uses no Quant usage/.test(tool("quant_get_backtest_loop_strategy").description),
+    );
     const required = (name) => (tool(name).inputSchema?.required ?? []).slice().sort().join();
     check(
       "a loop starts from a plan id, and is stopped and followed by its loop id; a script is written from a prompt, optionally for a script or a saved script id",
       required("quant_start_backtest_loop") === "plan_id" &&
         required("quant_stop_backtest_loop") === "loop_id" &&
         required("quant_get_backtest_loop_info") === "loop_id" &&
+        required("quant_get_backtest_loop_strategy") === "strategy_id" &&
         required("quant_generate_pine_script") === "prompt" &&
         ["code", "script_id"].every((p) => Object.keys(tool("quant_generate_pine_script").inputSchema?.properties ?? {}).includes(p)) &&
         required("quant_validate_pine_script") === "code",
@@ -344,7 +360,9 @@ async function signedIn(check) {
         started.data.loop_id === "loop_1" &&
         started.data.running === true &&
         started.data.report_url === "https://vela.luxalgo.com/chart?chat=plan_1&loopReport=loop_1" &&
-        started.text.includes("The member reads what it finds in Vela: https://vela.luxalgo.com/chart?chat=plan_1&loopReport=loop_1") &&
+        started.text.includes("Its Loop Report in Vela: https://vela.luxalgo.com/chart?chat=plan_1&loopReport=loop_1") &&
+        // Starting hands back the loop's id, never a strategy.
+        !/strateg(y|ies)"|"code"/.test(JSON.stringify(started.data)) &&
         again.data.loop_id === "loop_1" &&
         state.started.length === 1,
       started.text.slice(0, 120),
@@ -376,23 +394,85 @@ async function signedIn(check) {
       listed.text.slice(0, 160),
     );
 
-    const info = await call("quant_get_backtest_loop_info", { loop_id: "loop_1" });
+    // "In my most recent loop, what was the best strategy?": the list's first loop, its info, then that strategy.
+    const latest = listed.data.loops?.[0]?.id;
+    const info = await call("quant_get_backtest_loop_info", { loop_id: latest });
     check(
-      "a loop's info says where it stands and where the member reads its results, and returns none of its strategies",
+      "a loop's info says where it stands and names what it found: its strategies by id, the one that meets every criterion first, without their code",
       !info.isError &&
+        latest === "loop_1" &&
         info.data.loop?.status === "running" &&
         info.data.loop?.active === true &&
         info.data.loop?.strategies_found === 1 &&
         info.data.loop?.report_url === "https://vela.luxalgo.com/chart?chat=plan_1&loopReport=loop_1" &&
-        /^BTCUSDT 1 hour: running, 1 of 1 found in 2 attempts\. The member reads its strategies in Vela, in its Loop Report: https:\/\/vela\.luxalgo\.com\/chart\?/.test(info.text) &&
-        !/strateg(y|ies)_ids|best_strategy|"code"/.test(JSON.stringify(info.data)),
-      info.text.slice(0, 200),
+        info.data.loop?.best_strategy_id === "loop_1.2" &&
+        info.data.loop?.strategies?.map((s) => `${s.id}:${s.meets_every_criterion}`).join() === "loop_1.2:true,loop_1.1:false" &&
+        /^BTCUSDT 1 hour: running, 1 of 1 found in 2 attempts\. Its best strategy is loop_1\.2 \(attempt 2\), which meets every criterion; read it with quant_get_backtest_loop_strategy\. Its Loop Report in Vela: https:\/\/vela\.luxalgo\.com\/chart\?/.test(info.text) &&
+        !/"code"/.test(JSON.stringify(info.data)),
+      info.text.slice(0, 220),
     );
+
+    const best = await call("quant_get_backtest_loop_strategy", { strategy_id: info.data.loop?.best_strategy_id });
+    const market = best.data.strategy?.markets?.[0];
+    check(
+      "the best strategy is read by its id: what it does, its Pine Script® source, and the market's backtest in sample and held out, with every criterion against its threshold",
+      !best.isError &&
+        best.data.strategy?.id === "loop_1.2" &&
+        best.data.strategy?.loop_id === "loop_1" &&
+        best.data.strategy?.meets_every_criterion === true &&
+        best.data.strategy?.code === STRATEGY_SCRIPT &&
+        market?.ticker === "BTCUSDT" &&
+        market?.in_sample?.metrics?.profit_factor === 1.82 &&
+        market?.in_sample?.backtest?.sharpe_ratio === 1.4 &&
+        market?.in_sample?.criteria?.[0]?.value === 1.82 &&
+        market?.in_sample?.criteria?.[0]?.min === 1.5 &&
+        market?.out_of_sample?.metrics?.profit_factor === 1.61 &&
+        market?.out_of_sample?.passed === true &&
+        best.data.strategy?.report_url === "https://vela.luxalgo.com/chart?chat=plan_1&loopReport=loop_1",
+      JSON.stringify(market?.in_sample?.metrics ?? null),
+    );
+    check(
+      "its numbers are said in words as backtests, in sample and held out apart, with the source in a Pine Script® code block",
+      /^Strategy loop_1\.2, attempt 2 of loop loop_1: it meets every criterion on every market, held-out data included\. Buys when the fast EMA crosses above the slow one\./.test(best.text) &&
+        /BTCUSDT 1 hour\. In sample: net profit \$18,250, profit factor 1\.82, 96 trades, win rate 54\.2%, max drawdown 8\.4%; meets its criteria\. Held out: net profit \$5,100, profit factor 1\.61, 31 trades, win rate 51\.6%, max drawdown 6\.9%; meets its criteria\./.test(best.text) &&
+        /Backtests are history under the plan's assumptions, never a prediction or trading advice\./.test(best.text) &&
+        best.text.endsWith(`\`\`\`pine\n${STRATEGY_SCRIPT.trimEnd()}\n\`\`\``),
+      best.text.slice(0, 260),
+    );
+
+    const closest = await call("quant_get_backtest_loop_strategy", { strategy_id: "loop_1.1" });
+    check(
+      "a strategy that does not meet every criterion is said to fall short, with the criterion it failed, never rounded up to a pass",
+      !closest.isError &&
+        closest.data.strategy?.meets_every_criterion === false &&
+        /it does not meet every criterion \(score 71 of 100 in sample\)/.test(closest.text) &&
+        /In sample: net profit \$3,900, profit factor 1\.12, 140 trades, win rate 47\.1%, max drawdown 14\.2%; does not meet its criteria \(profit_factor\)\./.test(closest.text) &&
+        /Held out: net profit -\$800, profit factor 0\.94, [^;]*; does not meet its criteria \(profit_factor\)\./.test(closest.text),
+      closest.text.slice(0, 220),
+    );
+
+    const noStrategy = await call("quant_get_backtest_loop_strategy", { strategy_id: "loop_other.1" });
+    check(
+      "a strategy id that is not one of the member's is not found, in words",
+      noStrategy.isError && /^The strategy was not read: Strategy not found/.test(noStrategy.text),
+      noStrategy.text,
+    );
+
+    const empty = await call("quant_get_backtest_loop_info", { loop_id: "loop_old" });
+    check(
+      "a loop whose attempts never reached a backtest has no best strategy, and its info says so",
+      !empty.isError &&
+        empty.data.loop?.best_strategy_id === null &&
+        empty.data.loop?.strategies?.length === 0 &&
+        /No attempt has reached a backtest yet, so it has no strategy to read\./.test(empty.text),
+      empty.text.slice(0, 200),
+    );
+
     const allTools = (await member.listTools()).tools.map((t) => t.name);
     check(
-      "no tool hands back a loop's strategies: the loop tools plan, start, stop, list and say where a loop stands",
+      "the loop tools plan, start, stop, list, say where a loop stands and read a strategy it found; none puts a strategy on a chart or changes one",
       allTools.filter((n) => /backtest_loop/.test(n)).sort().join() ===
-        "quant_get_backtest_loop_info,quant_list_backtest_loops,quant_plan_backtest_loop,quant_start_backtest_loop,quant_stop_backtest_loop",
+        "quant_get_backtest_loop_info,quant_get_backtest_loop_strategy,quant_list_backtest_loops,quant_plan_backtest_loop,quant_start_backtest_loop,quant_stop_backtest_loop",
       allTools.filter((n) => /backtest_loop/.test(n)).join(", "),
     );
 
@@ -449,7 +529,78 @@ const ALLOWED = [
   ["GET", /^\/api\/agents\/quant\/backtest-loops$/],
   ["GET", /^\/api\/agents\/quant\/backtest-loops\/[^/]+$/],
   ["POST", /^\/api\/agents\/quant\/backtest-loops\/[^/]+\/stop$/],
+  ["GET", /^\/api\/agents\/quant\/backtest-loops\/strategies\/[^/]+$/],
 ];
+
+const STRATEGY_SCRIPT =
+  '//@version=6\nstrategy("Smoke trend", overlay = true, initial_capital = 100000)\nif ta.crossover(ta.ema(close, 10), ta.ema(close, 30))\n    strategy.entry("Long", strategy.long)\n';
+
+/** One market of a strategy on one dataset, as the app answers it. */
+const strategyWindow = ({ passed, minimum, netProfit, profitFactor, trades, winRate, drawdown, from, to }) => ({
+  passed,
+  criteria: [{ metric: "profit_factor", min: minimum, max: null, value: profitFactor, passed, detail: null }],
+  problems: [],
+  metrics: { net_profit_ccy: netProfit, profit_factor: profitFactor, closed_trades: trades, win_rate_pct: winRate, max_drawdown_pct: drawdown },
+  backtest: {
+    from,
+    to,
+    bars: 12264,
+    initialCapital: 100000,
+    netProfit,
+    grossProfit: netProfit * 2,
+    grossLoss: netProfit,
+    openProfit: 0,
+    cagrPct: 9.1,
+    maxDrawdown: 8400,
+    maxDrawdownPct: drawdown,
+    maxRunup: 21000,
+    maxRunupPct: 21,
+    sharpeRatio: 1.4,
+    sortinoRatio: 2.1,
+    buyAndHoldPnl: 40000,
+    buyAndHoldPct: 40,
+    strategyOutperformance: -21750,
+  },
+});
+
+/** A loop's two strategies as the app answers them: attempt 2 meets every criterion, attempt 1 came close. */
+const loopStrategies = (loop, reportUrl) => {
+  const of = (attempt, passed, score, inSample, outOfSample) => ({
+    id: `${loop.id}.${attempt}`,
+    loopId: loop.id,
+    attempt,
+    passed,
+    outcome: passed ? "passed" : "failed_criteria",
+    score,
+    family: "Trend following",
+    description: "Buys when the fast EMA crosses above the slow one.",
+    notes: "Widened the stop.",
+    behavior: "~4 trades a month · holds ~18 bars",
+    handedBack: false,
+    scriptId: null,
+    code: STRATEGY_SCRIPT,
+    markets: [{ ticker: "BTCUSDT", timeframe: 60, inSample, outOfSample }],
+    reportUrl,
+  });
+  const developed = { from: "2024-01-01T00:00:00.000Z", to: "2025-05-26T00:00:00.000Z", minimum: 1.5 };
+  const heldOut = { from: "2025-05-26T01:00:00.000Z", to: "2025-12-31T23:00:00.000Z", minimum: 1.3 };
+  return [
+    of(
+      2,
+      true,
+      100,
+      strategyWindow({ ...developed, passed: true, netProfit: 18250, profitFactor: 1.82, trades: 96, winRate: 54.2, drawdown: 8.4 }),
+      strategyWindow({ ...heldOut, passed: true, netProfit: 5100, profitFactor: 1.61, trades: 31, winRate: 51.6, drawdown: 6.9 }),
+    ),
+    of(
+      1,
+      false,
+      71,
+      strategyWindow({ ...developed, passed: false, netProfit: 3900, profitFactor: 1.12, trades: 140, winRate: 47.1, drawdown: 14.2 }),
+      strategyWindow({ ...heldOut, passed: false, netProfit: -800, profitFactor: 0.94, trades: 44, winRate: 43.2, drawdown: 9.8 }),
+    ),
+  ];
+};
 
 const PINE_ERROR = { code: "PINE_ARGS", message: 'ta.ema is missing its "length" argument', line: 3, column: 6, end_line: 3, end_column: 19 };
 const SCRIPT_INFO = { type: "indicator", title: "Smoke EMA", short_title: null, pine_version: 6, overlay: true };
@@ -586,13 +737,32 @@ async function startStandIn() {
       if (stopped) loop.status = "cancelled";
       return send(200, { stopped, status: loop.status });
     }
+    // The loop this run started has two strategies; the older one never reached a backtest.
+    const strategiesOf = (loop) => (loop.planId ? loopStrategies(loop, reportUrl(loop)) : []);
+    if (path.startsWith("/api/agents/quant/backtest-loops/strategies/")) {
+      const strategyId = decodeURIComponent(path.split("/").pop());
+      const owner = state.loops.get(strategyId.slice(0, strategyId.lastIndexOf(".")));
+      const strategy = owner ? strategiesOf(owner).find((candidate) => candidate.id === strategyId) : undefined;
+      return strategy ? send(200, { strategy }) : send(404, { message: "Strategy not found" });
+    }
     const loop = state.loops.get(decodeURIComponent(path.split("/").pop()));
     if (!loop) return send(404, { message: "Loop not found" });
+    const strategies = strategiesOf(loop).map((strategy) => ({
+      id: strategy.id,
+      attempt: strategy.attempt,
+      passed: strategy.passed,
+      score: strategy.score,
+      handedBack: strategy.handedBack,
+      scriptId: strategy.scriptId,
+      description: strategy.description,
+    }));
     return send(200, {
       loop: {
         ...summary(loop),
         statusReason: null,
         summary: null,
+        bestStrategyId: strategies[0]?.id ?? null,
+        strategies,
       },
     });
   });

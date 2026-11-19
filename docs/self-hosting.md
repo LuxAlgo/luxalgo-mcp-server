@@ -94,7 +94,7 @@ Any Node 20+ host works. `npm run build:chart` builds the chart view for `LUXALG
 | `LUXALGO_ACCOUNT_TOOLS` | off | `on` registers the watchlist and layout tools and `chart_peek`, and the alert tools when `LUXALGO_ALERT_TOOLS` is on too (never on the Claude address) |
 | `LUXALGO_ALERT_TOOLS` | off | `on`, with `LUXALGO_ACCOUNT_TOOLS=on`, registers the alert tools (`alerts_*`); off until LuxAlgo Alerts are open to every member |
 | `LUXALGO_PAPER_TOOLS` | off | `on` registers the Paper Trading by LuxAlgo tools (`paper_*`; simulated money, every order on your yes; never on the Claude address) |
-| `LUXALGO_QUANT_TOOLS` | off | `on` registers the Quant tools (`quant_*` and `get_user_script`: Pine Script® generation and linting, your scripts, backtest loops; generating, planning and a running loop use your Quant usage; never on the Claude address) |
+| `LUXALGO_QUANT_TOOLS` | off | `on` registers the Quant tools (`quant_*` and `get_user_script`: Pine Script® generation and linting, your scripts, backtest loops and the strategies they found; generating, planning and a running loop use your Quant usage; never on the Claude address) |
 | `LUXALGO_QUANT_SECONDS` | `45` | How long one `quant_generate_pine_script` or `quant_plan_backtest_loop` call may take, 15 to 240 seconds. The default fits a 60 second function limit; raise it only where the server may answer for longer |
 | `LUXALGO_CHART_ORIGIN` | `https://vela.luxalgo.com` | Where `chart_url` and "Open in Vela" open the chart |
 | `LUXALGO_CHART_APP_DOMAIN` | per host | Sandbox origin for the chart view; `none` leaves it out |
