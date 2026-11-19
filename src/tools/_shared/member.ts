@@ -62,6 +62,16 @@ export const quantToolsEnabled = (): boolean => {
 };
 
 /**
+ * The member's open Vela chart, read and changed by their AI assistant
+ * (tools/vela): its market, timeframe, look and layout, and drawings. Its own
+ * switch, since it changes what the member sees in their browser. Never true
+ * on Vercel production unless LUXALGO_CHART_CONTROL_TOOLS=on is set there
+ * explicitly. The app's own switch is its PostHog flag `agent-chart-control`.
+ */
+export const chartControlToolsEnabled = (): boolean =>
+  process.env.LUXALGO_CHART_CONTROL_TOOLS === "on" || process.env.VERCEL_ENV === "preview";
+
+/**
  * A domain of the member's own data: every tool needs a signed-in member
  * (the app routes answer 401 anonymously), so every tool is protected.
  */
