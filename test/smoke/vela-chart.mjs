@@ -141,8 +141,11 @@ async function addresses(check) {
       Object.keys(addProps).join(", "),
     );
     check(
-      "vela_remove_indicators needs the names and says it removes the member's own indicators too, never drawings or a saved script",
-      (tool("vela_remove_indicators").inputSchema?.required ?? []).join() === "names" &&
+      "vela_remove_indicators needs the ids a read gives, says never to make one up, and that it removes the member's own indicators too, never drawings or a saved script",
+      (tool("vela_remove_indicators").inputSchema?.required ?? []).join() === "ids" &&
+        typeof tool("vela_remove_indicators").inputSchema?.properties?.ids?.items?.pattern === "string" &&
+        /never make one up/.test(tool("vela_remove_indicators").description) &&
+        /Each indicator comes with the id vela_remove_indicators takes/.test(tool("vela_read_chart").description) &&
         /remove only what they asked for/.test(tool("vela_remove_indicators").description) &&
         /never touches drawings/.test(tool("vela_remove_indicators").description) &&
         /does not delete a saved script/.test(tool("vela_remove_indicators").description),
@@ -273,7 +276,9 @@ async function signedIn(check) {
       !read.isError &&
         JSON.stringify(sent()) === '{"op":"read"}' &&
         /shows 2 charts \(layout 2h\)/.test(read.text) &&
-        /Chart 0 \(the one the member is working on\): BINANCE:BTCUSDT, 1h, as candles\. Indicators: Volume and Smart Money Concepts \[LuxAlgo\]\./.test(read.text) &&
+        new RegExp(`Chart 0 \\(the one the member is working on\\): BINANCE:BTCUSDT, 1h, as candles\\. Indicators: ${VOLUME} and ${SMC}\\.`).test(read.text) &&
+        read.data.charts?.[0]?.indicator_list?.[0]?.id === "i_0a81kq20f3m9zx" &&
+        read.data.charts?.[0]?.indicator_list?.[0]?.builtin === true &&
         /Chart 1: AAPL, 1D, as Heikin Ashi candles, extended hours, on a logarithmic scale\. No indicators\./.test(read.text) &&
         /On screen: 2026-11-01 to 2026-11-19/.test(read.text) &&
         read.data.status === "ok" &&
@@ -430,9 +435,9 @@ async function signedIn(check) {
       "vela_add_indicator sends a Library indicator's slug and says the name it goes by on the chart",
       !library.isError &&
         JSON.stringify(sent()) === '{"op":"add_indicator","indicator":{"library":"smart-money-concepts"}}' &&
-        /^Added Smart Money Concepts \[LuxAlgo\] from the LuxAlgo Library to the member's chart\./.test(library.text) &&
-        /vela_remove_indicators takes it/.test(library.text) &&
-        /Indicators: Volume and Smart Money Concepts \[LuxAlgo\]/.test(library.text) &&
+        /^Added Smart Money Concepts \[LuxAlgo\] from the LuxAlgo Library to the member's chart\. Its id there is i_1c07tz50b2w8ne, which vela_remove_indicators takes\./.test(library.text) &&
+        new RegExp(`Indicators: ${VOLUME} and ${SMC}`).test(library.text) &&
+        library.data.indicator_added?.id === "i_1c07tz50b2w8ne" &&
         library.data.indicator_added?.from === "library" &&
         library.data.indicator_added?.name === "Smart Money Concepts [LuxAlgo]",
       library.text.slice(0, 200),
@@ -469,17 +474,40 @@ async function signedIn(check) {
     const unknown = await call("vela_add_indicator", { library_slug: "no-such-indicator" });
     check("a slug the Library does not have changes nothing and says to search for the right one", unknown.isError && /^Nothing changed: No Library indicator has the slug "no-such-indicator"/.test(unknown.text), unknown.text.slice(0, 160));
 
-    const tookOff = await call("vela_remove_indicators", { names: ["Smart Money Concepts [LuxAlgo]", "RSI"] });
+    state.withSaved = true;
+    const withSaved = await call("vela_read_chart");
+    state.withSaved = false;
     check(
-      "vela_remove_indicators sends the names, says what came off and what was not on the chart, and what the chart shows now",
+      "a read gives each indicator the id a removal takes, and the member's own saved script its script id, which Quant changes it by",
+      !withSaved.isError &&
+        /My RSI \(id i_0k3v9qa1x7m2pd, the member's saved script scr_my_rsi\)/.test(withSaved.text) &&
+        withSaved.data.charts?.[0]?.indicator_list?.[2]?.script_id === "scr_my_rsi" &&
+        withSaved.data.charts?.[0]?.indicator_list?.[1]?.script_id === undefined,
+      withSaved.text.slice(0, 260),
+    );
+    state.noIds = true;
+    const older = await call("vela_read_chart");
+    state.noIds = false;
+    check(
+      "an app that gives no ids yet is still read: the indicators by name",
+      !older.isError && /Indicators: Volume and Smart Money Concepts \[LuxAlgo\]\./.test(older.text) && older.data.charts?.[0]?.indicator_list === undefined,
+      older.text.slice(0, 160),
+    );
+
+    const tookOff = await call("vela_remove_indicators", { ids: ["i_1c07tz50b2w8ne", "i_0zz91ab0c3d4ef"] });
+    check(
+      "vela_remove_indicators sends the ids, says what came off by name and which id named nothing, and what the chart shows now",
       !tookOff.isError &&
-        JSON.stringify(sent()) === '{"op":"remove_indicator","indicators":{"names":["Smart Money Concepts [LuxAlgo]","RSI"]}}' &&
-        /^Removed Smart Money Concepts \[LuxAlgo\] from the member's chart\. Not on the chart, so left alone: RSI\./.test(tookOff.text) &&
-        /Indicators: Volume\./.test(tookOff.text) &&
+        JSON.stringify(sent()) === '{"op":"remove_indicator","indicators":{"ids":["i_1c07tz50b2w8ne","i_0zz91ab0c3d4ef"]}}' &&
+        /^Removed Smart Money Concepts \[LuxAlgo\] from the member's chart\. No indicator on the chart has the id i_0zz91ab0c3d4ef any more\./.test(tookOff.text) &&
+        new RegExp(`Indicators: ${VOLUME}\\.`).test(tookOff.text) &&
         tookOff.data.indicators_removed?.names?.join() === "Smart Money Concepts [LuxAlgo]" &&
-        tookOff.data.indicators_removed?.not_on_chart?.join() === "RSI",
+        tookOff.data.indicators_removed?.not_on_chart?.join() === "i_0zz91ab0c3d4ef",
       tookOff.text.slice(0, 220),
     );
+    const callsSoFar = state.calls.length;
+    const byName = await call("vela_remove_indicators", { ids: ["Smart Money Concepts [LuxAlgo]"] }).catch((error) => ({ isError: true, text: String(error?.message ?? error) }));
+    check("a name, or anything else that is not an id from a read, is refused here and never reaches the app", byName.isError && state.calls.length === callsSoFar, byName.text.slice(0, 140));
     state.mode = "queued";
     const later = await call("vela_add_indicator", { library_slug: "smart-money-concepts" });
     check("an indicator asked for while the member's Vela is not on screen is queued, and the result says so", !later.isError && later.data.status === "queued" && /^Queued, not applied yet/.test(later.text), later.text.slice(0, 80));
@@ -528,7 +556,8 @@ function bodyProblem(body) {
   }
   if (body.op === "remove_indicator") {
     const indicators = body.indicators;
-    if (!indicators || !Array.isArray(indicators.names) || indicators.names.length < 1 || Object.keys(indicators).some((key) => !["slot", "names"].includes(key))) return "indicators";
+    if (!indicators || !Array.isArray(indicators.ids) || indicators.ids.length < 1 || Object.keys(indicators).some((key) => !["slot", "ids"].includes(key))) return "indicators";
+    if (indicators.ids.some((id) => !/^i_[a-z0-9]{6,16}$/.test(id))) return "indicators.ids";
   }
   if (body.op === "markup") {
     const markup = body.markup;
@@ -555,18 +584,37 @@ function bodyProblem(body) {
   return null;
 }
 
-const chartNow = (overrides = {}) => ({
-  slot: 0,
-  symbol: "BINANCE:BTCUSDT",
-  timeframe: "1h",
-  chartType: "candles",
-  scale: { mode: "price", log: false, invert: false },
-  visibleRange: { from: "2026-11-01T00:00:00.000Z", to: "2026-11-19T15:00:00.000Z" },
-  indicators: ["Volume", "Smart Money Concepts [LuxAlgo]"],
-  clock: "Etc/UTC",
-  quantDrawings: 0,
-  ...overrides,
-});
+/** The id the app gives each indicator in its answers (its own making, never the chart's). */
+const INDICATOR_IDS = { Volume: "i_0a81kq20f3m9zx", "Smart Money Concepts [LuxAlgo]": "i_1c07tz50b2w8ne", "My RSI": "i_0k3v9qa1x7m2pd" };
+const VOLUME = "Volume \\(id i_0a81kq20f3m9zx\\)";
+const SMC = "Smart Money Concepts \\[LuxAlgo\\] \\(id i_1c07tz50b2w8ne\\)";
+
+/** One chart as the app reports it; `noIds` is an app from before indicators had ids. */
+const chartNow = ({ noIds = false, ...overrides } = {}) => {
+  const chart = {
+    slot: 0,
+    symbol: "BINANCE:BTCUSDT",
+    timeframe: "1h",
+    chartType: "candles",
+    scale: { mode: "price", log: false, invert: false },
+    visibleRange: { from: "2026-11-01T00:00:00.000Z", to: "2026-11-19T15:00:00.000Z" },
+    indicators: ["Volume", "Smart Money Concepts [LuxAlgo]"],
+    clock: "Etc/UTC",
+    quantDrawings: 0,
+    ...overrides,
+  };
+  if (noIds) return chart;
+  return {
+    ...chart,
+    indicatorList: chart.indicators.map((name) => ({
+      id: INDICATOR_IDS[name] ?? "i_0000000unknown",
+      name,
+      ...(name === "Volume" ? { builtin: true } : {}),
+      // Only the member's own saved script comes with its script id.
+      ...(name === "My RSI" ? { scriptId: "scr_my_rsi" } : {}),
+    })),
+  };
+};
 
 async function startStandIn() {
   const state = { calls: [], violations: [], mode: "ok", market: "crypto" };
@@ -639,7 +687,10 @@ async function startStandIn() {
     if (state.mode === "failed") {
       return send(200, { status: "failed", error: '"TVC:GOLD" is not a market Vela serves, so nothing was changed. Use the bare ticker, or a venue prefix Vela reads.', state: shows() });
     }
-    if (body.op === "read") return send(200, { status: "ok", state: shows() });
+    if (body.op === "read") {
+      const first = state.noIds ? { noIds: true } : state.withSaved ? { indicators: ["Volume", "Smart Money Concepts [LuxAlgo]", "My RSI"] } : {};
+      return send(200, { status: "ok", state: shows(first) });
+    }
     if (body.op === "set") {
       const first = body.state.charts?.find((chart) => (chart.slot ?? 0) === 0) ?? {};
       const symbols = new Set((body.state.charts ?? []).map((chart) => chart.symbol).filter(Boolean));
@@ -661,18 +712,18 @@ async function startStandIn() {
         return send(200, { status: "failed", error: '"paid-toolkit" is a paid LuxAlgo Library indicator the member\'s plan does not include, so it was not added.' });
       }
       const indicatorAdded = library
-        ? { slot, name: "Smart Money Concepts [LuxAlgo]", from: "library", kind: "indicator" }
-        : { slot, name: "My Breakout", from: "saved", kind: script === "scr_my_strategy" ? "strategy" : "indicator" };
+        ? { slot, id: "i_1c07tz50b2w8ne", name: "Smart Money Concepts [LuxAlgo]", from: "library", kind: "indicator" }
+        : { slot, id: "i_2b9mx4c0q7t1ya", name: "My Breakout", from: "saved", kind: script === "scr_my_strategy" ? "strategy" : "indicator" };
       return send(200, { status: "ok", state: shows(), indicatorAdded });
     }
     if (body.op === "remove_indicator") {
-      const on = chartNow().indicators;
-      const names = body.indicators.names.filter((name) => on.includes(name));
-      const notOnChart = body.indicators.names.filter((name) => !on.includes(name));
-      if (names.length === 0) return send(200, { status: "failed", error: `None of those is on this chart, so nothing was removed. On it: ${on.join(", ")}.`, state: shows() });
+      const on = chartNow().indicatorList;
+      const names = on.filter((row) => body.indicators.ids.includes(row.id)).map((row) => row.name);
+      const notOnChart = body.indicators.ids.filter((id) => !on.some((row) => row.id === id));
+      if (names.length === 0) return send(200, { status: "failed", error: "None of those ids is an indicator on this chart now, so nothing was removed. Read the chart again for the ids of what is on it.", state: shows() });
       return send(200, {
         status: "ok",
-        state: shows({ indicators: on.filter((name) => !names.includes(name)) }),
+        state: shows({ indicators: on.map((row) => row.name).filter((name) => !names.includes(name)) }),
         indicatorsRemoved: { slot: body.indicators.slot ?? 0, names, ...(notOnChart.length ? { notOnChart } : {}) },
       });
     }

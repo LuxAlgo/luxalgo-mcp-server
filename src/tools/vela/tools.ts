@@ -6,7 +6,9 @@
   carry a short explanation of each part, and the member is then walked
   through them on the chart, one bubble at a time. It also adds an indicator
   that already exists (a LuxAlgo Library one by its slug, one of the member's
-  saved scripts by its id) and takes indicators off by name. It never sends
+  saved scripts by its id) and takes indicators off by the ids a read gives
+  them (ids the app makes for its answers; which indicators are the member's
+  saved scripts is the app's to say too). It never sends
   Pine Script®: an indicator the assistant wrote is not something these tools
   put on a chart.
 
@@ -47,6 +49,7 @@ import { CHART_ORIGIN } from "../_shared/vela.js";
 const MAX_SLOT = 15;
 
 type ChartScale = { mode?: string; log?: boolean; invert?: boolean };
+type IndicatorRow = { id: string; name: string; builtin?: boolean; strategy?: boolean; scriptId?: string };
 type ChartReport = {
   slot: number;
   symbol: string;
@@ -56,6 +59,8 @@ type ChartReport = {
   scale?: ChartScale;
   visibleRange: { from: string; to: string } | null;
   indicators: string[];
+  /** The same indicators, each with the id a removal takes; `scriptId` only for the member's own saved script (the app's decision). */
+  indicatorList?: IndicatorRow[];
   clock?: string;
   quantDrawings: number;
 };
@@ -67,7 +72,7 @@ type MarkedConcept = { concept: string; group?: string; summary: string; note?: 
 type Marked = { slot?: number; priced: boolean; concepts: MarkedConcept[]; drawings: number; truncated?: boolean };
 type SyncKind = "symbol" | "timeframe";
 /** An indicator the app put on the chart: its name there and what it is, never its source. */
-type IndicatorAdded = { slot?: number; name: string; from: "library" | "saved"; kind: "indicator" | "strategy"; updated?: boolean };
+type IndicatorAdded = { slot?: number; id?: string; name: string; from: "library" | "saved"; kind: "indicator" | "strategy"; updated?: boolean };
 type IndicatorsRemoved = { slot?: number; names: string[]; notOnChart?: string[] };
 export type ChartAnswer =
   | {
@@ -122,13 +127,23 @@ function scaleWords(scale: ChartScale | undefined): string {
   return words.length ? `, on ${list(words)}` : "";
 }
 
+/** An indicator as a read names it: its name, the id a removal takes, and its script id when it is the member's saved script. */
+function describeIndicator(row: IndicatorRow): string {
+  const saved = row.scriptId ? `, the member's saved script ${row.scriptId}` : "";
+  return `${row.name} (id ${row.id}${saved})`;
+}
+
 /** One chart of the layout in a sentence or two: what it shows, never a price. */
 function describeChart(chart: ChartReport, many: boolean, active: boolean): string {
   const type = chart.chartType ? `, as ${CHART_TYPE_WORDS[chart.chartType] ?? chart.chartType}` : "";
   const session = chart.session === "extended" ? ", extended hours" : "";
   let text = many ? `Chart ${chart.slot}${active ? " (the one the member is working on)" : ""}: ` : "";
   text += `${chart.symbol}, ${chart.timeframe}${type}${session}${scaleWords(chart.scale)}.`;
-  text += chart.indicators.length ? ` Indicators: ${list(chart.indicators)}.` : " No indicators.";
+  text += chart.indicatorList?.length
+    ? ` Indicators: ${list(chart.indicatorList.map(describeIndicator))}.`
+    : chart.indicators.length
+      ? ` Indicators: ${list(chart.indicators)}.`
+      : " No indicators.";
   if (chart.visibleRange) text += ` On screen: ${chart.visibleRange.from.slice(0, 10)} to ${chart.visibleRange.to.slice(0, 10)}.`;
   if (chart.quantDrawings > 0) {
     text += ` ${chart.quantDrawings} drawing${chart.quantDrawings === 1 ? "" : "s"} by Quant or an assistant on it.`;
@@ -189,6 +204,17 @@ function stateContent(state: ChartState | undefined): Record<string, unknown> {
       ...(chart.scale ? { scale: chart.scale } : {}),
       visible_range: chart.visibleRange,
       indicators: chart.indicators,
+      ...(chart.indicatorList
+        ? {
+            indicator_list: chart.indicatorList.map((row) => ({
+              id: row.id,
+              name: row.name,
+              ...(row.builtin ? { builtin: true } : {}),
+              ...(row.strategy ? { strategy: true } : {}),
+              ...(row.scriptId ? { script_id: row.scriptId } : {}),
+            })),
+          }
+        : {}),
       ...(chart.clock ? { clock: chart.clock } : {}),
       quant_drawings: chart.quantDrawings,
     })),
@@ -461,7 +487,7 @@ export function registerVelaChartTools(server: McpServer, runtime: AuthRuntime) 
     {
       title: "Read my open Vela chart",
       description:
-        `What the signed-in member has open right now in Vela, our next-generation charting platform, in their browser, in words: the layout, and for each chart its market, timeframe, chart type, indicators, the dates on screen and its clock. Use it before changing or drawing on the member's chart, and when they ask what their chart is set to. It changes nothing and carries no prices or candles; for a picture of the chart use chart_peek, and to show a chart inside the chat use chart_open. ${VISIBLE_TAB}`,
+        `What the signed-in member has open right now in Vela, our next-generation charting platform, in their browser, in words: the layout, and for each chart its market, timeframe, chart type, indicators, the dates on screen and its clock. Each indicator comes with the id vela_remove_indicators takes, and one that is a saved script of the member's also with its script_id, which quant_generate_pine_script changes it by. Use it before changing or drawing on the member's chart, and when they ask what their chart is set to. It changes nothing and carries no prices or candles; for a picture of the chart use chart_peek, and to show a chart inside the chat use chart_open. ${VISIBLE_TAB}`,
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     },
@@ -586,7 +612,7 @@ export function registerVelaChartTools(server: McpServer, runtime: AuthRuntime) 
     {
       title: "Add an indicator to my open Vela chart",
       description:
-        `Adds an indicator that already exists to the chart the signed-in member has open right now in Vela: one from the LuxAlgo Library, the largest indicator library in trading, by its slug (library_search and library_get_indicator return it), or one of the member's own saved scripts, by its id (quant_search_user_scripts returns it). Give exactly one of the two. Use it when the member asks to put an indicator on their own chart ("add Smart Money Concepts to my chart", "put my saved RSI script on it"): find the slug or the id first, never guess one. It does not take Pine Script® and does not write an indicator: for a new one, the member asks Quant, our coding agent, in Vela. The member sees it appear and is told an assistant added it. Returns the name it goes by on the chart, which vela_remove_indicators takes, and what the chart shows afterwards; it never returns source code. Nothing is added, and the result says why, when the Library indicator is a paid one the member's plan does not include, when the chart is at their plan's tools per chart, when it is already on the chart, or when the script does not run. ${WAITS}`,
+        `Adds an indicator that already exists to the chart the signed-in member has open right now in Vela: one from the LuxAlgo Library, the largest indicator library in trading, by its slug (library_search and library_get_indicator return it), or one of the member's own saved scripts, by its id (quant_search_user_scripts returns it). Give exactly one of the two. Use it when the member asks to put an indicator on their own chart ("add Smart Money Concepts to my chart", "put my saved RSI script on it"): find the slug or the id first, never guess one. It does not take Pine Script® and does not write an indicator: for a new one, the member asks Quant, our coding agent, in Vela. The member sees it appear and is told an assistant added it. Returns the id it has on the chart, which vela_remove_indicators takes, and what the chart shows afterwards; it never returns source code. Nothing is added, and the result says why, when the Library indicator is a paid one the member's plan does not include, when the chart is at their plan's tools per chart, when it is already on the chart, or when the script does not run. ${WAITS}`,
       inputSchema: z.object({
         slot,
         library_slug: z
@@ -616,7 +642,8 @@ export function registerVelaChartTools(server: McpServer, runtime: AuthRuntime) 
           const what = indicatorAdded.kind === "strategy" ? ", a strategy: its backtest runs on the chart" : "";
           if (indicatorAdded.updated) return `${indicatorAdded.name} was on the member's chart already and now runs its saved version there.`;
           const whose = indicatorAdded.from === "library" ? "from the LuxAlgo Library" : "from the member's saved scripts";
-          return `Added ${indicatorAdded.name} ${whose} to the member's chart${what}. It goes by that name there (vela_remove_indicators takes it).`;
+          const id = indicatorAdded.id ? ` Its id there is ${indicatorAdded.id}, which vela_remove_indicators takes.` : "";
+          return `Added ${indicatorAdded.name} ${whose} to the member's chart${what}.${id}`;
         },
       );
     },
@@ -629,17 +656,21 @@ export function registerVelaChartTools(server: McpServer, runtime: AuthRuntime) 
     {
       title: "Remove indicators from my open Vela chart",
       description:
-        `Takes indicators off the chart the signed-in member has open right now in Vela, by name: the names vela_read_chart lists for that chart, or the name vela_add_indicator returned. A name removes every indicator called exactly that, or else the one indicator whose name contains it; a name that fits several different indicators removes none, and the result lists what is on the chart. Use it when the member asks to take an indicator off or to clean up their chart, and to make room when their plan's tools per chart is reached. It removes indicators the member added themselves too, so remove only what they asked for; it never touches drawings (vela_remove_drawings does) and does not delete a saved script, which stays in the member's scripts. Returns what came off and what the chart shows afterwards. ${WAITS}`,
+        `Takes indicators off the chart the signed-in member has open right now in Vela, by id: the id vela_read_chart gives each indicator on that chart, or the id vela_add_indicator returned. Read the chart first when you do not have the id; never make one up. Use it when the member asks to take an indicator off or to clean up their chart, and to make room when their plan's tools per chart is reached. It removes indicators the member added themselves too, so remove only what they asked for; it never touches drawings (vela_remove_drawings does) and does not delete a saved script, which stays in the member's scripts. Returns what came off, by name, and what the chart shows afterwards; an id that names nothing on the chart any more is said so. ${WAITS}`,
       inputSchema: z.object({
         slot,
-        names: z.array(z.string().min(1).max(80)).min(1).max(10).describe("The indicators to take off, by the names vela_read_chart lists them under."),
+        ids: z
+          .array(z.string().regex(/^i_[a-z0-9]{6,16}$/, "Not an indicator id: use the id vela_read_chart gives the indicator."))
+          .min(1)
+          .max(10)
+          .describe('The indicators to take off, by the ids vela_read_chart gives them, e.g. "i_0k3v9qa1x7m2pd".'),
       }),
       annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     },
-    async ({ slot: chartSlot, names }) =>
-      ask({ op: "remove_indicator", indicators: { ...(chartSlot !== undefined ? { slot: chartSlot } : {}), names } }, ({ indicatorsRemoved }) => {
+    async ({ slot: chartSlot, ids }) =>
+      ask({ op: "remove_indicator", indicators: { ...(chartSlot !== undefined ? { slot: chartSlot } : {}), ids } }, ({ indicatorsRemoved }) => {
         if (!indicatorsRemoved) return "Removed.";
-        const missing = indicatorsRemoved.notOnChart?.length ? ` Not on the chart, so left alone: ${list(indicatorsRemoved.notOnChart)}.` : "";
+        const missing = indicatorsRemoved.notOnChart?.length ? ` No indicator on the chart has the id ${list(indicatorsRemoved.notOnChart)} any more.` : "";
         return `Removed ${list(indicatorsRemoved.names)} from the member's chart.${missing}`;
       }),
   );
