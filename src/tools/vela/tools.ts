@@ -74,6 +74,10 @@ type SyncKind = "symbol" | "timeframe";
 /** An indicator the app put on the chart: its name there and what it is, never its source. */
 type IndicatorAdded = { slot?: number; id?: string; name: string; from: "library" | "saved"; kind: "indicator" | "strategy"; updated?: boolean };
 type IndicatorsRemoved = { slot?: number; names: string[]; notOnChart?: string[] };
+type SettingValue = number | string | boolean;
+type IndicatorSetting = { name: string; type: string; value: SettingValue; min?: number; max?: number; step?: number; options?: string[] };
+type IndicatorSettings = { slot?: number; id: string; name: string; settings: IndicatorSetting[]; truncated?: boolean };
+type IndicatorSettingsSet = { slot?: number; id: string; name: string; applied: { name: string; from?: SettingValue; to: SettingValue }[] };
 export type ChartAnswer =
   | {
       status: "ok";
@@ -83,6 +87,8 @@ export type ChartAnswer =
       removed?: number;
       indicatorAdded?: IndicatorAdded;
       indicatorsRemoved?: IndicatorsRemoved;
+      indicatorSettings?: IndicatorSettings;
+      indicatorSettingsSet?: IndicatorSettingsSet;
       walkthrough?: number;
       releasedSync?: SyncKind[];
     }
@@ -131,6 +137,30 @@ function scaleWords(scale: ChartScale | undefined): string {
 function describeIndicator(row: IndicatorRow): string {
   const saved = row.scriptId ? `, the member's saved script ${row.scriptId}` : "";
   return `${row.name} (id ${row.id}${saved})`;
+}
+
+const shown = (value: SettingValue): string => (typeof value === "string" ? `"${value}"` : String(value));
+
+/** One setting on a line: its name, kind, value and what it may hold. */
+function describeSetting(setting: IndicatorSetting): string {
+  const bounds = [
+    setting.min !== undefined ? `min ${setting.min}` : "",
+    setting.max !== undefined ? `max ${setting.max}` : "",
+    setting.step !== undefined ? `step ${setting.step}` : "",
+    setting.options?.length ? `one of ${setting.options.map((option) => `"${option}"`).join(", ")}` : "",
+  ].filter(Boolean);
+  return `- ${setting.name} (${setting.type}) = ${shown(setting.value)}${bounds.length ? ` [${bounds.join(", ")}]` : ""}`;
+}
+
+/** How many settings the text lists; the structured result carries them all. */
+const SETTINGS_IN_TEXT = 60;
+
+/** One indicator's settings, in words. */
+export function describeSettings(found: IndicatorSettings): string {
+  if (found.settings.length === 0) return `${found.name} has no settings to change.`;
+  const more = found.settings.length > SETTINGS_IN_TEXT ? `\n…and ${found.settings.length - SETTINGS_IN_TEXT} more in the structured result.` : "";
+  const cut = found.truncated ? "\nIt has more settings than one answer lists; the rest are changed in Vela." : "";
+  return `${found.name} has ${found.settings.length} setting${found.settings.length === 1 ? "" : "s"} (vela_set_indicator_settings takes these names):\n${found.settings.slice(0, SETTINGS_IN_TEXT).map(describeSetting).join("\n")}${more}${cut}`;
 }
 
 /** One chart of the layout in a sentence or two: what it shows, never a price. */
@@ -251,6 +281,8 @@ function answer(data: ChartAnswer, done: (data: Extract<ChartAnswer, { status: "
               },
             }
           : {}),
+        ...(data.indicatorSettings ? { indicator_settings: data.indicatorSettings } : {}),
+        ...(data.indicatorSettingsSet ? { settings_changed: data.indicatorSettingsSet } : {}),
         ...(data.walkthrough ? { walkthrough: data.walkthrough } : {}),
         ...(data.releasedSync?.length ? { released_sync: data.releasedSync } : {}),
       });
@@ -672,6 +704,60 @@ export function registerVelaChartTools(server: McpServer, runtime: AuthRuntime) 
         if (!indicatorsRemoved) return "Removed.";
         const missing = indicatorsRemoved.notOnChart?.length ? ` No indicator on the chart has the id ${list(indicatorsRemoved.notOnChart)} any more.` : "";
         return `Removed ${list(indicatorsRemoved.names)} from the member's chart.${missing}`;
+      }),
+  );
+
+  const indicatorId = z
+    .string()
+    .regex(/^i_[a-z0-9]{6,16}$/, "Not an indicator id: use the id vela_read_chart gives the indicator.")
+    .describe('The indicator, by the id vela_read_chart gives it, e.g. "i_0k3v9qa1x7m2pd".');
+
+  registerProtectedTool(
+    server,
+    runtime,
+    "vela_get_indicator_settings",
+    {
+      title: "Read an indicator's settings on my open Vela chart",
+      description:
+        `The settings of one indicator on the chart the signed-in member has open right now in Vela, as its settings dialog shows them: each setting's name, its kind (a number, on/off, a choice, a colour, a source, a timeframe), the value it holds now and what it may hold (minimum, maximum, step, or the choices). Use it before vela_set_indicator_settings, to learn the names and what each accepts, and when the member asks how an indicator on their chart is set. Name the indicator by the id vela_read_chart gives it. It changes nothing and returns no prices, no candles and no source code. ${VISIBLE_TAB}`,
+      inputSchema: z.object({ slot, id: indicatorId }),
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+    },
+    async ({ slot: chartSlot, id }) =>
+      ask({ op: "indicator_settings", settings: { ...(chartSlot !== undefined ? { slot: chartSlot } : {}), id } }, ({ indicatorSettings }) =>
+        indicatorSettings ? describeSettings(indicatorSettings) : "Read.",
+      ),
+  );
+
+  registerProtectedTool(
+    server,
+    runtime,
+    "vela_set_indicator_settings",
+    {
+      title: "Change an indicator's settings on my open Vela chart",
+      description:
+        `Changes settings of one indicator on the chart the signed-in member has open right now in Vela, as its settings dialog would: a length, a source, a mode, a toggle, a colour. Name the indicator by the id vela_read_chart gives it and each setting by the name vela_get_indicator_settings lists; read the settings first rather than guessing names. Use it when the member asks to tune an indicator on their chart ("set the RSI length to 21", "turn off the labels"). Vela checks every value against what the indicator declares before anything changes: a setting it does not have, or a value it does not allow, changes nothing and the result says why and lists the settings. The indicator re-runs with the new values in front of the member, who is told an assistant changed their chart; the script itself is not edited (to change what an indicator does, quant_generate_pine_script). Returns each setting changed, from what to what, and what the chart shows afterwards. ${WAITS}`,
+      inputSchema: z.object({
+        slot,
+        id: indicatorId,
+        settings: z
+          .array(
+            z.object({
+              name: z.string().min(1).max(80).describe("The setting's name as vela_get_indicator_settings lists it."),
+              value: z.union([z.number(), z.string().max(200), z.boolean()]).describe("The new value: a number, true or false, or text (one of the choices, a hex colour like #2962ff)."),
+            }),
+          )
+          .min(1)
+          .max(20)
+          .describe("The settings to change; the rest keep their values."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    },
+    async ({ slot: chartSlot, id, settings }) =>
+      ask({ op: "set_indicator_settings", settings: { ...(chartSlot !== undefined ? { slot: chartSlot } : {}), id, inputs: settings } }, ({ indicatorSettingsSet }) => {
+        if (!indicatorSettingsSet) return "Changed.";
+        const changes = indicatorSettingsSet.applied.map((change) => `${change.name} ${change.from !== undefined ? `from ${shown(change.from)} ` : ""}to ${shown(change.to)}`);
+        return `Changed ${indicatorSettingsSet.name} on the member's chart: ${list(changes)}.`;
       }),
   );
 }

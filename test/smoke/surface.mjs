@@ -100,6 +100,8 @@ export const VELA_CHART = [
   "vela_remove_drawings",
   "vela_add_indicator",
   "vela_remove_indicators",
+  "vela_get_indicator_settings",
+  "vela_set_indicator_settings",
 ];
 
 export async function run({ client, check, callJson, callStructured, httpUrl, rawToolsList }) {

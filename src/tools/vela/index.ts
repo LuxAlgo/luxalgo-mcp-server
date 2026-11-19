@@ -11,6 +11,8 @@ export const VELA_CHART_TOOLS = [
   "vela_remove_drawings",
   "vela_add_indicator",
   "vela_remove_indicators",
+  "vela_get_indicator_settings",
+  "vela_set_indicator_settings",
 ] as const;
 
 /** Never on the Claude address; on the ChatGPT address only where asked for by name (_shared/member.ts). */
@@ -32,7 +34,7 @@ export const velaChartListedHere = (): boolean => chartControlToolsEnabled() && 
  *
  * The same shape as the member modules (_shared/member.ts): where they are
  * left out, `register` returns early and `omitFromDirectory` (a getter, read
- * at registration inside the request's surface) names all seven, which is
+ * at registration inside the request's surface) names all nine, which is
  * what the startup manifest check compares against.
  */
 export const velaChartModule: ToolModule = {

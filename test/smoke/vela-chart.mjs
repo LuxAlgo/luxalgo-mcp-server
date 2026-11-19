@@ -115,11 +115,12 @@ async function addresses(check) {
     const tool = (name) => standardTools?.tools?.find((t) => t.name === name) ?? {};
     const a = (name) => tool(name).annotations ?? {};
     const props = (name) => Object.keys(tool(name).inputSchema?.properties ?? {});
-    const changing = VELA_CHART.filter((n) => n !== "vela_read_chart");
+    const reading = ["vela_read_chart", "vela_get_indicator_settings"];
+    const changing = VELA_CHART.filter((n) => !reading.includes(n));
     check(
-      "reading is read-only; changing, marking up, drawing, removing and the two indicator tools are not, and all seven reach outside (the member's browser)",
-      a("vela_read_chart").readOnlyHint === true &&
-        changing.length === 6 &&
+      "reading the chart and an indicator's settings is read-only; changing, marking up, drawing, removing, and adding, removing and tuning indicators are not, and all nine reach outside (the member's browser)",
+      reading.every((n) => a(n).readOnlyHint === true) &&
+        changing.length === 7 &&
         changing.every((n) => a(n).readOnlyHint === false) &&
         VELA_CHART.every((n) => a(n).openWorldHint === true),
       VELA_CHART.map((n) => `${n} ${JSON.stringify(a(n))}`).join("; "),
@@ -508,7 +509,47 @@ async function signedIn(check) {
     const callsSoFar = state.calls.length;
     const byName = await call("vela_remove_indicators", { ids: ["Smart Money Concepts [LuxAlgo]"] }).catch((error) => ({ isError: true, text: String(error?.message ?? error) }));
     check("a name, or anything else that is not an id from a read, is refused here and never reaches the app", byName.isError && state.calls.length === callsSoFar, byName.text.slice(0, 140));
+    const settings = await call("vela_get_indicator_settings", { id: "i_0k3v9qa1x7m2pd" });
+    check(
+      "vela_get_indicator_settings lists an indicator's settings as its dialog shows them: name, kind, value and what each may hold",
+      !settings.isError &&
+        JSON.stringify(sent()) === '{"op":"indicator_settings","settings":{"id":"i_0k3v9qa1x7m2pd"}}' &&
+        /^My RSI has 3 settings \(vela_set_indicator_settings takes these names\):\n- Length \(int\) = 14 \[min 1, max 500\]\n- Source \(source\) = "close" \[one of "open", "high", "low", "close"\]\n- Show labels \(bool\) = true/.test(settings.text) &&
+        settings.data.indicator_settings?.settings?.[0]?.max === 500,
+      settings.text.slice(0, 240),
+    );
+    const tuned = await call("vela_set_indicator_settings", { id: "i_0k3v9qa1x7m2pd", settings: [{ name: "Length", value: 21 }, { name: "Show labels", value: false }] });
+    check(
+      "vela_set_indicator_settings sends the settings by name and says each one changed, from what to what",
+      !tuned.isError &&
+        JSON.stringify(sent()) === '{"op":"set_indicator_settings","settings":{"id":"i_0k3v9qa1x7m2pd","inputs":[{"name":"Length","value":21},{"name":"Show labels","value":false}]}}' &&
+        /^Changed My RSI on the member's chart: Length from 14 to 21 and Show labels from true to false\./.test(tuned.text) &&
+        tuned.data.settings_changed?.applied?.length === 2,
+      tuned.text.slice(0, 200),
+    );
+    const tooLong = await call("vela_set_indicator_settings", { id: "i_0k3v9qa1x7m2pd", settings: [{ name: "Length", value: 5000 }] });
+    check(
+      "a value the indicator does not allow changes nothing, and the result says why in the app's words",
+      tooLong.isError && tooLong.data.status === "failed" && /The chart could not do that: Nothing was changed on My RSI\. "Length" must be at most 500\./.test(tooLong.text),
+      tooLong.text.slice(0, 200),
+    );
+    const described = Object.fromEntries((await member.listTools()).tools.map((t) => [t.name, t.description]));
+    check(
+      "the settings tools say to read the settings first, that Vela checks every value, and that the script itself is not edited",
+      /read the settings first rather than guessing names/.test(described.vela_set_indicator_settings) &&
+        /checks every value against what the indicator declares/.test(described.vela_set_indicator_settings) &&
+        /the script itself is not edited/.test(described.vela_set_indicator_settings) &&
+        /no source code/.test(described.vela_get_indicator_settings),
+    );
+
     state.mode = "queued";
+    const noSettings = await call("vela_get_indicator_settings", { id: "i_0k3v9qa1x7m2pd" });
+    const tuneLater = await call("vela_set_indicator_settings", { id: "i_0k3v9qa1x7m2pd", settings: [{ name: "Length", value: 21 }] });
+    check(
+      "with the member's Vela not on screen, reading settings says there is no open chart and a settings change is queued",
+      noSettings.data.status === "no_open_chart" && tuneLater.data.status === "queued",
+      `${noSettings.data.status} / ${tuneLater.data.status}`,
+    );
     const later = await call("vela_add_indicator", { library_slug: "smart-money-concepts" });
     check("an indicator asked for while the member's Vela is not on screen is queued, and the result says so", !later.isError && later.data.status === "queued" && /^Queued, not applied yet/.test(later.text), later.text.slice(0, 80));
     state.mode = "ok";
@@ -547,8 +588,14 @@ const TIMEFRAME = /^(\d+)?\s*(m|h|d|w|M)?$/i;
 
 /** Why the app would refuse this body's shape (its contract), or null. */
 function bodyProblem(body) {
-  if (!body || typeof body !== "object" || !["read", "set", "markup", "draw", "remove", "add_indicator", "remove_indicator"].includes(body.op)) return "op";
-  if (Object.keys(body).some((key) => !["op", "state", "markup", "drawing", "removal", "indicator", "indicators"].includes(key))) return "unknown field";
+  if (!body || typeof body !== "object" || !["read", "set", "markup", "draw", "remove", "add_indicator", "remove_indicator", "indicator_settings", "set_indicator_settings"].includes(body.op)) return "op";
+  if (Object.keys(body).some((key) => !["op", "state", "markup", "drawing", "removal", "indicator", "indicators", "settings"].includes(key))) return "unknown field";
+  if (body.op === "indicator_settings" || body.op === "set_indicator_settings") {
+    const settings = body.settings;
+    const allowed = body.op === "indicator_settings" ? ["slot", "id"] : ["slot", "id", "inputs"];
+    if (!settings || !/^i_[a-z0-9]{6,16}$/.test(settings.id ?? "") || Object.keys(settings).some((key) => !allowed.includes(key))) return "settings";
+    if (body.op === "set_indicator_settings" && (!Array.isArray(settings.inputs) || settings.inputs.length < 1 || settings.inputs.some((input) => Object.keys(input).sort().join() !== "name,value"))) return "settings.inputs";
+  }
   if (body.op === "add_indicator") {
     const indicator = body.indicator;
     if (!indicator || Object.keys(indicator).some((key) => !["slot", "library", "script"].includes(key))) return "indicator";
@@ -683,7 +730,7 @@ async function startStandIn() {
     }
     if (state.mode === "no_open_chart" || state.mode === "timeout") return send(200, { status: state.mode });
     // No Vela tab of the member on screen: a change waits for them, a read has nothing to read.
-    if (state.mode === "queued") return send(200, { status: body.op === "read" ? "no_open_chart" : "queued" });
+    if (state.mode === "queued") return send(200, { status: body.op === "read" || body.op === "indicator_settings" ? "no_open_chart" : "queued" });
     if (state.mode === "failed") {
       return send(200, { status: "failed", error: '"TVC:GOLD" is not a market Vela serves, so nothing was changed. Use the bare ticker, or a venue prefix Vela reads.', state: shows() });
     }
@@ -704,6 +751,32 @@ async function startStandIn() {
       const explained = body.markup.concepts.filter((c) => c.teach).length;
       const { explained: _explained, ...marked } = found(state.market === "crypto", explained);
       return send(200, { status: "ok", state: shows({ quantDrawings: 9 }), marked, ...(explained ? { walkthrough: explained } : {}) });
+    }
+    if (body.op === "indicator_settings") {
+      return send(200, {
+        status: "ok",
+        state: shows(),
+        indicatorSettings: {
+          slot: 0,
+          id: body.settings.id,
+          name: "My RSI",
+          settings: [
+            { name: "Length", type: "int", value: 14, min: 1, max: 500 },
+            { name: "Source", type: "source", value: "close", options: ["open", "high", "low", "close"] },
+            { name: "Show labels", type: "bool", value: true },
+          ],
+        },
+      });
+    }
+    if (body.op === "set_indicator_settings") {
+      const now = { Length: 14, "Show labels": true };
+      const tooLong = body.settings.inputs.find((input) => input.name === "Length" && input.value > 500);
+      if (tooLong) return send(200, { status: "failed", error: 'Nothing was changed on My RSI. "Length" must be at most 500.', state: shows() });
+      return send(200, {
+        status: "ok",
+        state: shows(),
+        indicatorSettingsSet: { slot: 0, id: body.settings.id, name: "My RSI", applied: body.settings.inputs.map((input) => ({ name: input.name, from: now[input.name], to: input.value })) },
+      });
     }
     if (body.op === "add_indicator") {
       const { slot = 0, library, script } = body.indicator;

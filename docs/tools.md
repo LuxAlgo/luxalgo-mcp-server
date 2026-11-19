@@ -135,6 +135,8 @@ Live on the standard address (`https://mcp.luxalgo.com/mcp`) for members LuxAlgo
 | `vela_remove_drawings` | Removes drawings an assistant or Quant made: the groups named, or all of them. Never your own drawings |
 | `vela_add_indicator` | Adds an indicator that already exists to your chart: one from the LuxAlgo Library, by its slug, or one of your saved scripts, by its id. It takes no Pine Script® and writes no indicator; a paid Library indicator your plan does not include, or a chart at your plan's tools per chart, adds nothing and says why |
 | `vela_remove_indicators` | Takes indicators off your chart by the ids `vela_read_chart` gives them. Your saved scripts stay saved |
+| `vela_get_indicator_settings` | One indicator's settings as its settings dialog shows them: each setting's name, kind, value and what it may hold. Changes nothing |
+| `vela_set_indicator_settings` | Changes an indicator's settings by name (a length, a source, a toggle, a colour). Vela checks every value against what the indicator allows; one that does not fit changes nothing and says why |
 
 Each asks your open Vela tab through the LuxAlgo app. With Vela on screen it happens in front of you within seconds: the chart switches, a markup is drawn out stroke by stroke, and the tab says "Your AI changed this chart". When the assistant explains the parts of a markup or a drawing, you are walked through them on the chart, a bubble on each in turn. When Vela is not on screen (you are in another tab, talking to your assistant) a change is queued and applied the moment you look at Vela again, within 10 minutes; with several Vela tabs open, the one you used last is the one that changes.
 
