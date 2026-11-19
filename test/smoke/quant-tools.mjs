@@ -47,7 +47,42 @@ const SPENDING = ["quant_generate_pine_script", "quant_plan_backtest_loop", "qua
 export async function run({ client, check, httpUrl }) {
   await underTest(client, check, httpUrl);
   await addresses(check);
+  await hostedProduction(check);
   await signedIn(check);
+}
+
+// ── 2b. the hosted production deployment, where the tools are live ───────────
+
+/** Which Quant tools each address lists for a deployment, and the Claude address's digest. */
+async function listedOn(hosted) {
+  const entry = await startHttpEntry(hosted);
+  try {
+    const names = async (target) => ((await rpc(target, "tools/list", {}))?.tools ?? []).map((t) => t.name);
+    const claude = await rpc({ url: entry.url, host: `claude.${new URL(entry.url).host}` }, "tools/list", {});
+    return {
+      standard: (await names({ url: entry.url })).filter((n) => QUANT.includes(n)).length,
+      openai: (await names({ url: `${entry.url}/openai` })).filter((n) => QUANT.includes(n)).length,
+      claude: (claude?.tools ?? []).filter((t) => QUANT.includes(t.name)).length,
+      claudeDigest: createHash("sha256").update(JSON.stringify(claude?.tools ?? [])).digest("hex"),
+    };
+  } finally {
+    entry.stop();
+  }
+}
+
+async function hostedProduction(check) {
+  const live = await listedOn({ vercelEnv: "production" });
+  check(
+    "on the hosted production deployment the Quant tools are live on the standard and ChatGPT addresses with no switch set, and the Claude address stays the tool list under review",
+    live.standard === QUANT.length && live.openai === QUANT.length && live.claude === 0 && live.claudeDigest === CLAUDE_TOOLS_SHA256,
+    JSON.stringify({ ...live, claudeDigest: live.claudeDigest.slice(0, 12) }),
+  );
+  const off = await listedOn({ vercelEnv: "production", quantSwitch: "off" });
+  check(
+    "LUXALGO_QUANT_TOOLS=off takes them off the hosted production deployment again",
+    off.standard === 0 && off.openai === 0 && off.claude === 0 && off.claudeDigest === CLAUDE_TOOLS_SHA256,
+    JSON.stringify({ ...off, claudeDigest: off.claudeDigest.slice(0, 12) }),
+  );
 }
 
 // ── 1. the server under test ────────────────────────────────────────────────
@@ -783,8 +818,12 @@ const freePort = () =>
     });
   });
 
-/** A node-http entry with every opt-in tool on: the Claude address stays as reviewed with all of them. */
-async function startHttpEntry() {
+/**
+ * A node-http entry with every opt-in tool on: the Claude address stays as reviewed with all of them.
+ * `hosted` runs it as a Vercel deployment of that kind instead, with the Quant switch as given
+ * (undefined: not set, as on the hosted production project).
+ */
+async function startHttpEntry(hosted) {
   const port = await freePort();
   const env = {
     ...process.env,
@@ -796,6 +835,11 @@ async function startHttpEntry() {
     LUXALGO_CHART_TOOLS: "on",
   };
   delete env.VERCEL_ENV;
+  if (hosted) {
+    env.VERCEL_ENV = hosted.vercelEnv;
+    delete env.LUXALGO_QUANT_TOOLS;
+    if (hosted.quantSwitch) env.LUXALGO_QUANT_TOOLS = hosted.quantSwitch;
+  }
   const child = spawn(process.execPath, ["dist/entries/node-http.js"], { env, stdio: ["ignore", "pipe", "pipe"] });
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("node-http entry did not start within 15 s")), 15_000);
