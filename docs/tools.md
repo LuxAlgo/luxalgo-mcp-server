@@ -22,8 +22,8 @@ Every tool the LuxAlgo MCP server registers, by area. Names are stable; every re
 | "Where did I lose money last month? Tag my worst trade 'chased'." | `journal_breakdown`, `journal_list_trades`, `journal_update_trade` (sign-in) |
 | "Add SOL and ETH to my Majors watchlist." | `watchlists_list`, `watchlists_add_symbols` (sign-in; standard and ChatGPT addresses) |
 | "Look at my chart in Vela: what do you see?" | `chart_peek` (sign-in; standard and ChatGPT addresses) |
-| "Have Quant write an RSI divergence indicator and save it to my scripts." | `quant_generate_pine_script` (sign-in; self-hosted with `LUXALGO_QUANT_TOOLS=on`) |
-| "In my most recent backtest loop, what was the best strategy and how did it backtest?" | `quant_list_backtest_loops`, `quant_get_backtest_loop_info`, `quant_get_backtest_loop_strategy` (sign-in; same switch) |
+| "Have Quant write an RSI divergence indicator and save it to my scripts." | `quant_generate_pine_script` (sign-in; standard and ChatGPT addresses) |
+| "In my most recent backtest loop, what was the best strategy and how did it backtest?" | `quant_list_backtest_loops`, `quant_get_backtest_loop_info`, `quant_get_backtest_loop_strategy` (sign-in; standard and ChatGPT addresses) |
 | "What are my open positions across Alpaca and Kraken?" | `broker_positions` (local, your own read-only keys) |
 
 ## Live Vela charts
@@ -135,7 +135,7 @@ Every change is two steps and you decide in between: the assistant proposes, sho
 
 ## Quant: Pine Script® and backtest loops (sign-in)
 
-Self-hosted with `LUXALGO_QUANT_TOOLS=on`; off on the hosted addresses, and never on the Claude address while its directory review runs. Quant is our coding agent, built into Vela; these tools let your AI assistant ask it for work on your account.
+Live on the standard and ChatGPT addresses, and never on the Claude address while its directory review runs; self-hosted and over stdio, they register with `LUXALGO_QUANT_TOOLS=on`. Quant is our coding agent, built into Vela; these tools let your AI assistant ask it for work on your account.
 
 | Tool | Returns |
 | --- | --- |

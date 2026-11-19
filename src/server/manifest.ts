@@ -56,8 +56,8 @@ export const TOOL_MODULES: readonly ToolModule[] = [
   // VERCEL_ENV=preview, and never on the Claude address (_shared/member.ts).
   ...(paperToolsEnabled() ? [paperModule] : []),
   // Quant, our coding agent, for the member's AI assistant (Pine Script® generation and linting, the member's scripts,
-  // backtest loops; three of its tools spend the member's Quant usage): off unless LUXALGO_QUANT_TOOLS=on or
-  // VERCEL_ENV=preview, and never on the Claude address (_shared/member.ts).
+  // backtest loops; three of its tools spend the member's Quant usage): on for the hosted deployments unless
+  // LUXALGO_QUANT_TOOLS=off, elsewhere only with LUXALGO_QUANT_TOOLS=on, and never on the Claude address (_shared/member.ts).
   ...(quantToolsEnabled() ? [quantModule] : []),
 ];
 
