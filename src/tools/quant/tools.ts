@@ -5,9 +5,12 @@
   until enough of them meet the plan's criteria).
 
   A script Quant writes here is kept in the member's LuxAlgo account as one of
-  their Quant scripts. The loop tools only set a loop going and say where it
-  stands: what a loop finds is the member's to read in Vela, in its Loop
-  Report, and no tool here returns a strategy.
+  their Quant scripts. Planning and starting a loop return ids, never
+  strategies: a loop runs for minutes to hours. What it found is read
+  afterwards: quant_get_backtest_loop_info lists a loop's strategies by id,
+  best first, and quant_get_backtest_loop_strategy reads one with its code
+  and each market's backtest. "What was the best strategy of my latest
+  loop?" is list, info, strategy.
 
   Every tool is protected, and every one relays to the LuxAlgo app
   (/api/agents/quant/*, api.ts): the app runs Quant, meters the member's
@@ -31,6 +34,7 @@ import { errorMessage, ok, textError } from "../_shared/result.js";
 import {
   generatePineScript,
   getBacktestLoop,
+  getBacktestLoopStrategy,
   getUserScript,
   lintPineScript,
   listBacktestLoops,
@@ -42,6 +46,9 @@ import {
   type LoopInfo,
   type LoopPlan,
   type LoopStatus,
+  type LoopStrategy,
+  type LoopStrategyRef,
+  type LoopStrategyWindow,
   type LoopSummary,
   type PineDiagnostic,
   type UserScriptSummary,
@@ -58,8 +65,11 @@ const USAGE = "It uses the member's Quant usage on their LuxAlgo plan, metered b
 const NOT_OPEN = "Quant from an AI assistant is not open on this LuxAlgo account yet (the LuxAlgo app answered 404).";
 const LOOP_IS =
   "A backtest loop is an autonomous run in which Quant, our coding agent, writes and backtests Pine Script® strategy versions until enough of them meet the plan's criteria.";
-const RESULTS_IN_VELA =
-  "These tools set a loop going and say where it stands; they do not return the strategies it finds. The member reads those in Vela, in the loop's Loop Report (report_url), where they can put them on a chart.";
+const READ_RESULTS =
+  "To read what a loop found, call quant_get_backtest_loop_info for its strategies' ids (best first) and quant_get_backtest_loop_strategy for one strategy's code and backtests.";
+const CHART_IN_VELA =
+  "The member puts a strategy on a chart, compares them and resumes a loop in Vela, in the loop's Loop Report (report_url).";
+const HISTORY_ONLY = "Backtests are history under the plan's assumptions, never a prediction or trading advice.";
 
 /** Request sizes the app accepts, in characters. */
 const PROMPT_CHARS = 20_000;
@@ -192,11 +202,130 @@ const loopOut = (loop: LoopSummary) => ({
   report_url: loop.reportUrl,
 });
 
+const strategyRefOut = (strategy: LoopStrategyRef) => ({
+  id: strategy.id,
+  attempt: strategy.attempt,
+  meets_every_criterion: strategy.passed,
+  score: strategy.score,
+  handed_back: strategy.handedBack,
+  ...(strategy.scriptId ? { script_id: strategy.scriptId } : {}),
+  ...(strategy.description ? { description: strategy.description } : {}),
+});
+
 const loopInfoOut = (loop: LoopInfo) => ({
   ...loopOut(loop),
   ...(loop.statusReason ? { status_reason: loop.statusReason } : {}),
   ...(loop.summary ? { summary: loop.summary } : {}),
+  // An app that does not list strategies yet answers without them.
+  best_strategy_id: loop.bestStrategyId ?? null,
+  strategies: (loop.strategies ?? []).map(strategyRefOut),
 });
+
+const windowOut = (window: LoopStrategyWindow) => ({
+  passed: window.passed,
+  criteria: window.criteria.map((criterion) => ({
+    metric: criterion.metric,
+    min: criterion.min,
+    max: criterion.max,
+    value: criterion.value,
+    passed: criterion.passed,
+    ...(criterion.detail ? { detail: criterion.detail } : {}),
+  })),
+  ...(window.problems.length > 0 ? { problems: window.problems } : {}),
+  metrics: window.metrics,
+  backtest: window.backtest && {
+    from: window.backtest.from,
+    to: window.backtest.to,
+    bars: window.backtest.bars,
+    initial_capital: window.backtest.initialCapital,
+    net_profit: window.backtest.netProfit,
+    gross_profit: window.backtest.grossProfit,
+    gross_loss: window.backtest.grossLoss,
+    open_profit: window.backtest.openProfit,
+    cagr_pct: window.backtest.cagrPct,
+    max_drawdown: window.backtest.maxDrawdown,
+    max_drawdown_pct: window.backtest.maxDrawdownPct,
+    max_runup: window.backtest.maxRunup,
+    max_runup_pct: window.backtest.maxRunupPct,
+    sharpe_ratio: window.backtest.sharpeRatio,
+    sortino_ratio: window.backtest.sortinoRatio,
+    buy_and_hold_pnl: window.backtest.buyAndHoldPnl,
+    buy_and_hold_pct: window.backtest.buyAndHoldPct,
+    strategy_outperformance: window.backtest.strategyOutperformance,
+  },
+});
+
+const strategyOut = (strategy: LoopStrategy) => ({
+  id: strategy.id,
+  loop_id: strategy.loopId,
+  attempt: strategy.attempt,
+  meets_every_criterion: strategy.passed,
+  outcome: strategy.outcome,
+  score: strategy.score,
+  ...(strategy.family ? { family: strategy.family } : {}),
+  ...(strategy.description ? { description: strategy.description } : {}),
+  ...(strategy.notes ? { notes: strategy.notes } : {}),
+  ...(strategy.behavior ? { behavior: strategy.behavior } : {}),
+  handed_back: strategy.handedBack,
+  ...(strategy.scriptId ? { script_id: strategy.scriptId } : {}),
+  markets: strategy.markets.map((market) => ({
+    ticker: market.ticker,
+    timeframe: market.timeframe,
+    in_sample: windowOut(market.inSample),
+    out_of_sample: market.outOfSample ? windowOut(market.outOfSample) : null,
+  })),
+  code: strategy.code,
+  report_url: strategy.reportUrl,
+});
+
+/** What a loop has found so far, in a sentence that names its best strategy. */
+function foundWords(loop: LoopInfo): string {
+  // An app that does not list strategies yet answers without them: say nothing rather than "none".
+  if (!loop.strategies) return "";
+  const best = loop.strategies[0];
+  if (!best) return " No attempt has reached a backtest yet, so it has no strategy to read.";
+  const standing = best.passed
+    ? "meets every criterion"
+    : `is the closest so far and does not meet every criterion (score ${best.score} of 100 in sample)`;
+  return ` Its best strategy is ${best.id} (attempt ${best.attempt}), which ${standing}; read it with quant_get_backtest_loop_strategy.`;
+}
+
+/** One window's headline numbers in a clause: what a trader asks about first. */
+function windowWords(window: LoopStrategyWindow): string {
+  const metric = (name: string) => window.metrics?.[name] ?? null;
+  // A loss reads "-$800", not "$-800".
+  const money = (amount: number) => `${amount < 0 ? "-" : ""}$${num(Math.abs(amount), 0)}`;
+  const facts = [
+    metric("net_profit_ccy") === null ? null : `net profit ${money(metric("net_profit_ccy") ?? 0)}`,
+    metric("profit_factor") === null ? null : `profit factor ${num(metric("profit_factor"))}`,
+    metric("closed_trades") === null ? null : plural(metric("closed_trades") ?? 0, "trade"),
+    metric("win_rate_pct") === null ? null : `win rate ${num(metric("win_rate_pct"), 1)}%`,
+    metric("max_drawdown_pct") === null ? null : `max drawdown ${num(metric("max_drawdown_pct"), 1)}%`,
+  ].filter((fact): fact is string => fact !== null);
+  const failed = window.criteria.filter((criterion) => !criterion.passed).map((criterion) => criterion.metric);
+  const verdict = window.passed
+    ? "meets its criteria"
+    : `does not meet its criteria${failed.length > 0 ? ` (${failed.join(", ")})` : ""}`;
+  return `${facts.length > 0 ? `${facts.join(", ")}; ` : ""}${verdict}`;
+}
+
+/** A strategy in sentences: the verdict, what it does, and each market in sample and held out. */
+function strategyWords(strategy: LoopStrategy): string {
+  const verdict = strategy.passed
+    ? "it meets every criterion on every market, held-out data included"
+    : `it does not meet every criterion${strategy.score === null ? "" : ` (score ${strategy.score} of 100 in sample)`}`;
+  const markets = strategy.markets.map((market) => {
+    const name = `${market.ticker}${market.timeframe === null ? "" : ` ${timeframeWords(market.timeframe)}`}`;
+    const held = market.outOfSample ? ` Held out: ${windowWords(market.outOfSample)}.` : " No data was held out.";
+    return `${name}. In sample: ${windowWords(market.inSample)}.${held}`;
+  });
+  return (
+    `Strategy ${strategy.id}, attempt ${strategy.attempt} of loop ${strategy.loopId}: ${verdict}.` +
+    `${strategy.description ? ` ${strategy.description}` : ""}` +
+    `${strategy.behavior ? ` How it trades: ${strategy.behavior}.` : ""}` +
+    `\n${markets.join("\n")}`
+  );
+}
 
 /** The app's refusals in words; sign-in and plan answers always go up to the auth wrapper. */
 function failure(error: unknown, what: string): CallToolResult {
@@ -430,7 +559,7 @@ export function registerQuantTools(server: McpServer, runtime: AuthRuntime) {
     "quant_start_backtest_loop",
     {
       title: "Start a backtest loop",
-      description: `Starts the backtest loop of a plan the member approved, by the plan_id quant_plan_backtest_loop returned, and returns its loop id. ${LOOP_IS} Call it only after you showed the member that plan and they said yes in their own words; never start one on their behalf. Once started it runs on LuxAlgo's servers, for up to the plan's time limit, whether or not this chat stays open, and every attempt it makes uses the member's Quant usage until it ends or quant_stop_backtest_loop stops it. A plan starts at most one loop: starting it again returns the loop it already started. Follow it with quant_get_backtest_loop_info. ${RESULTS_IN_VELA} Backtest loops run on the Ultimate and Ultra plans; the LuxAlgo app decides.`,
+      description: `Starts the backtest loop of a plan the member approved, by the plan_id quant_plan_backtest_loop returned, and returns its loop id. ${LOOP_IS} Call it only after you showed the member that plan and they said yes in their own words; never start one on their behalf. Once started it runs on LuxAlgo's servers, for up to the plan's time limit, whether or not this chat stays open, and every attempt it makes uses the member's Quant usage until it ends or quant_stop_backtest_loop stops it. A plan starts at most one loop: starting it again returns the loop it already started. It returns the loop id, not strategies: follow it with quant_get_backtest_loop_info. ${READ_RESULTS} Backtest loops run on the Ultimate and Ultra plans; the LuxAlgo app decides.`,
       inputSchema: z.object({
         plan_id: z.string().trim().min(1).max(128).describe("The plan_id quant_plan_backtest_loop returned."),
       }),
@@ -441,7 +570,7 @@ export function registerQuantTools(server: McpServer, runtime: AuthRuntime) {
         const started = await startBacktestLoop(plan_id);
         // A plan starts at most one loop: when that loop has already ended, nothing new was started.
         const text = isGoing(started.status)
-          ? `Started: the backtest loop is ${statusWords(started.status)} on LuxAlgo's servers (loop id ${started.loopId}). It uses the member's Quant usage until it ends; quant_stop_backtest_loop stops it, and quant_get_backtest_loop_info says where it stands. The member reads what it finds in Vela: ${started.reportUrl}`
+          ? `Started: the backtest loop is ${statusWords(started.status)} on LuxAlgo's servers (loop id ${started.loopId}). It uses the member's Quant usage until it ends; quant_stop_backtest_loop stops it, and quant_get_backtest_loop_info says where it stands and what it has found so far. Its Loop Report in Vela: ${started.reportUrl}`
           : `Nothing new was started: this plan already started loop ${started.loopId}, which already ended (${statusWords(started.status)}). A plan starts at most one loop; to run another, plan again with quant_plan_backtest_loop.`;
         return ok(text, {
           loop_id: started.loopId,
@@ -485,7 +614,7 @@ export function registerQuantTools(server: McpServer, runtime: AuthRuntime) {
     "quant_list_backtest_loops",
     {
       title: "List my backtest loops",
-      description: `The signed-in member's backtest loops, newest first: each one's id, status, whether it is active (\`active\` is true while it is running or waiting for more Quant usage), its markets, how many strategies it found against how many the plan asked for, its attempts, the time it has used against its limit, when it started and ended, and its report_url. \`active: true\` lists only the ones still going; \`active: false\` only the ones that ended. ${RESULTS_IN_VELA}`,
+      description: `The signed-in member's backtest loops, newest first: each one's id, status, whether it is active (\`active\` is true while it is running or waiting for more Quant usage), its markets, how many strategies it found against how many the plan asked for, its attempts, the time it has used against its limit, when it started and ended, and its report_url. \`active: true\` lists only the ones still going; \`active: false\` only the ones that ended. The first one listed is the member's most recent loop. ${READ_RESULTS}`,
       inputSchema: z.object({
         active: z.boolean().optional().describe("true: only loops still going; false: only loops that ended. Default: both."),
         limit: z.number().int().min(1).max(20).optional().describe("Max loops (default 20, the most one call returns)."),
@@ -512,8 +641,8 @@ export function registerQuantTools(server: McpServer, runtime: AuthRuntime) {
     runtime,
     "quant_get_backtest_loop_info",
     {
-      title: "Get a backtest loop's status",
-      description: `Where one of the member's backtest loops stands, by its id: its status and whether it is still active, why it stopped when it did, Quant's closing summary once it ended, its markets, how many strategies it found against how many the plan asked for, its attempts and the time it has used against its limit, and its report_url. ${RESULTS_IN_VELA} While a loop is running, ask again no more than about once a minute.`,
+      title: "Get a backtest loop's status and strategies",
+      description: `Where one of the member's backtest loops stands, by its id: its status and whether it is still active, why it stopped when it did, Quant's closing summary once it ended, its markets, how many strategies it found against how many the plan asked for, its attempts and the time it has used against its limit, its report_url, and what it found so far: \`strategies\`, its best ones (10 at most) with each one's id, attempt number, whether it meets every criterion, its in-sample score (0 to 100) and a line on what it does, and \`best_strategy_id\`, the first of them. Best means the ones that meet every criterion on every market, held-out data included, then the highest score; while nothing passes, it is the closest attempt, so say so. Read one with quant_get_backtest_loop_strategy. ${CHART_IN_VELA} While a loop is running, ask again no more than about once a minute.`,
       inputSchema: z.object({ loop_id: loopIdInput }),
       annotations: READ,
     },
@@ -524,11 +653,41 @@ export function registerQuantTools(server: McpServer, runtime: AuthRuntime) {
           `${loopWords(loop)}.` +
           // The closing summary of a loop that ended badly repeats why: say it once.
           `${loop.statusReason && !loop.summary?.includes(loop.statusReason) ? ` ${loop.statusReason}` : ""}` +
-          ` The member reads its strategies in Vela, in its Loop Report: ${loop.reportUrl}` +
+          `${foundWords(loop)} Its Loop Report in Vela: ${loop.reportUrl}` +
           `${loop.summary ? `\n\n${loop.summary}` : ""}`;
         return ok(text, { loop: loopInfoOut(loop) });
       } catch (error) {
         return failure(error, "The loop was not read");
+      }
+    },
+  );
+
+  registerProtectedTool(
+    server,
+    runtime,
+    "quant_get_backtest_loop_strategy",
+    {
+      title: "Get a strategy a backtest loop found",
+      description: `One strategy of one of the member's backtest loops, by its id from quant_get_backtest_loop_info (\`best_strategy_id\`, or an id in \`strategies\`): whether it meets every criterion, what it does and how it trades in Quant's words, its Pine Script® source as it goes on a chart, and each market's backtest on the data it was developed on (\`in_sample\`) and on the data held out from it (\`out_of_sample\`): the verdict, every criterion against its threshold, the metrics (net profit, profit factor, trades, win rate, drawdown and the rest, by their plan names) and the run's statistics (dates, bars, Sharpe, Sortino, CAGR, run-up, buy and hold). For "what was the best strategy of my latest loop?", call quant_list_backtest_loops (newest first), then quant_get_backtest_loop_info, then this with its best_strategy_id. Quote the numbers as returned, name whether each is in sample or held out, and never round a failing strategy up to a passing one. It returns no trade list and no equity curve. ${CHART_IN_VELA} It reads only; it uses no Quant usage. ${HISTORY_ONLY}`,
+      inputSchema: z.object({
+        strategy_id: z
+          .string()
+          .trim()
+          .min(3)
+          .max(160)
+          .describe("The strategy's id, from quant_get_backtest_loop_info: best_strategy_id, or an id in strategies."),
+      }),
+      annotations: READ,
+    },
+    async ({ strategy_id }) => {
+      try {
+        const strategy = await getBacktestLoopStrategy(strategy_id);
+        const text =
+          `${strategyWords(strategy)}\n${HISTORY_ONLY} Its Loop Report in Vela: ${strategy.reportUrl}` +
+          `\n\n\`\`\`pine\n${strategy.code.replace(/\s+$/, "")}\n\`\`\``;
+        return ok(text, { strategy: strategyOut(strategy) });
+      } catch (error) {
+        return failure(error, "The strategy was not read");
       }
     },
   );

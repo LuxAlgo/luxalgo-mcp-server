@@ -83,6 +83,7 @@ export const QUANT = [
   "quant_stop_backtest_loop",
   "quant_list_backtest_loops",
   "quant_get_backtest_loop_info",
+  "quant_get_backtest_loop_strategy",
 ];
 
 export async function run({ client, check, callJson, callStructured, httpUrl, rawToolsList }) {

@@ -7,8 +7,10 @@
 
   A script Quant writes here is kept in the member's LuxAlgo account as one of
   their Quant scripts. A backtest loop is planned, started, stopped and
-  followed here (where it stands); what it finds is the member's to read in
-  Vela, in the loop's Loop Report, and never comes back through these routes.
+  followed here (where it stands), and what it found is read here too: a
+  loop's info lists its strategies by id, best first, and a strategy's id
+  reads its code and each market's backtest. Charting and comparing them is
+  in Vela, in the loop's Loop Report.
 
   Three of them spend the member's Quant usage, and the app meters it: a
   generation (each attempt), a backtest loop plan (the planning call) and a
@@ -170,14 +172,102 @@ export type LoopSummary = {
   timeLimitSeconds: number;
   createdAt: string;
   finishedAt: string | null;
-  /** The loop's Loop Report in Vela: where the member reads what it found. */
+  /** The loop's Loop Report in Vela: where the member charts and compares what it found. */
   reportUrl: string;
+};
+
+/** One of a loop's strategies, as its info lists it. */
+export type LoopStrategyRef = {
+  /** What quant_get_backtest_loop_strategy takes. */
+  id: string;
+  /** Its attempt number in the loop, as the Loop Report shows it. */
+  attempt: number;
+  /** Meets every criterion on every market, held-out data included. */
+  passed: boolean;
+  /** 0 to 100, in sample: 100 meets every criterion there. */
+  score: number;
+  /** One of the strategies the loop handed back when it ended. */
+  handedBack: boolean;
+  /** The member's script it was saved as, when it was. */
+  scriptId: string | null;
+  description: string | null;
 };
 
 export type LoopInfo = LoopSummary & {
   statusReason: string | null;
   /** Quant's closing write-up, once the loop has ended. */
   summary: string | null;
+  /** The first of `strategies`; null while no attempt has reached a backtest. */
+  bestStrategyId: string | null;
+  /** The loop's strategies so far, best first, 10 at most. */
+  strategies: LoopStrategyRef[];
+};
+
+/** The statistics of one backtest run. Amounts are in the account currency; `from` / `to` are ISO times of its first and last bars. */
+export type LoopBacktestStats = {
+  from: string;
+  to: string;
+  bars: number;
+  initialCapital: number;
+  netProfit: number;
+  grossProfit: number;
+  grossLoss: number;
+  openProfit: number;
+  cagrPct: number;
+  maxDrawdown: number;
+  maxDrawdownPct: number;
+  maxRunup: number;
+  maxRunupPct: number;
+  sharpeRatio: number;
+  sortinoRatio: number;
+  buyAndHoldPnl: number;
+  buyAndHoldPct: number;
+  strategyOutperformance: number;
+};
+
+/** One market of a strategy on one dataset: developed on (in sample) or held out from it (out of sample). */
+export type LoopStrategyWindow = {
+  passed: boolean;
+  /** Each criterion with the threshold applied to this window and the value the backtest gave. */
+  criteria: Array<{
+    metric: string;
+    min: number | null;
+    max: number | null;
+    value: number | null;
+    passed: boolean;
+    detail: string | null;
+  }>;
+  /** Integrity checks the window failed (lookahead, repainting). */
+  problems: string[];
+  /** Every metric the loop computed for the window, by its plan name (`profit_factor`, `max_drawdown_pct`, …). */
+  metrics: Record<string, number | null> | null;
+  /** Null for an attempt from before runs were kept. */
+  backtest: LoopBacktestStats | null;
+};
+
+export type LoopStrategy = {
+  id: string;
+  loopId: string;
+  attempt: number;
+  passed: boolean;
+  outcome: string;
+  score: number | null;
+  family: string | null;
+  description: string | null;
+  notes: string | null;
+  /** How it trades, in words. */
+  behavior: string | null;
+  handedBack: boolean;
+  scriptId: string | null;
+  /** Its Pine Script® as it goes on a chart, the plan's settings written in. */
+  code: string;
+  markets: Array<{
+    ticker: string;
+    timeframe: number | null;
+    inSample: LoopStrategyWindow;
+    outOfSample: LoopStrategyWindow | null;
+  }>;
+  reportUrl: string;
 };
 
 export const planBacktestLoop = (body: { prompt: string; timeoutSeconds: number }) =>
@@ -202,3 +292,10 @@ export const listBacktestLoops = (query: { active?: boolean; limit?: number }) =
 
 export const getBacktestLoop = async (loopId: string) =>
   (await appGet<{ loop: LoopInfo }>(`/api/agents/quant/backtest-loops/${encodeURIComponent(loopId)}`)).loop;
+
+export const getBacktestLoopStrategy = async (strategyId: string) =>
+  (
+    await appGet<{ strategy: LoopStrategy }>(
+      `/api/agents/quant/backtest-loops/strategies/${encodeURIComponent(strategyId)}`,
+    )
+  ).strategy;
