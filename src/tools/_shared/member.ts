@@ -62,6 +62,37 @@ export const quantToolsEnabled = (): boolean => {
 };
 
 /**
+ * The member's open Vela chart, read and changed by their AI assistant
+ * (tools/vela): its market, timeframe, look and layout, a pro's markup and
+ * drawings. Its own switch, since it changes what the member sees in their
+ * browser.
+ *
+ * On for every Vercel deployment, production included, and
+ * LUXALGO_CHART_CONTROL_TOOLS=off there switches it off again (set it and
+ * redeploy). Anywhere else (stdio, a self-hosted server, the tests) it needs
+ * LUXALGO_CHART_CONTROL_TOOLS=on. The app's own switch is its PostHog flag
+ * `agent-chart-control`, which decides member by member and takes effect
+ * within a minute and without a deploy: while it is off for a member the
+ * tools tell them it is not available yet. Turn that off first when
+ * something is wrong.
+ */
+export const chartControlToolsEnabled = (): boolean => {
+  const asked = process.env.LUXALGO_CHART_CONTROL_TOOLS;
+  if (asked === "off") return false;
+  return asked === "on" || process.env.VERCEL_ENV === "preview" || process.env.VERCEL_ENV === "production";
+};
+
+/**
+ * Whether those tools are also listed on the ChatGPT address. Not by default
+ * in production: that address is the one OpenAI's plugin directory reviewed,
+ * and the app's flag is not open to every member yet, so it would list five
+ * tools that tell most people they are not available. Listed there with
+ * LUXALGO_CHART_CONTROL_TOOLS=on, and on a Vercel preview.
+ */
+export const chartControlOnChatGpt = (): boolean =>
+  process.env.LUXALGO_CHART_CONTROL_TOOLS === "on" || process.env.VERCEL_ENV === "preview";
+
+/**
  * A domain of the member's own data: every tool needs a signed-in member
  * (the app routes answer 401 anonymously), so every tool is protected.
  */

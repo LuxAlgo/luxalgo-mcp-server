@@ -14,7 +14,9 @@
   `account-tools` (the opt-in watchlists, layouts and alerts; alerts also need
   LUXALGO_ALERT_TOOLS=on), and
   `paper-tools` (the opt-in Paper Trading by LuxAlgo tools), and
-  `quant-tools` (the opt-in Quant tools). Run a subset with
+  `quant-tools` (the opt-in Quant tools), and
+  `vela-chart` (the opt-in tools that read and change the member's open Vela
+  chart). Run a subset with
   --only <suite>[,<suite>], e.g. `node test/smoke.mjs --only library,edge`.
 */
 import { Client } from "@modelcontextprotocol/client";
@@ -49,6 +51,8 @@ const stdioEnv = {
   ...(process.env.LUXALGO_PAPER_TOOLS ? { LUXALGO_PAPER_TOOLS: process.env.LUXALGO_PAPER_TOOLS } : {}),
   // The opt-in Quant tools, when this run asks for them.
   ...(process.env.LUXALGO_QUANT_TOOLS ? { LUXALGO_QUANT_TOOLS: process.env.LUXALGO_QUANT_TOOLS } : {}),
+  // The opt-in tools for the member's open Vela chart, when this run asks for them.
+  ...(process.env.LUXALGO_CHART_CONTROL_TOOLS ? { LUXALGO_CHART_CONTROL_TOOLS: process.env.LUXALGO_CHART_CONTROL_TOOLS } : {}),
 };
 
 /**
@@ -177,6 +181,9 @@ const suites = [
   // Opt-in Quant tools: anonymous refusals, annotations and copy, the Claude address without them, and a script written,
   // checked and found, and a backtest loop planned, started, stopped and read, against a stand-in for the app's routes.
   ["quant-tools", () => import("./smoke/quant-tools.mjs")],
+  // Opt-in tools for the member's open Vela chart: anonymous refusals, annotations and copy, the Claude address without them,
+  // and a read, a change, drawings drawn and removed and every refusal, against a stand-in for the app's route.
+  ["vela-chart", () => import("./smoke/vela-chart.mjs")],
 ];
 
 const context = { client, check, callJson, callStructured, httpUrl, rawToolsList };
