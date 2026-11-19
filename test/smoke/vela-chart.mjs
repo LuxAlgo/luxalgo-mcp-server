@@ -1,7 +1,7 @@
 /*
   The member's open Vela chart, read and changed by their AI assistant (opt-in:
   LUXALGO_CHART_CONTROL_TOOLS=on or a Vercel preview): its market, timeframe,
-  look and layout, and drawings.
+  look and layout, a pro's markup found on its own candles, and drawings.
 
   1. The server under test: when it lists these tools, an anonymous read and an
      anonymous change meet the sign-in challenge (401 hosted, in-band on stdio).
@@ -9,13 +9,19 @@
      ChatGPT addresses list them, protected, with their annotations (removing
      drawings is the one marked destructive) and copy; anonymous calls are
      refused with 401; the Claude address lists none of them and its tool list
-     is byte for byte the one under review.
+     is byte for byte the one under review. A second entry started as LuxAlgo's
+     production deployment is, with no switch set: the standard address lists
+     them, the ChatGPT address does not, and LUXALGO_CHART_CONTROL_TOOLS=off
+     takes them off everywhere.
   3. A stdio entry signed in to a stand-in for the app's route (a local server
      that takes the bodies the app takes and refuses what it refuses): a read in
      words, a change sent in the app's own names with only what was asked, the
      answers for no open tab, a chart that could not do it, a plan limit, a
-     timeframe no chart has and the app's switch being off, and drawings drawn
-     and removed. Calls the tool can refuse itself never reach the app. The
+     timeframe no chart has and the app's switch being off, a markup with the
+     prices the app gave (a crypto chart) and without any (a stock chart), a
+     walkthrough of the parts the assistant explained, a change queued for a
+     member whose Vela is not on screen, and drawings drawn and removed. Calls
+     the tool can refuse itself never reach the app. The
      stand-in records any call outside the app's MCP allowlist for these tools,
      and the suite fails if there is one.
 */
@@ -109,10 +115,12 @@ async function addresses(check) {
     const tool = (name) => standardTools?.tools?.find((t) => t.name === name) ?? {};
     const a = (name) => tool(name).annotations ?? {};
     const props = (name) => Object.keys(tool(name).inputSchema?.properties ?? {});
+    const changing = VELA_CHART.filter((n) => n !== "vela_read_chart");
     check(
-      "reading is read-only; changing, drawing and removing are not, and all four reach outside (the member's browser)",
+      "reading is read-only; changing, marking up, drawing and removing are not, and all five reach outside (the member's browser)",
       a("vela_read_chart").readOnlyHint === true &&
-        ["vela_set_chart", "vela_draw_on_chart", "vela_remove_drawings"].every((n) => a(n).readOnlyHint === false) &&
+        changing.length === 4 &&
+        changing.every((n) => a(n).readOnlyHint === false) &&
         VELA_CHART.every((n) => a(n).openWorldHint === true),
       VELA_CHART.map((n) => `${n} ${JSON.stringify(a(n))}`).join("; "),
     );
@@ -131,18 +139,42 @@ async function addresses(check) {
       chartProps.join(", "),
     );
     check(
-      "vela_draw_on_chart needs its drawings; vela_read_chart takes nothing",
-      (tool("vela_draw_on_chart").inputSchema?.required ?? []).join() === "drawings" && props("vela_read_chart").length === 0,
+      "vela_draw_on_chart needs its drawings and vela_mark_up_chart its concepts; vela_read_chart takes nothing",
+      (tool("vela_draw_on_chart").inputSchema?.required ?? []).join() === "drawings" &&
+        (tool("vela_mark_up_chart").inputSchema?.required ?? []).join() === "concepts" &&
+        props("vela_read_chart").length === 0,
+    );
+    const conceptProps = tool("vela_mark_up_chart").inputSchema?.properties?.concepts?.items?.properties ?? {};
+    const drawingProps = tool("vela_draw_on_chart").inputSchema?.properties?.drawings?.items?.properties ?? {};
+    check(
+      "a markup names concepts and never takes a price to draw at; a concept and a drawing can each carry an explanation for the walkthrough",
+      conceptProps.concept?.enum?.length === 13 &&
+        ["fair_value_gaps", "liquidity", "market_structure", "order_blocks", "key_levels"].every((c) => conceptProps.concept.enum.includes(c)) &&
+        !("price" in conceptProps) &&
+        !("points" in conceptProps) &&
+        conceptProps.explain?.maxLength === 280 &&
+        drawingProps.explain?.maxLength === 280,
+      Object.keys(conceptProps).join(", "),
     );
     check(
-      "each says the member's Vela tab must be open and visible, and that it is the member's own Vela, not the chart in the chat",
-      VELA_CHART.every((n) => /open and visible/.test(tool(n).description) && /has open right now in Vela/.test(tool(n).description)) &&
+      "each says it is the member's own Vela, not the chart in the chat; reading says the tab must be open and visible",
+      VELA_CHART.every((n) => /has open right now in Vela/.test(tool(n).description)) &&
+        /open and visible/.test(tool("vela_read_chart").description) &&
         /chart_open/.test(tool("vela_read_chart").description) &&
         /chart_open and chart_command/.test(tool("vela_set_chart").description),
     );
     check(
-      "the changing tools say they carry no prices, and drawing says never to draw at guessed prices",
-      /no prices/.test(tool("vela_read_chart").description) && /no prices/.test(tool("vela_set_chart").description) && /never at guessed ones/.test(tool("vela_draw_on_chart").description),
+      "each changing tool says a change is queued when the member's Vela is not on screen, and applied when they look at it again",
+      changing.every((n) => /queued and applied the moment they look at Vela again/.test(tool(n).description)),
+    );
+    check(
+      "reading and changing say they carry no prices; a markup says where it returns prices and where not; drawing says never to draw at guessed prices",
+      /no prices/.test(tool("vela_read_chart").description) &&
+        /no prices/.test(tool("vela_set_chart").description) &&
+        /with exact prices for a crypto chart fed by an exchange/.test(tool("vela_mark_up_chart").description) &&
+        /without prices for any other market/.test(tool("vela_mark_up_chart").description) &&
+        /never pass prices you made up/.test(tool("vela_mark_up_chart").description) &&
+        /never at guessed ones/.test(tool("vela_draw_on_chart").description),
     );
     const copy = VELA_CHART.map((n) => `${tool(n).title} ${tool(n).description}`).join(" ");
     const banned = [/QuantCharts/, /Quant AI/, /\bpane\b/i, /TradingView/, /the company behind/i, /AI trading & charting/i];
@@ -154,6 +186,35 @@ async function addresses(check) {
   } finally {
     entry.stop();
   }
+
+  // As LuxAlgo's production deployment runs: no switch set.
+  const names = (list) => (list?.tools ?? []).map((t) => t.name);
+  const listed = async (env) => {
+    const hosted = await startHttpEntry(env);
+    try {
+      const lists = {
+        standard: await rpc({ url: hosted.url }, "tools/list", {}),
+        chatgpt: await rpc({ url: `${hosted.url}/openai` }, "tools/list", {}),
+        claude: await rpc({ url: hosted.url, host: `claude.${new URL(hosted.url).host}` }, "tools/list", {}),
+      };
+      return {
+        standard: names(lists.standard).filter((n) => VELA_CHART.includes(n)).length,
+        chatgpt: names(lists.chatgpt).filter((n) => VELA_CHART.includes(n)).length,
+        claude: names(lists.claude).filter((n) => VELA_CHART.includes(n)).length,
+        claudeDigest: createHash("sha256").update(JSON.stringify(lists.claude?.tools ?? [])).digest("hex"),
+      };
+    } finally {
+      hosted.stop();
+    }
+  };
+  const production = await listed({ VERCEL_ENV: "production", LUXALGO_CHART_CONTROL_TOOLS: undefined });
+  check(
+    "in production with no switch set, the standard address lists all of them, the ChatGPT address none, and the Claude address stays as reviewed",
+    production.standard === VELA_CHART.length && production.chatgpt === 0 && production.claude === 0 && production.claudeDigest === CLAUDE_TOOLS_SHA256,
+    JSON.stringify({ ...production, claudeDigest: production.claudeDigest.slice(0, 12) }),
+  );
+  const off = await listed({ VERCEL_ENV: "production", LUXALGO_CHART_CONTROL_TOOLS: "off" });
+  check("LUXALGO_CHART_CONTROL_TOOLS=off takes them off every address in production", off.standard === 0 && off.chatgpt === 0 && off.claude === 0, JSON.stringify({ standard: off.standard, chatgpt: off.chatgpt }));
 }
 
 // ── 3. signed in, against a stand-in for the app ─────────────────────────────
@@ -233,11 +294,23 @@ async function signedIn(check) {
     );
 
     state.mode = "no_open_chart";
-    const noTab = await call(...CHANGE);
+    const noTab = await call("vela_read_chart");
     check(
-      "with no visible Vela tab, it says nothing changed and asks the member to open Vela, keep it visible and ask again in a minute",
-      !noTab.isError && noTab.data.status === "no_open_chart" && /Nothing changed/.test(noTab.text) && /vela\.luxalgo\.com\/chart/.test(noTab.text) && /visible/.test(noTab.text) && /in a minute/.test(noTab.text),
+      "with no visible Vela tab, a read says there is nothing to read and asks the member to open Vela, keep it visible and ask again in a minute",
+      !noTab.isError && noTab.data.status === "no_open_chart" && /nothing to read/.test(noTab.text) && /vela\.luxalgo\.com\/chart/.test(noTab.text) && /visible/.test(noTab.text) && /in a minute/.test(noTab.text),
       noTab.text.slice(0, 160),
+    );
+    state.mode = "queued";
+    const queued = await call(...CHANGE);
+    check(
+      "a change asked for while the member's Vela is not on screen is said to be queued, not done: applied when they look at Vela again, with where to open it",
+      !queued.isError &&
+        queued.data.status === "queued" &&
+        /^Queued, not applied yet/.test(queued.text) &&
+        /the moment they look at their Vela tab/.test(queued.text) &&
+        /vela\.luxalgo\.com\/chart/.test(queued.text) &&
+        !/^Done/.test(queued.text),
+      queued.text.slice(0, 160),
     );
     state.mode = "failed";
     const failed = await call(...CHANGE);
@@ -264,11 +337,50 @@ async function signedIn(check) {
       seconds.text.slice(0, 120),
     );
 
+    const marked = await call("vela_mark_up_chart", {
+      concepts: [
+        { concept: "dealing_range", ote: true, explain: "  Where price is cheap or dear inside the last swing.  " },
+        { concept: "fair_value_gaps", count: 2 },
+      ],
+    });
+    check(
+      "vela_mark_up_chart names concepts only, and an explanation reaches the app as that part's walkthrough text",
+      JSON.stringify(sent()) ===
+        '{"op":"markup","markup":{"concepts":[{"concept":"dealing_range","ote":true,"teach":"Where price is cheap or dear inside the last swing."},{"concept":"fair_value_gaps","count":2}]}}',
+      JSON.stringify(sent()),
+    );
+    check(
+      "on a crypto chart fed by an exchange it says what was found with the prices the app gave, each once, and that the member is being walked through it",
+      !marked.isError &&
+        /^Marked up, 9 drawings on the member's chart:/.test(marked.text) &&
+        /- the dealing range 61,200 – 66,800 \(group "dealing-range-a1b2"\): EQ \(64,000\) \(2026-11-18 14:00, equilibrium\)\./.test(marked.text) &&
+        /- 2 fair value gaps \(group "fair-value-gaps-c3d4"\): Bullish FVG at 62,100 and 62,450 \(2026-11-18 09:00, active\); Bearish FVG at 65,900 and 66,300 \(2026-11-17 21:00, mitigated\)\./.test(marked.text) &&
+        !/Prices are not returned/.test(marked.text) &&
+        /walked through that part on the chart/.test(marked.text) &&
+        marked.data.marked?.priced === true &&
+        marked.data.walkthrough === 1,
+      marked.text.slice(0, 260),
+    );
+    state.market = "stock";
+    const stock = await call("vela_mark_up_chart", { concepts: [{ concept: "dealing_range" }, { concept: "fair_value_gaps" }] });
+    check(
+      "on any other market it names what was found without a single price, and says the levels are on the member's chart",
+      !stock.isError &&
+        /- the dealing range \(group "dealing-range-a1b2"\): EQ \(2026-11-18 14:00, equilibrium\)\./.test(stock.text) &&
+        /Bullish FVG \(2026-11-18 09:00, active\)/.test(stock.text) &&
+        /Prices are not returned for this market/.test(stock.text) &&
+        /never state or estimate a price/.test(stock.text) &&
+        stock.data.marked?.priced === false &&
+        ["61,200", "66,800", "64,000", "62,100", "62,450", "65,900", "66,300"].every((price) => !stock.text.includes(price) && !JSON.stringify(stock.data).includes(price)),
+      stock.text.slice(0, 260),
+    );
+    state.market = "crypto";
+
     const drawn = await call("vela_draw_on_chart", {
       slot: 0,
       title: "Range plan",
       drawings: [
-        { type: "level", points: [{ time: "2026-11-01 00:00", price: 70000 }], label: "Resistance", tone: "bearish" },
+        { type: "level", points: [{ time: "2026-11-01 00:00", price: 70000 }], label: "Resistance", tone: "bearish", explain: "The level the bounce has to clear." },
         { type: "zone", points: [{ time: "2026-10-25 00:00", price: 62000 }, { time: 1794000000000, price: 60000 }], extend: true, end_time: "2026-11-10 00:00" },
       ],
     });
@@ -279,6 +391,8 @@ async function signedIn(check) {
         sent()?.drawing?.title === "Range plan" &&
         sent()?.drawing?.drawings?.[1]?.end_time === "2026-11-10 00:00" &&
         sent()?.drawing?.drawings?.[1]?.points?.[1]?.time === 1794000000000 &&
+        sent()?.drawing?.drawings?.[0]?.teach === "The level the bounce has to clear." &&
+        !("explain" in (sent()?.drawing?.drawings?.[0] ?? {})) &&
         /Drew 2 drawings on the member's chart, as group "scenario-4k2x"/.test(drawn.text) &&
         drawn.data.drawn?.group === "scenario-4k2x",
       drawn.text.slice(0, 160),
@@ -315,15 +429,25 @@ async function signedIn(check) {
 const ALLOWED = [["POST", /^\/api\/agents\/chart$/]];
 
 const CHART_KEYS = ["slot", "symbol", "timeframe", "chartType", "session", "scale", "visibleRange"];
-const DRAWING_KEYS = ["type", "points", "time", "label", "text", "tone", "dash", "extend", "end_time", "arrow", "stop", "target"];
+const DRAWING_KEYS = ["type", "points", "time", "label", "text", "tone", "dash", "extend", "end_time", "arrow", "stop", "target", "teach"];
+const CONCEPT_KEYS = [
+  "concept", "teach", "count", "direction", "mitigation", "include_mitigated", "inversions", "include_swept", "strength",
+  "breakers", "ote", "quarters", "high", "low", "leg", "extensions", "gap_kind", "only", "windows", "days", "levels",
+];
 const LAYOUT = /^(1|2h|2v|4|8|g[1-4]x[1-4]|big-(left|top)-[23]|big-(right|bottom)-2)$/;
 /** The app's timeframes: whole minutes, hours, days, weeks or months. */
 const TIMEFRAME = /^(\d+)?\s*(m|h|d|w|M)?$/i;
 
 /** Why the app would refuse this body's shape (its contract), or null. */
 function bodyProblem(body) {
-  if (!body || typeof body !== "object" || !["read", "set", "draw", "remove"].includes(body.op)) return "op";
-  if (Object.keys(body).some((key) => !["op", "state", "drawing", "removal"].includes(key))) return "unknown field";
+  if (!body || typeof body !== "object" || !["read", "set", "markup", "draw", "remove"].includes(body.op)) return "op";
+  if (Object.keys(body).some((key) => !["op", "state", "markup", "drawing", "removal"].includes(key))) return "unknown field";
+  if (body.op === "markup") {
+    const markup = body.markup;
+    if (!markup || !Array.isArray(markup.concepts) || markup.concepts.length < 1 || markup.concepts.length > 6) return "markup";
+    if (Object.keys(markup).some((key) => !["slot", "concepts", "replace"].includes(key))) return "markup fields";
+    if (markup.concepts.some((c) => Object.keys(c).some((key) => !CONCEPT_KEYS.includes(key)))) return "markup.concepts";
+  }
   if (body.op === "set") {
     const state = body.state;
     if (!state || Object.keys(state).some((key) => !["layout", "charts"].includes(key))) return "state";
@@ -357,7 +481,31 @@ const chartNow = (overrides = {}) => ({
 });
 
 async function startStandIn() {
-  const state = { calls: [], violations: [], mode: "ok" };
+  const state = { calls: [], violations: [], mode: "ok", market: "crypto" };
+  /** What the app answers a markup with: priced for a crypto chart fed by an exchange, the same things unpriced for any other. */
+  const found = (priced, explained) => ({
+    slot: 0,
+    priced,
+    concepts: [
+      {
+        concept: "dealing-range",
+        group: "dealing-range-a1b2",
+        summary: priced ? "the dealing range 61,200 – 66,800" : "the dealing range",
+        items: [{ label: priced ? "EQ (64,000)" : "EQ", ...(priced ? { prices: ["64,000"] } : {}), time: "2026-11-18 14:00", state: "equilibrium" }],
+      },
+      {
+        concept: "fvg",
+        group: "fair-value-gaps-c3d4",
+        summary: "2 fair value gaps",
+        items: [
+          { label: "Bullish FVG", ...(priced ? { prices: ["62,100", "62,450"] } : {}), time: "2026-11-18 09:00", state: "active" },
+          { label: "Bearish FVG", ...(priced ? { prices: ["65,900", "66,300"] } : {}), time: "2026-11-17 21:00", state: "mitigated" },
+        ],
+      },
+    ],
+    drawings: 9,
+    explained,
+  });
   const second = chartNow({ slot: 1, symbol: "AAPL", timeframe: "1D", chartType: "heikinashi", session: "extended", scale: { mode: "price", log: true, invert: false }, indicators: [], clock: "America/New_York" });
   const shows = (first = {}) => ({ layout: "2h", activeSlot: 0, charts: [chartNow(first), second] });
 
@@ -398,6 +546,8 @@ async function startStandIn() {
       }
     }
     if (state.mode === "no_open_chart" || state.mode === "timeout") return send(200, { status: state.mode });
+    // No Vela tab of the member on screen: a change waits for them, a read has nothing to read.
+    if (state.mode === "queued") return send(200, { status: body.op === "read" ? "no_open_chart" : "queued" });
     if (state.mode === "failed") {
       return send(200, { status: "failed", error: '"TVC:GOLD" is not a market Vela serves, so nothing was changed. Use the bare ticker, or a venue prefix Vela reads.', state: shows() });
     }
@@ -410,6 +560,11 @@ async function startStandIn() {
         state: shows({ ...(first.symbol ? { symbol: first.symbol } : {}), ...(first.timeframe ? { timeframe: first.timeframe } : {}) }),
         ...(body.state.charts?.length > 1 && symbols.size >= 1 ? { releasedSync: ["symbol"] } : {}),
       });
+    }
+    if (body.op === "markup") {
+      const explained = body.markup.concepts.filter((c) => c.teach).length;
+      const { explained: _explained, ...marked } = found(state.market === "crypto", explained);
+      return send(200, { status: "ok", state: shows({ quantDrawings: 9 }), marked, ...(explained ? { walkthrough: explained } : {}) });
     }
     if (body.op === "draw") {
       const count = body.drawing.drawings.length;
@@ -434,8 +589,11 @@ const freePort = () =>
     });
   });
 
-/** A node-http entry with every opt-in tool on: the Claude address stays as reviewed with all of them. */
-async function startHttpEntry() {
+/**
+ * A node-http entry with every opt-in tool on: the Claude address stays as reviewed with all of them.
+ * `overrides` sets (or, with undefined, clears) variables on top, to start it as another deployment would run.
+ */
+async function startHttpEntry(overrides = {}) {
   const port = await freePort();
   const env = {
     ...process.env,
@@ -446,6 +604,10 @@ async function startHttpEntry() {
     LUXALGO_CHART_TOOLS: "on",
   };
   delete env.VERCEL_ENV;
+  for (const [name, value] of Object.entries(overrides)) {
+    if (value === undefined) delete env[name];
+    else env[name] = value;
+  }
   const child = spawn(process.execPath, ["dist/entries/node-http.js"], { env, stdio: ["ignore", "pipe", "pipe"] });
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("node-http entry did not start within 15 s")), 15_000);

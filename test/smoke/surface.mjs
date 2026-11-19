@@ -88,11 +88,11 @@ export const QUANT = [
 
 /**
  * The member's open Vela chart, read and changed by their AI assistant
- * (market, timeframe, look, layout, drawings): protected, and opt-in
+ * (market, timeframe, look, layout, a pro's markup, drawings): protected, and opt-in
  * (LUXALGO_CHART_CONTROL_TOOLS=on or a Vercel preview), so listed all or none.
  * Never on the Claude address (test/smoke/vela-chart.mjs).
  */
-export const VELA_CHART = ["vela_read_chart", "vela_set_chart", "vela_draw_on_chart", "vela_remove_drawings"];
+export const VELA_CHART = ["vela_read_chart", "vela_set_chart", "vela_mark_up_chart", "vela_draw_on_chart", "vela_remove_drawings"];
 
 export async function run({ client, check, callJson, callStructured, httpUrl, rawToolsList }) {
   // tools/list
