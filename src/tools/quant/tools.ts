@@ -418,7 +418,7 @@ export function registerQuantTools(server: McpServer, runtime: AuthRuntime) {
   // Offered only where the chart tools are listed, so every other address keeps this tool's definition as it is.
   const withChart = velaChartListedHere();
   const onChartWords = withChart
-    ? " With `add_to_chart` (off by default), a script that passes is also put on the chart the member has open right now in Vela, the one they used last, where they see it appear and run; a changed script that was on that chart already runs its new version in place. Set it only when the member asked to see it on their chart."
+    ? " With `add_to_chart` (off by default), a script that passes is also put on the chart the member has open right now in Vela, the one they used last, where they see it appear and run; a changed script that was on that chart already runs its new version in place. Set it only when the member asked to see it on their chart. To change an indicator that is on their chart, read the chart with vela_read_chart: one that is a saved script of theirs comes with its script_id."
     : "";
   registerProtectedTool(
     server,

@@ -128,13 +128,15 @@ Live on the standard address (`https://mcp.luxalgo.com/mcp`) for members LuxAlgo
 
 | Tool | Returns |
 | --- | --- |
-| `vela_read_chart` | What your Vela shows, in words: the layout, and each chart's market, timeframe, chart type, indicators, the dates on screen and its clock |
+| `vela_read_chart` | What your Vela shows, in words: the layout, and each chart's market, timeframe, chart type, indicators, the dates on screen and its clock. Each indicator has an id, and one that is a saved script of yours its script id, so "change the indicator on my chart" is one read and one call to Quant |
 | `vela_set_chart` | Changes your chart: the market, the timeframe, the chart type, the trading session, the price scale, the dates on screen and the multi-chart layout. Only what you asked for changes; it never adds or removes an indicator (`vela_add_indicator` and `vela_remove_indicators` do) |
 | `vela_mark_up_chart` | Marks up your chart the way a professional would, from its own candles: fair value gaps, liquidity, market structure, order blocks, the dealing range, opening gaps, killzones and macros, key levels, support and resistance, trendlines, patterns. Vela finds the exact prices; the answer says what was found |
 | `vela_draw_on_chart` | Draws levels, zones, trendlines, projection paths, channels, Fibonacci retracements, notes, time lines and positions at the times and prices given, as real drawings in Vela's house style |
 | `vela_remove_drawings` | Removes drawings an assistant or Quant made: the groups named, or all of them. Never your own drawings |
 | `vela_add_indicator` | Adds an indicator that already exists to your chart: one from the LuxAlgo Library, by its slug, or one of your saved scripts, by its id. It takes no Pine Script® and writes no indicator; a paid Library indicator your plan does not include, or a chart at your plan's tools per chart, adds nothing and says why |
-| `vela_remove_indicators` | Takes indicators off your chart by name, as `vela_read_chart` lists them. Your saved scripts stay saved |
+| `vela_remove_indicators` | Takes indicators off your chart by the ids `vela_read_chart` gives them. Your saved scripts stay saved |
+| `vela_get_indicator_settings` | One indicator's settings as its settings dialog shows them: each setting's name, kind, value and what it may hold. Changes nothing |
+| `vela_set_indicator_settings` | Changes an indicator's settings by name (a length, a source, a toggle, a colour). Vela checks every value against what the indicator allows; one that does not fit changes nothing and says why |
 
 Each asks your open Vela tab through the LuxAlgo app. With Vela on screen it happens in front of you within seconds: the chart switches, a markup is drawn out stroke by stroke, and the tab says "Your AI changed this chart". When the assistant explains the parts of a markup or a drawing, you are walked through them on the chart, a bubble on each in turn. When Vela is not on screen (you are in another tab, talking to your assistant) a change is queued and applied the moment you look at Vela again, within 10 minutes; with several Vela tabs open, the one you used last is the one that changes.
 

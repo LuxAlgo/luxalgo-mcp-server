@@ -85,7 +85,7 @@ export const chartControlToolsEnabled = (): boolean => {
 /**
  * Whether those tools are also listed on the ChatGPT address. Not by default
  * in production: that address is the one OpenAI's plugin directory reviewed,
- * and the app's flag is not open to every member yet, so it would list seven
+ * and the app's flag is not open to every member yet, so it would list nine
  * tools that tell most people they are not available. Listed there with
  * LUXALGO_CHART_CONTROL_TOOLS=on, and on a Vercel preview.
  */
