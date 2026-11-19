@@ -4,7 +4,11 @@
   visible range and layout, a pro's markup found on the chart's own bars, and
   drawings at coordinates the assistant chooses. A markup or a drawing can
   carry a short explanation of each part, and the member is then walked
-  through them on the chart, one bubble at a time.
+  through them on the chart, one bubble at a time. It also adds an indicator
+  that already exists (a LuxAlgo Library one by its slug, one of the member's
+  saved scripts by its id) and takes indicators off by name. It never sends
+  Pine Script®: an indicator the assistant wrote is not something these tools
+  put on a chart.
 
   The app does the work: each tool asks it (POST /api/agents/chart, the
   member's own token), the app passes the ask to the member's visible Vela
@@ -22,6 +26,9 @@
   (`marked.priced`) and this server only relays it, never adds a price of its
   own. What a plan allows (a custom timeframe, CME futures) is the app's to
   decide too: its 403 goes up to the auth wrapper as it is (docs/auth.md §6).
+  So is which indicator a member may add (a paid Library one only on a plan
+  that includes it, a saved script only when it is theirs, the plan's tools
+  per chart): the app answers each in words and this server relays them.
 
   Off unless LUXALGO_CHART_CONTROL_TOOLS=on or a Vercel preview
   (_shared/member.ts), and never on the Claude address. While the app's own
@@ -59,6 +66,9 @@ type MarkedConcept = { concept: string; group?: string; summary: string; note?: 
 /** What a markup found; `priced` is the app's decision on whether prices may be given for this market. */
 type Marked = { slot?: number; priced: boolean; concepts: MarkedConcept[]; drawings: number; truncated?: boolean };
 type SyncKind = "symbol" | "timeframe";
+/** An indicator the app put on the chart: its name there and what it is, never its source. */
+type IndicatorAdded = { slot?: number; name: string; from: "library" | "saved"; kind: "indicator" | "strategy"; updated?: boolean };
+type IndicatorsRemoved = { slot?: number; names: string[]; notOnChart?: string[] };
 export type ChartAnswer =
   | {
       status: "ok";
@@ -66,6 +76,8 @@ export type ChartAnswer =
       marked?: Marked;
       drawn?: Drawn;
       removed?: number;
+      indicatorAdded?: IndicatorAdded;
+      indicatorsRemoved?: IndicatorsRemoved;
       walkthrough?: number;
       releasedSync?: SyncKind[];
     }
@@ -74,7 +86,11 @@ export type ChartAnswer =
   | { status: "no_open_chart" }
   | { status: "timeout" };
 
-const OPEN_VELA = `${CHART_ORIGIN}/chart`;
+export const OPEN_VELA = `${CHART_ORIGIN}/chart`;
+
+/** One command for the member's open Vela chart, sent to the app with their token; the app's answer as it is. */
+export const sendChartCommand = (body: Record<string, unknown>): Promise<ChartAnswer> =>
+  appSend<ChartAnswer>("POST", "/api/agents/chart", { body });
 
 const NO_OPEN_CHART = `No Vela chart of the member's is open and visible right now, or their Vela tab has not noticed the assistant yet (the first time, that can take up to a minute), so there is nothing to read. Ask them to open Vela at ${OPEN_VELA}, keep that tab visible, and ask again in a minute.`;
 
@@ -199,6 +215,16 @@ function answer(data: ChartAnswer, done: (data: Extract<ChartAnswer, { status: "
         ...(data.marked ? { marked: data.marked } : {}),
         ...(data.drawn ? { drawn: data.drawn } : {}),
         ...(data.removed !== undefined ? { removed: data.removed } : {}),
+        ...(data.indicatorAdded ? { indicator_added: data.indicatorAdded } : {}),
+        ...(data.indicatorsRemoved
+          ? {
+              indicators_removed: {
+                ...(data.indicatorsRemoved.slot !== undefined ? { slot: data.indicatorsRemoved.slot } : {}),
+                names: data.indicatorsRemoved.names,
+                ...(data.indicatorsRemoved.notOnChart?.length ? { not_on_chart: data.indicatorsRemoved.notOnChart } : {}),
+              },
+            }
+          : {}),
         ...(data.walkthrough ? { walkthrough: data.walkthrough } : {}),
         ...(data.releasedSync?.length ? { released_sync: data.releasedSync } : {}),
       });
@@ -237,7 +263,7 @@ function failure(error: unknown): CallToolResult {
 
 async function ask(body: Record<string, unknown>, done: (data: Extract<ChartAnswer, { status: "ok" }>) => string) {
   try {
-    return answer(await appSend<ChartAnswer>("POST", "/api/agents/chart", { body }), done);
+    return answer(await sendChartCommand(body), done);
   } catch (error) {
     return failure(error);
   }
@@ -449,7 +475,7 @@ export function registerVelaChartTools(server: McpServer, runtime: AuthRuntime) 
     {
       title: "Change my open Vela chart",
       description:
-        `Changes the chart the signed-in member has open right now in Vela, in their browser: the market (symbol), the timeframe, the chart type, the trading session, the price scale, the dates on screen, and the multi-chart layout. Send only what should change; everything else on the chart stays, and it never adds or removes an indicator or a drawing. Use it when the member asks to switch their own chart ("put ETH on my chart", "go to the 15 minute", "split it in four"), and before vela_mark_up_chart when the analysis they ask for is of another market or timeframe. The member sees the change happen and is told an assistant made it. Returns what the chart shows afterwards, in words, with no prices: check the market it names is the one asked for. A custom timeframe or a CME futures market the member's plan does not include changes nothing and says which plan limit it is. To show or change a chart inside the chat instead, use chart_open and chart_command. ${WAITS}`,
+        `Changes the chart the signed-in member has open right now in Vela, in their browser: the market (symbol), the timeframe, the chart type, the trading session, the price scale, the dates on screen, and the multi-chart layout. Send only what should change; everything else on the chart stays, and it never adds or removes an indicator or a drawing (vela_add_indicator and vela_remove_indicators do the first). Use it when the member asks to switch their own chart ("put ETH on my chart", "go to the 15 minute", "split it in four"), and before vela_mark_up_chart when the analysis they ask for is of another market or timeframe. The member sees the change happen and is told an assistant made it. Returns what the chart shows afterwards, in words, with no prices: check the market it names is the one asked for. A custom timeframe or a CME futures market the member's plan does not include changes nothing and says which plan limit it is. To show or change a chart inside the chat instead, use chart_open and chart_command. ${WAITS}`,
       inputSchema: z.object({
         layout: z
           .string()
@@ -551,5 +577,70 @@ export function registerVelaChartTools(server: McpServer, runtime: AuthRuntime) 
         removed ? `Removed ${removed} drawing${removed === 1 ? "" : "s"}.` : "No drawing of an assistant or Quant matched, so nothing was removed; the member's own drawings are never touched.",
       );
     },
+  );
+
+  registerProtectedTool(
+    server,
+    runtime,
+    "vela_add_indicator",
+    {
+      title: "Add an indicator to my open Vela chart",
+      description:
+        `Adds an indicator that already exists to the chart the signed-in member has open right now in Vela: one from the LuxAlgo Library, the largest indicator library in trading, by its slug (library_search and library_get_indicator return it), or one of the member's own saved scripts, by its id (quant_search_user_scripts returns it). Give exactly one of the two. Use it when the member asks to put an indicator on their own chart ("add Smart Money Concepts to my chart", "put my saved RSI script on it"): find the slug or the id first, never guess one. It does not take Pine Script® and does not write an indicator: for a new one, the member asks Quant, our coding agent, in Vela. The member sees it appear and is told an assistant added it. Returns the name it goes by on the chart, which vela_remove_indicators takes, and what the chart shows afterwards; it never returns source code. Nothing is added, and the result says why, when the Library indicator is a paid one the member's plan does not include, when the chart is at their plan's tools per chart, when it is already on the chart, or when the script does not run. ${WAITS}`,
+      inputSchema: z.object({
+        slot,
+        library_slug: z
+          .string()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe('A LuxAlgo Library indicator, by its slug as library_search or library_get_indicator returned it, e.g. "smart-money-concepts".'),
+        script_id: z.string().min(1).max(64).optional().describe("One of the member's saved scripts, by its id as quant_search_user_scripts returned it."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    },
+    async ({ slot: chartSlot, library_slug, script_id }) => {
+      if ((library_slug === undefined) === (script_id === undefined)) {
+        return textError("Nothing added: give library_slug (a LuxAlgo Library indicator) or script_id (one of the member's saved scripts), one of the two.");
+      }
+      return ask(
+        {
+          op: "add_indicator",
+          indicator: {
+            ...(chartSlot !== undefined ? { slot: chartSlot } : {}),
+            ...(library_slug !== undefined ? { library: library_slug.trim() } : { script: script_id!.trim() }),
+          },
+        },
+        ({ indicatorAdded }) => {
+          if (!indicatorAdded) return "Added.";
+          const what = indicatorAdded.kind === "strategy" ? ", a strategy: its backtest runs on the chart" : "";
+          if (indicatorAdded.updated) return `${indicatorAdded.name} was on the member's chart already and now runs its saved version there.`;
+          const whose = indicatorAdded.from === "library" ? "from the LuxAlgo Library" : "from the member's saved scripts";
+          return `Added ${indicatorAdded.name} ${whose} to the member's chart${what}. It goes by that name there (vela_remove_indicators takes it).`;
+        },
+      );
+    },
+  );
+
+  registerProtectedTool(
+    server,
+    runtime,
+    "vela_remove_indicators",
+    {
+      title: "Remove indicators from my open Vela chart",
+      description:
+        `Takes indicators off the chart the signed-in member has open right now in Vela, by name: the names vela_read_chart lists for that chart, or the name vela_add_indicator returned. A name removes every indicator called exactly that, or else the one indicator whose name contains it; a name that fits several different indicators removes none, and the result lists what is on the chart. Use it when the member asks to take an indicator off or to clean up their chart, and to make room when their plan's tools per chart is reached. It removes indicators the member added themselves too, so remove only what they asked for; it never touches drawings (vela_remove_drawings does) and does not delete a saved script, which stays in the member's scripts. Returns what came off and what the chart shows afterwards. ${WAITS}`,
+      inputSchema: z.object({
+        slot,
+        names: z.array(z.string().min(1).max(80)).min(1).max(10).describe("The indicators to take off, by the names vela_read_chart lists them under."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+    },
+    async ({ slot: chartSlot, names }) =>
+      ask({ op: "remove_indicator", indicators: { ...(chartSlot !== undefined ? { slot: chartSlot } : {}), names } }, ({ indicatorsRemoved }) => {
+        if (!indicatorsRemoved) return "Removed.";
+        const missing = indicatorsRemoved.notOnChart?.length ? ` Not on the chart, so left alone: ${list(indicatorsRemoved.notOnChart)}.` : "";
+        return `Removed ${list(indicatorsRemoved.names)} from the member's chart.${missing}`;
+      }),
   );
 }
