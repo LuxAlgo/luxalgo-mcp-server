@@ -46,12 +46,20 @@ export const paperToolsEnabled = (): boolean =>
 /**
  * Quant for the member's AI assistant (tools/quant): Pine Script® generation
  * and linting, the member's scripts and their backtest loops. Its own switch:
- * three of its tools spend the member's Quant usage, and the app routes they
- * call ship dark. Never true on Vercel production unless LUXALGO_QUANT_TOOLS=on
- * is set there explicitly.
+ * three of its tools spend the member's Quant usage.
+ *
+ * Live on the hosted addresses since 2026-11-19: on for every Vercel
+ * deployment, production included, and LUXALGO_QUANT_TOOLS=off there switches
+ * it off again (set it and redeploy). Anywhere else (stdio, a self-hosted
+ * server, the tests) it still needs LUXALGO_QUANT_TOOLS=on. The app's own
+ * switch is its PostHog flag `agent-quant`, which takes effect within a
+ * minute and without a deploy: turn that off first when something is wrong.
  */
-export const quantToolsEnabled = (): boolean =>
-  process.env.LUXALGO_QUANT_TOOLS === "on" || process.env.VERCEL_ENV === "preview";
+export const quantToolsEnabled = (): boolean => {
+  const asked = process.env.LUXALGO_QUANT_TOOLS;
+  if (asked === "off") return false;
+  return asked === "on" || process.env.VERCEL_ENV === "preview" || process.env.VERCEL_ENV === "production";
+};
 
 /**
  * A domain of the member's own data: every tool needs a signed-in member
