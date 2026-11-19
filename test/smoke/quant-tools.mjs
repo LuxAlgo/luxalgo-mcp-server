@@ -53,6 +53,18 @@ export async function run({ client, check, httpUrl }) {
 
 // ── 2b. the hosted production deployment, where the tools are live ───────────
 
+/** Whether an address offers add_to_chart on quant_generate_pine_script, and whether it lists the chart tools. */
+async function offersAddToChart(target) {
+  const tools = (await rpc(target, "tools/list", {}))?.tools ?? [];
+  const generate = tools.find((t) => t.name === "quant_generate_pine_script");
+  return {
+    offered: "add_to_chart" in (generate?.inputSchema?.properties ?? {}),
+    said: /add_to_chart/.test(generate?.description ?? ""),
+    openWorld: generate?.annotations?.openWorldHint === true,
+    chartTools: tools.some((t) => t.name === "vela_add_indicator"),
+  };
+}
+
 /** Which Quant tools each address lists for a deployment, and the Claude address's digest. */
 async function listedOn(hosted) {
   const entry = await startHttpEntry(hosted);
@@ -62,6 +74,7 @@ async function listedOn(hosted) {
     return {
       standard: (await names({ url: entry.url })).filter((n) => QUANT.includes(n)).length,
       openai: (await names({ url: `${entry.url}/openai` })).filter((n) => QUANT.includes(n)).length,
+      addToChart: { standard: await offersAddToChart({ url: entry.url }), openai: await offersAddToChart({ url: `${entry.url}/openai` }) },
       claude: (claude?.tools ?? []).filter((t) => QUANT.includes(t.name)).length,
       claudeDigest: createHash("sha256").update(JSON.stringify(claude?.tools ?? [])).digest("hex"),
     };
@@ -76,6 +89,12 @@ async function hostedProduction(check) {
     "on the hosted production deployment the Quant tools are live on the standard and ChatGPT addresses with no switch set, and the Claude address stays the tool list under review",
     live.standard === QUANT.length && live.openai === QUANT.length && live.claude === 0 && live.claudeDigest === CLAUDE_TOOLS_SHA256,
     JSON.stringify({ ...live, claudeDigest: live.claudeDigest.slice(0, 12) }),
+  );
+  const { standard: onStandard, openai: onChatGpt } = live.addToChart;
+  check(
+    "in production, writing a script offers add_to_chart on the standard address, where the chart tools are, and the ChatGPT address keeps the tool as it was: no option, no mention, not open-world",
+    onStandard.chartTools && onStandard.offered && onStandard.said && onStandard.openWorld && !onChatGpt.chartTools && !onChatGpt.offered && !onChatGpt.said && !onChatGpt.openWorld,
+    JSON.stringify(live.addToChart),
   );
   const off = await listedOn({ vercelEnv: "production", quantSwitch: "off" });
   check(
@@ -344,6 +363,91 @@ async function signedIn(check) {
       spent.text,
     );
 
+    // On the chart: only where the chart tools are on, only when asked, and by the saved script's id.
+    const chartCalls = () => state.calls.filter((c) => c.path === "/api/agents/chart");
+    const notOffered = await call("quant_generate_pine_script", { prompt: "an EMA", add_to_chart: true }).catch((error) => ({ isError: true, text: String(error?.message ?? error), data: {} }));
+    check(
+      "without the chart tools, add_to_chart is not part of the tool and nothing reaches the member's chart",
+      chartCalls().length === 0 && notOffered.data.on_chart === undefined,
+      notOffered.text.slice(0, 100),
+    );
+    const withChart = new Client({ name: "quant-tools-smoke-chart", version: "0" });
+    await withChart.connect(
+      new StdioClientTransport({
+        command: process.execPath,
+        args: ["dist/index.js"],
+        env: { ...getDefaultEnvironment(), LUXALGO_APP_ORIGIN: app.origin, LUXALGO_MCP_AUTH_FILE: authFile, LUXALGO_QUANT_TOOLS: "on", LUXALGO_CHART_CONTROL_TOOLS: "on" },
+        stderr: "ignore",
+      }),
+    );
+    try {
+      const callChart = async (args) => {
+        const result = await withChart.callTool({ name: "quant_generate_pine_script", arguments: args });
+        return { isError: result.isError === true, text: result.content?.[0]?.text ?? "", data: result.structuredContent ?? {} };
+      };
+      const generate = (await withChart.listTools()).tools.find((t) => t.name === "quant_generate_pine_script");
+      check(
+        "with the chart tools on, writing a script offers add_to_chart, an optional yes or no that says it is false by default and means the chart the member has open, the one they used last",
+        generate?.inputSchema?.properties?.add_to_chart?.type === "boolean" &&
+          !(generate.inputSchema.required ?? []).includes("add_to_chart") &&
+          /False by default/.test(generate.inputSchema.properties.add_to_chart.description) &&
+          /the chart the member has open right now in Vela, the one they used last/.test(generate.inputSchema.properties.add_to_chart.description) &&
+          /`add_to_chart` \(off by default\)/.test(generate.description),
+        generate?.inputSchema?.properties?.add_to_chart?.description,
+      );
+      const quiet = await callChart({ prompt: "a 20 period EMA on the chart" });
+      check("left out, nothing reaches the member's chart, even when the prompt mentions one", !quiet.isError && chartCalls().length === 0 && quiet.data.on_chart === undefined, quiet.text.slice(0, 80));
+
+      const shown = await callChart({ prompt: "a 20 period EMA", add_to_chart: true });
+      check(
+        "asked for, a script that passes is put on the member's chart by its saved id, never its source, and the result says it is there and under which name",
+        !shown.isError &&
+          chartCalls().length === 1 &&
+          JSON.stringify(chartCalls()[0].body) === `{"op":"add_indicator","indicator":{"script":"${shown.data.script_id}","update":true}}` &&
+          /It is on the member's open Vela chart now, as Smoke EMA; they saw it appear\./.test(shown.text) &&
+          shown.data.on_chart === "added" &&
+          shown.data.on_chart_as === "Smoke EMA",
+        shown.text.slice(0, 220),
+      );
+      const reversioned = await callChart({ prompt: "make it 50", script_id: "scr_user", add_to_chart: true });
+      check(
+        "a changed script that was on the chart already runs its new version there, and the result says so",
+        !reversioned.isError && /It was on the member's Vela chart already, which now runs this version\./.test(reversioned.text) && reversioned.data.on_chart === "updated",
+        reversioned.text.slice(0, 220),
+      );
+      state.chart = "queued";
+      const waiting = await callChart({ prompt: "a 20 period EMA", add_to_chart: true });
+      check(
+        "with the member's Vela not on screen, the script is saved and queued for the chart, and the result says to open Vela",
+        !waiting.isError && waiting.data.saved === true && waiting.data.on_chart === "queued" && /queued for the member's Vela chart, not on it yet/.test(waiting.text) && /vela\.luxalgo\.com\/chart/.test(waiting.text),
+        waiting.text.slice(0, 260),
+      );
+      state.chart = "failed";
+      const full = await callChart({ prompt: "a 20 period EMA", add_to_chart: true });
+      check(
+        "a chart at the plan's tools per chart keeps the script saved and says in the app's words why it is not on the chart",
+        !full.isError && full.data.saved === true && full.data.on_chart === "not_added" && /It was not put on the member's Vela chart: The member's plan allows 2 tools per chart/.test(full.text),
+        full.text.slice(0, 260),
+      );
+      state.chart = "off";
+      const closed = await callChart({ prompt: "a 20 period EMA", add_to_chart: true });
+      check(
+        "while the app has chart control switched off for the member, the script is still written and saved, and the result says the chart part is not available yet",
+        !closed.isError && closed.data.saved === true && closed.data.on_chart === "not_added" && /not available on this account yet/.test(closed.text),
+        closed.text.slice(0, 260),
+      );
+      state.chart = "ok";
+      const before = chartCalls().length;
+      const unfinished = await callChart({ prompt: "leave an error", add_to_chart: true });
+      check(
+        "a script that does not pass yet is never put on the chart",
+        chartCalls().length === before && unfinished.data.on_chart === "not_added" && /only a script that passes and is saved goes there/.test(unfinished.text),
+        unfinished.text.slice(-120),
+      );
+    } finally {
+      await withChart.close();
+    }
+
     // The member's scripts.
     const found = await call("quant_search_user_scripts", { query: "ema" });
     const sourceless = JSON.stringify(found.data).includes("//@version");
@@ -565,6 +669,8 @@ const ALLOWED = [
   ["GET", /^\/api\/agents\/quant\/backtest-loops\/[^/]+$/],
   ["POST", /^\/api\/agents\/quant\/backtest-loops\/[^/]+\/stop$/],
   ["GET", /^\/api\/agents\/quant\/backtest-loops\/strategies\/[^/]+$/],
+  // add_to_chart: the chart tools' own add, for a script Quant wrote and the app saved.
+  ["POST", /^\/api\/agents\/chart$/],
 ];
 
 const STRATEGY_SCRIPT =
@@ -680,6 +786,21 @@ async function startStandIn() {
       return send(404, { message: "Not found" });
     }
     if (req.headers.authorization !== `Bearer ${TOKEN}`) return send(401, { message: "unauthorized" });
+    if (path === "/api/agents/chart") {
+      // The one command these tools send: an add of a saved script by its id, never source.
+      const fields = Object.keys(body?.indicator ?? {}).sort().join();
+      if (body?.op !== "add_indicator" || fields !== "script,update" || Object.keys(body).sort().join() !== "indicator,op") {
+        state.violations.push(`chart body ${JSON.stringify(body).slice(0, 120)}`);
+        return send(400, { message: "body validation error" });
+      }
+      if (state.chart === "off") return send(404, { message: "Not available" });
+      if (state.chart === "queued") return send(200, { status: "queued" });
+      if (state.chart === "failed") {
+        return send(200, { status: "failed", error: "The member's plan allows 2 tools per chart and this chart is at that limit, so Smoke EMA was not added. One has to come off the chart first." });
+      }
+      const updated = body.indicator.script === "scr_user";
+      return send(200, { status: "ok", indicatorAdded: { slot: 0, name: "Smoke EMA", from: "saved", kind: "indicator", ...(updated ? { updated: true } : {}) } });
+    }
     if (state.off) return send(404, { message: "Not available" });
 
     if (path.endsWith("/pine/lint")) {

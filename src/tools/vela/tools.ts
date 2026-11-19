@@ -4,7 +4,13 @@
   visible range and layout, a pro's markup found on the chart's own bars, and
   drawings at coordinates the assistant chooses. A markup or a drawing can
   carry a short explanation of each part, and the member is then walked
-  through them on the chart, one bubble at a time.
+  through them on the chart, one bubble at a time. It also adds an indicator
+  that already exists (a LuxAlgo Library one by its slug, one of the member's
+  saved scripts by its id) and takes indicators off by the ids a read gives
+  them (ids the app makes for its answers; which indicators are the member's
+  saved scripts is the app's to say too). It never sends
+  Pine Script®: an indicator the assistant wrote is not something these tools
+  put on a chart.
 
   The app does the work: each tool asks it (POST /api/agents/chart, the
   member's own token), the app passes the ask to the member's visible Vela
@@ -22,6 +28,9 @@
   (`marked.priced`) and this server only relays it, never adds a price of its
   own. What a plan allows (a custom timeframe, CME futures) is the app's to
   decide too: its 403 goes up to the auth wrapper as it is (docs/auth.md §6).
+  So is which indicator a member may add (a paid Library one only on a plan
+  that includes it, a saved script only when it is theirs, the plan's tools
+  per chart): the app answers each in words and this server relays them.
 
   Off unless LUXALGO_CHART_CONTROL_TOOLS=on or a Vercel preview
   (_shared/member.ts), and never on the Claude address. While the app's own
@@ -40,6 +49,7 @@ import { CHART_ORIGIN } from "../_shared/vela.js";
 const MAX_SLOT = 15;
 
 type ChartScale = { mode?: string; log?: boolean; invert?: boolean };
+type IndicatorRow = { id: string; name: string; builtin?: boolean; strategy?: boolean; scriptId?: string };
 type ChartReport = {
   slot: number;
   symbol: string;
@@ -49,6 +59,8 @@ type ChartReport = {
   scale?: ChartScale;
   visibleRange: { from: string; to: string } | null;
   indicators: string[];
+  /** The same indicators, each with the id a removal takes; `scriptId` only for the member's own saved script (the app's decision). */
+  indicatorList?: IndicatorRow[];
   clock?: string;
   quantDrawings: number;
 };
@@ -59,6 +71,13 @@ type MarkedConcept = { concept: string; group?: string; summary: string; note?: 
 /** What a markup found; `priced` is the app's decision on whether prices may be given for this market. */
 type Marked = { slot?: number; priced: boolean; concepts: MarkedConcept[]; drawings: number; truncated?: boolean };
 type SyncKind = "symbol" | "timeframe";
+/** An indicator the app put on the chart: its name there and what it is, never its source. */
+type IndicatorAdded = { slot?: number; id?: string; name: string; from: "library" | "saved"; kind: "indicator" | "strategy"; updated?: boolean };
+type IndicatorsRemoved = { slot?: number; names: string[]; notOnChart?: string[] };
+type SettingValue = number | string | boolean;
+type IndicatorSetting = { name: string; type: string; value: SettingValue; min?: number; max?: number; step?: number; options?: string[] };
+type IndicatorSettings = { slot?: number; id: string; name: string; settings: IndicatorSetting[]; truncated?: boolean };
+type IndicatorSettingsSet = { slot?: number; id: string; name: string; applied: { name: string; from?: SettingValue; to: SettingValue }[] };
 export type ChartAnswer =
   | {
       status: "ok";
@@ -66,6 +85,10 @@ export type ChartAnswer =
       marked?: Marked;
       drawn?: Drawn;
       removed?: number;
+      indicatorAdded?: IndicatorAdded;
+      indicatorsRemoved?: IndicatorsRemoved;
+      indicatorSettings?: IndicatorSettings;
+      indicatorSettingsSet?: IndicatorSettingsSet;
       walkthrough?: number;
       releasedSync?: SyncKind[];
     }
@@ -74,7 +97,11 @@ export type ChartAnswer =
   | { status: "no_open_chart" }
   | { status: "timeout" };
 
-const OPEN_VELA = `${CHART_ORIGIN}/chart`;
+export const OPEN_VELA = `${CHART_ORIGIN}/chart`;
+
+/** One command for the member's open Vela chart, sent to the app with their token; the app's answer as it is. */
+export const sendChartCommand = (body: Record<string, unknown>): Promise<ChartAnswer> =>
+  appSend<ChartAnswer>("POST", "/api/agents/chart", { body });
 
 const NO_OPEN_CHART = `No Vela chart of the member's is open and visible right now, or their Vela tab has not noticed the assistant yet (the first time, that can take up to a minute), so there is nothing to read. Ask them to open Vela at ${OPEN_VELA}, keep that tab visible, and ask again in a minute.`;
 
@@ -106,13 +133,47 @@ function scaleWords(scale: ChartScale | undefined): string {
   return words.length ? `, on ${list(words)}` : "";
 }
 
+/** An indicator as a read names it: its name, the id a removal takes, and its script id when it is the member's saved script. */
+function describeIndicator(row: IndicatorRow): string {
+  const saved = row.scriptId ? `, the member's saved script ${row.scriptId}` : "";
+  return `${row.name} (id ${row.id}${saved})`;
+}
+
+const shown = (value: SettingValue): string => (typeof value === "string" ? `"${value}"` : String(value));
+
+/** One setting on a line: its name, kind, value and what it may hold. */
+function describeSetting(setting: IndicatorSetting): string {
+  const bounds = [
+    setting.min !== undefined ? `min ${setting.min}` : "",
+    setting.max !== undefined ? `max ${setting.max}` : "",
+    setting.step !== undefined ? `step ${setting.step}` : "",
+    setting.options?.length ? `one of ${setting.options.map((option) => `"${option}"`).join(", ")}` : "",
+  ].filter(Boolean);
+  return `- ${setting.name} (${setting.type}) = ${shown(setting.value)}${bounds.length ? ` [${bounds.join(", ")}]` : ""}`;
+}
+
+/** How many settings the text lists; the structured result carries them all. */
+const SETTINGS_IN_TEXT = 60;
+
+/** One indicator's settings, in words. */
+export function describeSettings(found: IndicatorSettings): string {
+  if (found.settings.length === 0) return `${found.name} has no settings to change.`;
+  const more = found.settings.length > SETTINGS_IN_TEXT ? `\n…and ${found.settings.length - SETTINGS_IN_TEXT} more in the structured result.` : "";
+  const cut = found.truncated ? "\nIt has more settings than one answer lists; the rest are changed in Vela." : "";
+  return `${found.name} has ${found.settings.length} setting${found.settings.length === 1 ? "" : "s"} (vela_set_indicator_settings takes these names):\n${found.settings.slice(0, SETTINGS_IN_TEXT).map(describeSetting).join("\n")}${more}${cut}`;
+}
+
 /** One chart of the layout in a sentence or two: what it shows, never a price. */
 function describeChart(chart: ChartReport, many: boolean, active: boolean): string {
   const type = chart.chartType ? `, as ${CHART_TYPE_WORDS[chart.chartType] ?? chart.chartType}` : "";
   const session = chart.session === "extended" ? ", extended hours" : "";
   let text = many ? `Chart ${chart.slot}${active ? " (the one the member is working on)" : ""}: ` : "";
   text += `${chart.symbol}, ${chart.timeframe}${type}${session}${scaleWords(chart.scale)}.`;
-  text += chart.indicators.length ? ` Indicators: ${list(chart.indicators)}.` : " No indicators.";
+  text += chart.indicatorList?.length
+    ? ` Indicators: ${list(chart.indicatorList.map(describeIndicator))}.`
+    : chart.indicators.length
+      ? ` Indicators: ${list(chart.indicators)}.`
+      : " No indicators.";
   if (chart.visibleRange) text += ` On screen: ${chart.visibleRange.from.slice(0, 10)} to ${chart.visibleRange.to.slice(0, 10)}.`;
   if (chart.quantDrawings > 0) {
     text += ` ${chart.quantDrawings} drawing${chart.quantDrawings === 1 ? "" : "s"} by Quant or an assistant on it.`;
@@ -173,6 +234,17 @@ function stateContent(state: ChartState | undefined): Record<string, unknown> {
       ...(chart.scale ? { scale: chart.scale } : {}),
       visible_range: chart.visibleRange,
       indicators: chart.indicators,
+      ...(chart.indicatorList
+        ? {
+            indicator_list: chart.indicatorList.map((row) => ({
+              id: row.id,
+              name: row.name,
+              ...(row.builtin ? { builtin: true } : {}),
+              ...(row.strategy ? { strategy: true } : {}),
+              ...(row.scriptId ? { script_id: row.scriptId } : {}),
+            })),
+          }
+        : {}),
       ...(chart.clock ? { clock: chart.clock } : {}),
       quant_drawings: chart.quantDrawings,
     })),
@@ -199,6 +271,18 @@ function answer(data: ChartAnswer, done: (data: Extract<ChartAnswer, { status: "
         ...(data.marked ? { marked: data.marked } : {}),
         ...(data.drawn ? { drawn: data.drawn } : {}),
         ...(data.removed !== undefined ? { removed: data.removed } : {}),
+        ...(data.indicatorAdded ? { indicator_added: data.indicatorAdded } : {}),
+        ...(data.indicatorsRemoved
+          ? {
+              indicators_removed: {
+                ...(data.indicatorsRemoved.slot !== undefined ? { slot: data.indicatorsRemoved.slot } : {}),
+                names: data.indicatorsRemoved.names,
+                ...(data.indicatorsRemoved.notOnChart?.length ? { not_on_chart: data.indicatorsRemoved.notOnChart } : {}),
+              },
+            }
+          : {}),
+        ...(data.indicatorSettings ? { indicator_settings: data.indicatorSettings } : {}),
+        ...(data.indicatorSettingsSet ? { settings_changed: data.indicatorSettingsSet } : {}),
         ...(data.walkthrough ? { walkthrough: data.walkthrough } : {}),
         ...(data.releasedSync?.length ? { released_sync: data.releasedSync } : {}),
       });
@@ -237,7 +321,7 @@ function failure(error: unknown): CallToolResult {
 
 async function ask(body: Record<string, unknown>, done: (data: Extract<ChartAnswer, { status: "ok" }>) => string) {
   try {
-    return answer(await appSend<ChartAnswer>("POST", "/api/agents/chart", { body }), done);
+    return answer(await sendChartCommand(body), done);
   } catch (error) {
     return failure(error);
   }
@@ -435,7 +519,7 @@ export function registerVelaChartTools(server: McpServer, runtime: AuthRuntime) 
     {
       title: "Read my open Vela chart",
       description:
-        `What the signed-in member has open right now in Vela, our next-generation charting platform, in their browser, in words: the layout, and for each chart its market, timeframe, chart type, indicators, the dates on screen and its clock. Use it before changing or drawing on the member's chart, and when they ask what their chart is set to. It changes nothing and carries no prices or candles; for a picture of the chart use chart_peek, and to show a chart inside the chat use chart_open. ${VISIBLE_TAB}`,
+        `What the signed-in member has open right now in Vela, our next-generation charting platform, in their browser, in words: the layout, and for each chart its market, timeframe, chart type, indicators, the dates on screen and its clock. Each indicator comes with the id vela_remove_indicators takes, and one that is a saved script of the member's also with its script_id, which quant_generate_pine_script changes it by. Use it before changing or drawing on the member's chart, and when they ask what their chart is set to. It changes nothing and carries no prices or candles; for a picture of the chart use chart_peek, and to show a chart inside the chat use chart_open. ${VISIBLE_TAB}`,
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     },
@@ -449,7 +533,7 @@ export function registerVelaChartTools(server: McpServer, runtime: AuthRuntime) 
     {
       title: "Change my open Vela chart",
       description:
-        `Changes the chart the signed-in member has open right now in Vela, in their browser: the market (symbol), the timeframe, the chart type, the trading session, the price scale, the dates on screen, and the multi-chart layout. Send only what should change; everything else on the chart stays, and it never adds or removes an indicator or a drawing. Use it when the member asks to switch their own chart ("put ETH on my chart", "go to the 15 minute", "split it in four"), and before vela_mark_up_chart when the analysis they ask for is of another market or timeframe. The member sees the change happen and is told an assistant made it. Returns what the chart shows afterwards, in words, with no prices: check the market it names is the one asked for. A custom timeframe or a CME futures market the member's plan does not include changes nothing and says which plan limit it is. To show or change a chart inside the chat instead, use chart_open and chart_command. ${WAITS}`,
+        `Changes the chart the signed-in member has open right now in Vela, in their browser: the market (symbol), the timeframe, the chart type, the trading session, the price scale, the dates on screen, and the multi-chart layout. Send only what should change; everything else on the chart stays, and it never adds or removes an indicator or a drawing (vela_add_indicator and vela_remove_indicators do the first). Use it when the member asks to switch their own chart ("put ETH on my chart", "go to the 15 minute", "split it in four"), and before vela_mark_up_chart when the analysis they ask for is of another market or timeframe. The member sees the change happen and is told an assistant made it. Returns what the chart shows afterwards, in words, with no prices: check the market it names is the one asked for. A custom timeframe or a CME futures market the member's plan does not include changes nothing and says which plan limit it is. To show or change a chart inside the chat instead, use chart_open and chart_command. ${WAITS}`,
       inputSchema: z.object({
         layout: z
           .string()
@@ -551,5 +635,129 @@ export function registerVelaChartTools(server: McpServer, runtime: AuthRuntime) 
         removed ? `Removed ${removed} drawing${removed === 1 ? "" : "s"}.` : "No drawing of an assistant or Quant matched, so nothing was removed; the member's own drawings are never touched.",
       );
     },
+  );
+
+  registerProtectedTool(
+    server,
+    runtime,
+    "vela_add_indicator",
+    {
+      title: "Add an indicator to my open Vela chart",
+      description:
+        `Adds an indicator that already exists to the chart the signed-in member has open right now in Vela: one from the LuxAlgo Library, the largest indicator library in trading, by its slug (library_search and library_get_indicator return it), or one of the member's own saved scripts, by its id (quant_search_user_scripts returns it). Give exactly one of the two. Use it when the member asks to put an indicator on their own chart ("add Smart Money Concepts to my chart", "put my saved RSI script on it"): find the slug or the id first, never guess one. It does not take Pine Script® and does not write an indicator: for a new one, the member asks Quant, our coding agent, in Vela. The member sees it appear and is told an assistant added it. Returns the id it has on the chart, which vela_remove_indicators takes, and what the chart shows afterwards; it never returns source code. Nothing is added, and the result says why, when the Library indicator is a paid one the member's plan does not include, when the chart is at their plan's tools per chart, when it is already on the chart, or when the script does not run. ${WAITS}`,
+      inputSchema: z.object({
+        slot,
+        library_slug: z
+          .string()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe('A LuxAlgo Library indicator, by its slug as library_search or library_get_indicator returned it, e.g. "smart-money-concepts".'),
+        script_id: z.string().min(1).max(64).optional().describe("One of the member's saved scripts, by its id as quant_search_user_scripts returned it."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    },
+    async ({ slot: chartSlot, library_slug, script_id }) => {
+      if ((library_slug === undefined) === (script_id === undefined)) {
+        return textError("Nothing added: give library_slug (a LuxAlgo Library indicator) or script_id (one of the member's saved scripts), one of the two.");
+      }
+      return ask(
+        {
+          op: "add_indicator",
+          indicator: {
+            ...(chartSlot !== undefined ? { slot: chartSlot } : {}),
+            ...(library_slug !== undefined ? { library: library_slug.trim() } : { script: script_id!.trim() }),
+          },
+        },
+        ({ indicatorAdded }) => {
+          if (!indicatorAdded) return "Added.";
+          const what = indicatorAdded.kind === "strategy" ? ", a strategy: its backtest runs on the chart" : "";
+          if (indicatorAdded.updated) return `${indicatorAdded.name} was on the member's chart already and now runs its saved version there.`;
+          const whose = indicatorAdded.from === "library" ? "from the LuxAlgo Library" : "from the member's saved scripts";
+          const id = indicatorAdded.id ? ` Its id there is ${indicatorAdded.id}, which vela_remove_indicators takes.` : "";
+          return `Added ${indicatorAdded.name} ${whose} to the member's chart${what}.${id}`;
+        },
+      );
+    },
+  );
+
+  registerProtectedTool(
+    server,
+    runtime,
+    "vela_remove_indicators",
+    {
+      title: "Remove indicators from my open Vela chart",
+      description:
+        `Takes indicators off the chart the signed-in member has open right now in Vela, by id: the id vela_read_chart gives each indicator on that chart, or the id vela_add_indicator returned. Read the chart first when you do not have the id; never make one up. Use it when the member asks to take an indicator off or to clean up their chart, and to make room when their plan's tools per chart is reached. It removes indicators the member added themselves too, so remove only what they asked for; it never touches drawings (vela_remove_drawings does) and does not delete a saved script, which stays in the member's scripts. Returns what came off, by name, and what the chart shows afterwards; an id that names nothing on the chart any more is said so. ${WAITS}`,
+      inputSchema: z.object({
+        slot,
+        ids: z
+          .array(z.string().regex(/^i_[a-z0-9]{6,16}$/, "Not an indicator id: use the id vela_read_chart gives the indicator."))
+          .min(1)
+          .max(10)
+          .describe('The indicators to take off, by the ids vela_read_chart gives them, e.g. "i_0k3v9qa1x7m2pd".'),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+    },
+    async ({ slot: chartSlot, ids }) =>
+      ask({ op: "remove_indicator", indicators: { ...(chartSlot !== undefined ? { slot: chartSlot } : {}), ids } }, ({ indicatorsRemoved }) => {
+        if (!indicatorsRemoved) return "Removed.";
+        const missing = indicatorsRemoved.notOnChart?.length ? ` No indicator on the chart has the id ${list(indicatorsRemoved.notOnChart)} any more.` : "";
+        return `Removed ${list(indicatorsRemoved.names)} from the member's chart.${missing}`;
+      }),
+  );
+
+  const indicatorId = z
+    .string()
+    .regex(/^i_[a-z0-9]{6,16}$/, "Not an indicator id: use the id vela_read_chart gives the indicator.")
+    .describe('The indicator, by the id vela_read_chart gives it, e.g. "i_0k3v9qa1x7m2pd".');
+
+  registerProtectedTool(
+    server,
+    runtime,
+    "vela_get_indicator_settings",
+    {
+      title: "Read an indicator's settings on my open Vela chart",
+      description:
+        `The settings of one indicator on the chart the signed-in member has open right now in Vela, as its settings dialog shows them: each setting's name, its kind (a number, on/off, a choice, a colour, a source, a timeframe), the value it holds now and what it may hold (minimum, maximum, step, or the choices). Use it before vela_set_indicator_settings, to learn the names and what each accepts, and when the member asks how an indicator on their chart is set. Name the indicator by the id vela_read_chart gives it. It changes nothing and returns no prices, no candles and no source code. ${VISIBLE_TAB}`,
+      inputSchema: z.object({ slot, id: indicatorId }),
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+    },
+    async ({ slot: chartSlot, id }) =>
+      ask({ op: "indicator_settings", settings: { ...(chartSlot !== undefined ? { slot: chartSlot } : {}), id } }, ({ indicatorSettings }) =>
+        indicatorSettings ? describeSettings(indicatorSettings) : "Read.",
+      ),
+  );
+
+  registerProtectedTool(
+    server,
+    runtime,
+    "vela_set_indicator_settings",
+    {
+      title: "Change an indicator's settings on my open Vela chart",
+      description:
+        `Changes settings of one indicator on the chart the signed-in member has open right now in Vela, as its settings dialog would: a length, a source, a mode, a toggle, a colour. Name the indicator by the id vela_read_chart gives it and each setting by the name vela_get_indicator_settings lists; read the settings first rather than guessing names. Use it when the member asks to tune an indicator on their chart ("set the RSI length to 21", "turn off the labels"). Vela checks every value against what the indicator declares before anything changes: a setting it does not have, or a value it does not allow, changes nothing and the result says why and lists the settings. The indicator re-runs with the new values in front of the member, who is told an assistant changed their chart; the script itself is not edited (to change what an indicator does, quant_generate_pine_script). Returns each setting changed, from what to what, and what the chart shows afterwards. ${WAITS}`,
+      inputSchema: z.object({
+        slot,
+        id: indicatorId,
+        settings: z
+          .array(
+            z.object({
+              name: z.string().min(1).max(80).describe("The setting's name as vela_get_indicator_settings lists it."),
+              value: z.union([z.number(), z.string().max(200), z.boolean()]).describe("The new value: a number, true or false, or text (one of the choices, a hex colour like #2962ff)."),
+            }),
+          )
+          .min(1)
+          .max(20)
+          .describe("The settings to change; the rest keep their values."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    },
+    async ({ slot: chartSlot, id, settings }) =>
+      ask({ op: "set_indicator_settings", settings: { ...(chartSlot !== undefined ? { slot: chartSlot } : {}), id, inputs: settings } }, ({ indicatorSettingsSet }) => {
+        if (!indicatorSettingsSet) return "Changed.";
+        const changes = indicatorSettingsSet.applied.map((change) => `${change.name} ${change.from !== undefined ? `from ${shown(change.from)} ` : ""}to ${shown(change.to)}`);
+        return `Changed ${indicatorSettingsSet.name} on the member's chart: ${list(changes)}.`;
+      }),
   );
 }

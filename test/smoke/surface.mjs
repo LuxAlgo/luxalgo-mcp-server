@@ -92,7 +92,17 @@ export const QUANT = [
  * (LUXALGO_CHART_CONTROL_TOOLS=on or a Vercel preview), so listed all or none.
  * Never on the Claude address (test/smoke/vela-chart.mjs).
  */
-export const VELA_CHART = ["vela_read_chart", "vela_set_chart", "vela_mark_up_chart", "vela_draw_on_chart", "vela_remove_drawings"];
+export const VELA_CHART = [
+  "vela_read_chart",
+  "vela_set_chart",
+  "vela_mark_up_chart",
+  "vela_draw_on_chart",
+  "vela_remove_drawings",
+  "vela_add_indicator",
+  "vela_remove_indicators",
+  "vela_get_indicator_settings",
+  "vela_set_indicator_settings",
+];
 
 export async function run({ client, check, callJson, callStructured, httpUrl, rawToolsList }) {
   // tools/list

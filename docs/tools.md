@@ -24,6 +24,8 @@ Every tool the LuxAlgo MCP server registers, by area. Names are stable; every re
 | "Look at my chart in Vela: what do you see?" | `chart_peek` (sign-in; standard and ChatGPT addresses) |
 | "Put NVDA on my Vela chart at 15 minutes, mark up the liquidity and fair value gaps, and walk me through it." | `vela_set_chart`, `vela_mark_up_chart` (sign-in; standard address) |
 | "Have Quant write an RSI divergence indicator and save it to my scripts." | `quant_generate_pine_script` (sign-in; standard and ChatGPT addresses) |
+| "Have Quant write a session VWAP with bands and put it on my chart." | `quant_generate_pine_script` with `add_to_chart` (sign-in; standard address) |
+| "Add Smart Money Concepts to my Vela chart and take the RSI off." | `library_search`, `vela_add_indicator`, `vela_remove_indicators` (sign-in; standard address) |
 | "In my most recent backtest loop, what was the best strategy and how did it backtest?" | `quant_list_backtest_loops`, `quant_get_backtest_loop_info`, `quant_get_backtest_loop_strategy` (sign-in; standard and ChatGPT addresses) |
 | "What are my open positions across Alpaca and Kraken?" | `broker_positions` (local, your own read-only keys) |
 
@@ -126,11 +128,15 @@ Live on the standard address (`https://mcp.luxalgo.com/mcp`) for members LuxAlgo
 
 | Tool | Returns |
 | --- | --- |
-| `vela_read_chart` | What your Vela shows, in words: the layout, and each chart's market, timeframe, chart type, indicators, the dates on screen and its clock |
-| `vela_set_chart` | Changes your chart: the market, the timeframe, the chart type, the trading session, the price scale, the dates on screen and the multi-chart layout. Only what you asked for changes; it never adds or removes an indicator |
+| `vela_read_chart` | What your Vela shows, in words: the layout, and each chart's market, timeframe, chart type, indicators, the dates on screen and its clock. Each indicator has an id, and one that is a saved script of yours its script id, so "change the indicator on my chart" is one read and one call to Quant |
+| `vela_set_chart` | Changes your chart: the market, the timeframe, the chart type, the trading session, the price scale, the dates on screen and the multi-chart layout. Only what you asked for changes; it never adds or removes an indicator (`vela_add_indicator` and `vela_remove_indicators` do) |
 | `vela_mark_up_chart` | Marks up your chart the way a professional would, from its own candles: fair value gaps, liquidity, market structure, order blocks, the dealing range, opening gaps, killzones and macros, key levels, support and resistance, trendlines, patterns. Vela finds the exact prices; the answer says what was found |
 | `vela_draw_on_chart` | Draws levels, zones, trendlines, projection paths, channels, Fibonacci retracements, notes, time lines and positions at the times and prices given, as real drawings in Vela's house style |
 | `vela_remove_drawings` | Removes drawings an assistant or Quant made: the groups named, or all of them. Never your own drawings |
+| `vela_add_indicator` | Adds an indicator that already exists to your chart: one from the LuxAlgo Library, by its slug, or one of your saved scripts, by its id. It takes no Pine Script® and writes no indicator; a paid Library indicator your plan does not include, or a chart at your plan's tools per chart, adds nothing and says why |
+| `vela_remove_indicators` | Takes indicators off your chart by the ids `vela_read_chart` gives them. Your saved scripts stay saved |
+| `vela_get_indicator_settings` | One indicator's settings as its settings dialog shows them: each setting's name, kind, value and what it may hold. Changes nothing |
+| `vela_set_indicator_settings` | Changes an indicator's settings by name (a length, a source, a toggle, a colour). Vela checks every value against what the indicator allows; one that does not fit changes nothing and says why |
 
 Each asks your open Vela tab through the LuxAlgo app. With Vela on screen it happens in front of you within seconds: the chart switches, a markup is drawn out stroke by stroke, and the tab says "Your AI changed this chart". When the assistant explains the parts of a markup or a drawing, you are walked through them on the chart, a bubble on each in turn. When Vela is not on screen (you are in another tab, talking to your assistant) a change is queued and applied the moment you look at Vela again, within 10 minutes; with several Vela tabs open, the one you used last is the one that changes.
 
@@ -156,7 +162,7 @@ Live on the standard and ChatGPT addresses, and never on the Claude address whil
 
 | Tool | Returns |
 | --- | --- |
-| `quant_generate_pine_script` | A Pine Script® v6 indicator or strategy written from a prompt, or a script changed in place (one you pass, or one of your saved scripts by its id), with a diff. Quant checks every attempt with LuxAlgo's linter and fixes what fails; the result says whether it passes and what is still flagged. A script that passes is saved to your account as one of your Quant scripts. Uses your Quant usage |
+| `quant_generate_pine_script` | A Pine Script® v6 indicator or strategy written from a prompt, or a script changed in place (one you pass, or one of your saved scripts by its id), with a diff. Quant checks every attempt with LuxAlgo's linter and fixes what fails; the result says whether it passes and what is still flagged. A script that passes is saved to your account as one of your Quant scripts. With `add_to_chart` (off by default; on the standard address, where the chart tools are) it is also put on the chart you have open in Vela, the one you used last. Uses your Quant usage |
 | `quant_validate_pine_script` | Whether a script is valid for LuxAlgo's linter, every error and warning with its position, and what the script declares. Uses no Quant usage |
 | `quant_search_user_scripts` | Your own scripts, the ones Quant wrote for you (in Vela or through these tools) and the ones you saved from the code editor: id, name, kind, origin, dates. No source |
 | `get_user_script` | One of your scripts in full, by its id |
