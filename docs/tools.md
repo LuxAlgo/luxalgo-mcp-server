@@ -22,6 +22,7 @@ Every tool the LuxAlgo MCP server registers, by area. Names are stable; every re
 | "Where did I lose money last month? Tag my worst trade 'chased'." | `journal_breakdown`, `journal_list_trades`, `journal_update_trade` (sign-in) |
 | "Add SOL and ETH to my Majors watchlist." | `watchlists_list`, `watchlists_add_symbols` (sign-in; standard and ChatGPT addresses) |
 | "Look at my chart in Vela: what do you see?" | `chart_peek` (sign-in; standard and ChatGPT addresses) |
+| "Put NVDA on my Vela chart at 15 minutes, mark up the liquidity and fair value gaps, and walk me through it." | `vela_set_chart`, `vela_mark_up_chart` (sign-in; standard address) |
 | "Have Quant write an RSI divergence indicator and save it to my scripts." | `quant_generate_pine_script` (sign-in; standard and ChatGPT addresses) |
 | "In my most recent backtest loop, what was the best strategy and how did it backtest?" | `quant_list_backtest_loops`, `quant_get_backtest_loop_info`, `quant_get_backtest_loop_strategy` (sign-in; standard and ChatGPT addresses) |
 | "What are my open positions across Alpaca and Kraken?" | `broker_positions` (local, your own read-only keys) |
@@ -118,6 +119,22 @@ Watchlists, saved layouts and `chart_peek` are live on the standard and ChatGPT 
 | `chart_peek` | A picture of the chart you have open in Vela, as you see it, with its market, timeframe and indicators in words and its `chart_url`; crypto charts fed by an exchange only (Binance, Binance.US, Coinbase, Hyperliquid), with your Vela tab open and visible |
 
 Markets are named `source:TICKER` (`binance:BTCUSDT`, `hyperliquid:BTC`, `edgx:AAPL`, `fx:EURUSD`, `cme:ES1!`). Alerts notify your in-app channel (Vela on the web and the Vela app on your phone) when you have one, and say so plainly when they notify no one. Your plan sets the limits; nothing here deletes a watchlist, a layout or an alert. `chart_peek` asks your open Vela tab for its picture through the LuxAlgo app, which keeps nothing after the answer; for any market other than exchange-fed crypto it says so and sends no picture, and if no tab answers it asks you to open Vela at https://vela.luxalgo.com/chart, keep it visible and ask again in a minute.
+
+## Your open Vela chart, changed by asking (sign-in)
+
+Live on the standard address (`https://mcp.luxalgo.com/mcp`) for members LuxAlgo has opened it to; anyone else is told it is not available yet. Not on the ChatGPT address yet, and never on the Claude address while its directory review runs; self-hosted, they register with `LUXALGO_CHART_CONTROL_TOOLS=on`. These act on your own Vela, the chart you have open in your browser, not on the chart in the chat (`chart_open` and `chart_command` are for that one).
+
+| Tool | Returns |
+| --- | --- |
+| `vela_read_chart` | What your Vela shows, in words: the layout, and each chart's market, timeframe, chart type, indicators, the dates on screen and its clock |
+| `vela_set_chart` | Changes your chart: the market, the timeframe, the chart type, the trading session, the price scale, the dates on screen and the multi-chart layout. Only what you asked for changes; it never adds or removes an indicator |
+| `vela_mark_up_chart` | Marks up your chart the way a professional would, from its own candles: fair value gaps, liquidity, market structure, order blocks, the dealing range, opening gaps, killzones and macros, key levels, support and resistance, trendlines, patterns. Vela finds the exact prices; the answer says what was found |
+| `vela_draw_on_chart` | Draws levels, zones, trendlines, projection paths, channels, Fibonacci retracements, notes, time lines and positions at the times and prices given, as real drawings in Vela's house style |
+| `vela_remove_drawings` | Removes drawings an assistant or Quant made: the groups named, or all of them. Never your own drawings |
+
+Each asks your open Vela tab through the LuxAlgo app. With Vela on screen it happens in front of you within seconds: the chart switches, a markup is drawn out stroke by stroke, and the tab says "Your AI changed this chart". When the assistant explains the parts of a markup or a drawing, you are walked through them on the chart, a bubble on each in turn. When Vela is not on screen (you are in another tab, talking to your assistant) a change is queued and applied the moment you look at Vela again, within 10 minutes; with several Vela tabs open, the one you used last is the one that changes.
+
+Results are words and never carry candles. A markup returns the exact prices it found for a crypto chart fed by an exchange (Binance, Binance.US, Coinbase, Hyperliquid); for any other market it names what it found without prices, and the drawings sit at their exact levels on your chart. Your plan sets what a chart may show: a custom timeframe or a CME futures market it does not include changes nothing, and the answer names the limit.
 
 ## Paper trading (sign-in)
 

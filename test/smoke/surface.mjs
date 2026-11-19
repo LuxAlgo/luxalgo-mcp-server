@@ -86,6 +86,14 @@ export const QUANT = [
   "quant_get_backtest_loop_strategy",
 ];
 
+/**
+ * The member's open Vela chart, read and changed by their AI assistant
+ * (market, timeframe, look, layout, a pro's markup, drawings): protected, and opt-in
+ * (LUXALGO_CHART_CONTROL_TOOLS=on or a Vercel preview), so listed all or none.
+ * Never on the Claude address (test/smoke/vela-chart.mjs).
+ */
+export const VELA_CHART = ["vela_read_chart", "vela_set_chart", "vela_mark_up_chart", "vela_draw_on_chart", "vela_remove_drawings"];
+
 export async function run({ client, check, callJson, callStructured, httpUrl, rawToolsList }) {
   // tools/list
   const { tools } = await client.listTools();
@@ -133,8 +141,9 @@ export async function run({ client, check, callJson, callStructured, httpUrl, ra
   const alertsOn = accountOn && (httpUrl ? tools.some((t) => ALERTS_PROTECTED.includes(t.name)) : process.env.LUXALGO_ALERT_TOOLS === "on");
   const paperOn = httpUrl ? tools.some((t) => PAPER.includes(t.name)) : process.env.LUXALGO_PAPER_TOOLS === "on";
   const quantOn = httpUrl ? tools.some((t) => QUANT.includes(t.name)) : process.env.LUXALGO_QUANT_TOOLS === "on";
+  const velaChartOn = httpUrl ? tools.some((t) => VELA_CHART.includes(t.name)) : process.env.LUXALGO_CHART_CONTROL_TOOLS === "on";
   const accountExpected = [...(accountOn ? MEMBER_PROTECTED : []), ...(alertsOn ? ALERTS_PROTECTED : [])];
-  const protectedAll = [...PROTECTED, ...accountExpected, ...(paperOn ? PAPER : []), ...(quantOn ? QUANT : [])];
+  const protectedAll = [...PROTECTED, ...accountExpected, ...(paperOn ? PAPER : []), ...(quantOn ? QUANT : []), ...(velaChartOn ? VELA_CHART : [])];
   const expectedAll = [
     ...expected,
     ...(httpUrl ? [] : brokerExpected),
@@ -142,10 +151,11 @@ export async function run({ client, check, callJson, callStructured, httpUrl, ra
     ...accountExpected,
     ...(paperOn ? PAPER : []),
     ...(quantOn ? QUANT : []),
+    ...(velaChartOn ? VELA_CHART : []),
   ];
   const names = tools.map((t) => t.name).sort();
   check(
-    `tools/list exposes exactly the ${expectedAll.length} ${httpUrl ? "hosted" : "stdio"} tools${chartOn ? " (chart tools on)" : ""}${accountOn ? " (account tools on)" : ""}${alertsOn ? " (alerts on)" : ""}${paperOn ? " (paper tools on)" : ""}${quantOn ? " (Quant tools on)" : ""}`,
+    `tools/list exposes exactly the ${expectedAll.length} ${httpUrl ? "hosted" : "stdio"} tools${chartOn ? " (chart tools on)" : ""}${accountOn ? " (account tools on)" : ""}${alertsOn ? " (alerts on)" : ""}${paperOn ? " (paper tools on)" : ""}${quantOn ? " (Quant tools on)" : ""}${velaChartOn ? " (chart control tools on)" : ""}`,
     names.length === expectedAll.length && expectedAll.slice().sort().every((n, i) => names[i] === n),
     names.join(", "),
   );

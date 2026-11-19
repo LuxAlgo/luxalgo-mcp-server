@@ -26,9 +26,11 @@ import { chartModule, chartPeekModule, chartToolsEnabled } from "../tools/chart/
 import {
   accountToolsEnabled,
   alertToolsEnabled,
+  chartControlToolsEnabled,
   paperToolsEnabled,
   quantToolsEnabled,
 } from "../tools/_shared/member.js";
+import { velaChartModule } from "../tools/vela/index.js";
 import { watchlistsModule } from "../tools/watchlists/index.js";
 import { layoutsModule } from "../tools/layouts/index.js";
 import { alertsModule } from "../tools/alerts/index.js";
@@ -59,6 +61,11 @@ export const TOOL_MODULES: readonly ToolModule[] = [
   // backtest loops; three of its tools spend the member's Quant usage): on for the hosted deployments unless
   // LUXALGO_QUANT_TOOLS=off, elsewhere only with LUXALGO_QUANT_TOOLS=on, and never on the Claude address (_shared/member.ts).
   ...(quantToolsEnabled() ? [quantModule] : []),
+  // The member's open Vela chart, read and changed by their AI assistant (market, timeframe, look, layout, a pro's markup,
+  // drawings): on for the hosted deployments unless LUXALGO_CHART_CONTROL_TOOLS=off, elsewhere only with
+  // LUXALGO_CHART_CONTROL_TOOLS=on; never on the Claude address, and on the ChatGPT address only where asked for by name
+  // (_shared/member.ts, tools/vela/index.ts).
+  ...(chartControlToolsEnabled() ? [velaChartModule] : []),
 ];
 
 export const PROTECTED_TOOL_NAMES: ReadonlySet<string> = new Set(
